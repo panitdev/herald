@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useCallback, useState } from "react"
+import { useCallback, useState } from "react"
 import {
   navigateToMail,
   navigateToMailbox,
@@ -27,16 +27,14 @@ export function useMailNavigation(
 ): UseMailNavigationReturn {
   const { initialMailbox = "inbox" } = options
 
-  const [selectedId, setSelectedIdState] = useState<string | null>(null)
-  const [mailbox, setMailboxState] = useState<Mailbox>(initialMailbox)
-
-  // Initialize from URL on mount (client-only)
-  useEffect(() => {
-    const id = getMailIdFromUrl()
-    const box = getMailboxFromUrl() as Mailbox | null
-    if (id) setSelectedIdState(id)
-    if (box) setMailboxState(box)
-  }, [])
+  // No SSR - can read synchronously since component only mounts on client
+  const [selectedId, setSelectedIdState] = useState<string | null>(getMailIdFromUrl)
+  const [mailbox, setMailboxState] = useState<Mailbox>(() => {
+    const box = getMailboxFromUrl()
+    return (box && ["inbox", "sent", "drafts", "starred", "archive", "trash"].includes(box))
+      ? box as Mailbox
+      : initialMailbox
+  })
 
   const setMailbox = useCallback((newMailbox: Mailbox) => {
     navigateToMailbox(newMailbox)
@@ -44,25 +42,9 @@ export function useMailNavigation(
   }, [])
 
   const setSelectedId = useCallback((id: string | null) => {
-    if (id) {
-      navigateToMail(id)
-    } else {
-      navigateToRoot()
-    }
+    if (id) navigateToMail(id)
+    else navigateToRoot()
     setSelectedIdState(id)
-  }, [])
-
-  // Sync from browser back/forward
-  useEffect(() => {
-    const handlePopstate = () => {
-      const id = getMailIdFromUrl()
-      const box = getMailboxFromUrl() as Mailbox | null
-      if (id) setSelectedIdState(id)
-      if (box) setMailboxState(box)
-    }
-
-    window.addEventListener("popstate", handlePopstate)
-    return () => window.removeEventListener("popstate", handlePopstate)
   }, [])
 
   return {

@@ -91,6 +91,7 @@ export function EmailSidebar({
                     <motion.span
                       layoutId="sidebar-active"
                       className="absolute inset-0 rounded-lg bg-sidebar-accent ring-1 ring-sidebar-accent-foreground/10"
+                      initial={false}
                       transition={{ type: "spring", stiffness: 500, damping: 40 }}
                     />
                   )}
@@ -99,6 +100,7 @@ export function EmailSidebar({
                       layoutId="sidebar-active-bar"
                       aria-hidden
                       className="absolute left-1 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-primary"
+                      initial={false}
                       transition={{ type: "spring", stiffness: 500, damping: 40 }}
                     />
                   )}
