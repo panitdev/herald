@@ -14,11 +14,13 @@ import { SettingsDialog } from "./settings-dialog"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { SettingsProvider } from "@/lib/settings-store"
+import { useMailNavigation, type Mailbox } from "@/hooks/use-mail-navigation"
 
 export function EmailClient() {
   const [emails, setEmails] = useState<Email[]>(INITIAL_EMAILS)
-  const [activeFolder, setActiveFolder] = useState<Folder>("inbox")
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { mailbox: activeFolder, setMailbox, selectedId, setSelectedId } = useMailNavigation({
+    initialMailbox: "inbox",
+  })
   const [search, setSearch] = useState("")
   const [composeOpen, setComposeOpen] = useState(false)
   const [composePrefill, setComposePrefill] = useState<{ to: string; subject: string }>({
@@ -77,11 +79,6 @@ export function EmailClient() {
     () => emails.find((e) => e.id === selectedId) ?? null,
     [emails, selectedId],
   )
-
-  // When folder changes, clear selection
-  useEffect(() => {
-    setSelectedId(null)
-  }, [activeFolder])
 
   // Mark as read when opened
   function handleSelect(id: string) {
@@ -225,7 +222,7 @@ export function EmailClient() {
     <EmailSidebar
       active={activeFolder}
       onSelect={(f) => {
-        setActiveFolder(f)
+        setMailbox(f as Mailbox)
         setMobileSidebarOpen(false)
       }}
       counts={counts}
