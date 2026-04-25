@@ -7,7 +7,7 @@ import {
   type Message as ApiMessage,
   APIError,
 } from "@/lib/api"
-import type { Email, Folder } from "@/lib/mock-emails"
+import type { Email, Folder } from "@/lib/types"
 
 // Transform API message to Email type
 function transformMessage(msg: ApiMessage, folder: Folder): Email {

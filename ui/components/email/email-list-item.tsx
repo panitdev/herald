@@ -13,7 +13,7 @@ import {
   FolderInput,
   Forward,
 } from "lucide-react"
-import type { Email } from "@/lib/mock-emails"
+import type { Email } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatEmailDate } from "@/lib/email-utils"
 import {

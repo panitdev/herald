@@ -18,8 +18,21 @@ type EmailMessage = {
 
 export default {
   async email(message: ForwardableEmailMessage, env: Env, ctx: ExecutionContext) {
-    const mailboxId = message.to.toLowerCase()
+    const address = message.to.toLowerCase()
     const messageId = crypto.randomUUID()
+
+    // Look up mailbox UUID from address
+    const mailbox = await env.DB.prepare(
+      "SELECT id FROM mailboxes WHERE address = ?"
+    ).bind(address).first() as { id: string } | undefined
+
+    if (!mailbox) {
+      // Reject - mailbox not found or not registered
+      console.log(`Rejecting email for unknown address: ${address}`)
+      return new Response("550 mailbox not found", { status: 550 })
+    }
+
+    const mailboxId = mailbox.id  // UUID
     const rawKey = `raw/${mailboxId}/${messageId}.eml`
 
     // Store raw email to R2
@@ -54,17 +67,19 @@ export default {
     ).run()
 
     // Queue for async processing (attachments, search indexing)
+    // Use address for queue message (not UUID) - more readable
     ctx.waitUntil(
       env.INGEST_QUEUE.send({
         type: "mail.ingest",
-        mailboxId,
+        address,
         messageId,
         rawKey,
       })
     )
 
     // Notify connected WebSocket clients
-    const id = env.MAILBOX_REALTIME.idFromName(`mailbox:${mailboxId}`)
+    // Use address-based DO ID for easier identification
+    const id = env.MAILBOX_REALTIME.idFromName(`mailbox:${address}`)
     const stub = env.MAILBOX_REALTIME.get(id)
 
     ctx.waitUntil(

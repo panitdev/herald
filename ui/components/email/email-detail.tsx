@@ -14,7 +14,7 @@ import {
   Mail as MailIcon,
   Paperclip,
 } from "lucide-react"
-import type { Email } from "@/lib/mock-emails"
+import type { Email } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatEmailDateLong } from "@/lib/email-utils"
 import { Button } from "@/components/ui/button"

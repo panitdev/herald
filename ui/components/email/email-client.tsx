@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { toast } from "sonner"
 import { Menu, Loader2 } from "lucide-react"
 
-import { INITIAL_EMAILS, type Email, type Folder } from "@/lib/mock-emails"
+import { type Email, type Folder } from "@/lib/types"
 import { EmailSidebar } from "./sidebar"
 import { EmailList } from "./email-list"
 import { EmailDetail } from "./email-detail"
@@ -54,17 +54,16 @@ export function EmailClient() {
 
   // Combine: API emails + local actions (starred, folder changes)
   const combinedEmails = useMemo(() => {
-    // If authenticated and have API emails, use them
-    if (isAuthenticated && apiEmails.length > 0) {
-      // Merge with local state (actions like star/archive stored locally)
+    // If authenticated, always use API (even if empty — no mock data)
+    if (isAuthenticated && activeMailboxId !== null) {
       return apiEmails.map((apiEmail) => {
         const local = emails.find((e) => e.id === apiEmail.id)
         return local ? { ...apiEmail, starred: local.starred, folder: local.folder } : apiEmail
       })
     }
-    // Otherwise use mock data
-    return emails.length > 0 ? emails : INITIAL_EMAILS
-  }, [apiEmails, emails, isAuthenticated])
+    // Not authenticated — show nothing (no mock data)
+    return []
+  }, [apiEmails, emails, isAuthenticated, activeMailboxId])
 
   // Derived: emails in folder with search
 

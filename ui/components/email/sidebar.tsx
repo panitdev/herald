@@ -12,7 +12,7 @@ import {
   Mail,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Folder } from "@/lib/mock-emails"
+import type { Folder } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { ProfileMenu } from "./profile-menu"
 

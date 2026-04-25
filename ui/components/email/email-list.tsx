@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react"
 import { Search, Inbox as InboxIcon } from "lucide-react"
-import type { Email, Folder } from "@/lib/mock-emails"
+import type { Email, Folder } from "@/lib/types"
 import { EmailListItem } from "./email-list-item"
 import { Input } from "@/components/ui/input"
 
