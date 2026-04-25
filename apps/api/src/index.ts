@@ -6,7 +6,7 @@ import type { Context } from "hono"
 import { cors } from "hono/cors"
 import { MailboxRealtime } from "./realtime"
 import {
-  hashPassword,
+  hashPasswordWithSalt,
   verifyPassword,
   hashToken,
   createAccessToken,
@@ -55,13 +55,13 @@ app.post("/api/auth/register", async (c) => {
   }
   
   const email = body.email.toLowerCase()
-  const passwordHash = await hashPassword(body.password)
+  const { hash: passwordHash, salt } = await hashPasswordWithSalt(body.password)
   const id = crypto.randomUUID()
   
   try {
     await c.env.DB.prepare(
-      `INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)`
-    ).bind(id, email, passwordHash).run()
+      `INSERT INTO users (id, email, password_hash, salt) VALUES (?, ?, ?, ?)`
+    ).bind(id, email, passwordHash, salt).run()
   } catch (e) {
     if (e instanceof Error && e.message.includes("UNIQUE constraint")) {
       return c.json({ error: "email already exists" }, 409)
@@ -89,7 +89,7 @@ app.post("/api/auth/login", async (c) => {
   const email = body.email.toLowerCase()
   
   const { results } = await c.env.DB.prepare(
-    `SELECT id, email, password_hash FROM users WHERE email = ?`
+    `SELECT id, email, password_hash, salt FROM users WHERE email = ?`
   ).bind(email).all() as { results: UserRow[] }
   
   if (!results.length) {
@@ -97,7 +97,7 @@ app.post("/api/auth/login", async (c) => {
   }
   
   const user = results[0]
-  const valid = await verifyPassword(body.password, user.password_hash)
+  const valid = await verifyPassword(body.password, user.salt, user.password_hash)
   
   if (!valid) {
     return c.json({ error: "invalid credentials" }, 401)
@@ -161,7 +161,7 @@ app.post("/api/auth/logout", async (c) => {
 
 // Helper to create token pair
 async function createTokens(c: Context, userId: string, email: string): Promise<TokenPair> {
-  const accessToken = createAccessToken(userId, email)
+  const accessToken = await createAccessToken(userId, email)
   const refreshToken = createRefreshToken(userId)
   const tokenHash = await hashToken(refreshToken)
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -405,6 +405,7 @@ interface UserRow {
   id: string
   email: string
   password_hash: string
+  salt: string
 }
 
 interface RefreshTokenRow {

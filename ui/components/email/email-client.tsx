@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { toast } from "sonner"
-import { Menu } from "lucide-react"
+import { Menu, Loader2 } from "lucide-react"
 
 import { INITIAL_EMAILS, type Email, type Folder } from "@/lib/mock-emails"
 import { EmailSidebar } from "./sidebar"
@@ -15,9 +15,13 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { SettingsProvider } from "@/lib/settings-store"
 import { useMailNavigation, type Mailbox } from "@/hooks/use-mail-navigation"
+import { useMailboxes } from "@/hooks/use-mailboxes"
+import { useMessages } from "@/hooks/use-messages"
+import { setAuthToken } from "@/lib/api"
+import { useAuth } from "@/lib/auth-store"
 
 export function EmailClient() {
-  const [emails, setEmails] = useState<Email[]>(INITIAL_EMAILS)
+  const [emails, setEmails] = useState<Email[]>([])
   const { mailbox: activeFolder, setMailbox, selectedId, setSelectedId } = useMailNavigation({
     initialMailbox: "inbox",
   })
@@ -30,10 +34,44 @@ export function EmailClient() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  // Auth - set token for API calls
+  const { accessToken, user } = useAuth()
+  useEffect(() => {
+    setAuthToken(accessToken)
+  }, [accessToken])
+
+  // API data
+  const { mailboxes, loading: mailboxesLoading, error: mailboxesError } = useMailboxes()
+  const activeMailboxId = mailboxes[0]?.id ?? null
+  const {
+    emails: apiEmails,
+    loading: messagesLoading,
+    error: messagesError,
+    markRead,
+  } = useMessages(activeMailboxId)
+
+  const isAuthenticated = !!user
+
+  // Combine: API emails + local actions (starred, folder changes)
+  const combinedEmails = useMemo(() => {
+    // If authenticated and have API emails, use them
+    if (isAuthenticated && apiEmails.length > 0) {
+      // Merge with local state (actions like star/archive stored locally)
+      return apiEmails.map((apiEmail) => {
+        const local = emails.find((e) => e.id === apiEmail.id)
+        return local ? { ...apiEmail, starred: local.starred, folder: local.folder } : apiEmail
+      })
+    }
+    // Otherwise use mock data
+    return emails.length > 0 ? emails : INITIAL_EMAILS
+  }, [apiEmails, emails, isAuthenticated])
+
+  // Derived: emails in folder with search
+
   // Derived: emails in folder with search
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return emails
+    return combinedEmails
       .filter((e) => {
         if (activeFolder === "starred") return e.starred && e.folder !== "trash"
         return e.folder === activeFolder
@@ -48,7 +86,7 @@ export function EmailClient() {
         )
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [emails, activeFolder, search])
+  }, [combinedEmails, activeFolder, search])
 
   const counts = useMemo(() => {
     const c: Record<Folder, number> = {
@@ -59,7 +97,7 @@ export function EmailClient() {
       archive: 0,
       trash: 0,
     }
-    for (const e of emails) {
+    for (const e of combinedEmails) {
       if (e.folder === "inbox" && !e.read) c.inbox++
       if (e.starred && e.folder !== "trash") c.starred++
       if (e.folder === "sent") c.sent++
@@ -68,7 +106,7 @@ export function EmailClient() {
       if (e.folder === "trash") c.trash++
     }
     return c
-  }, [emails])
+  }, [combinedEmails])
 
   const unreadCount = useMemo(
     () => filtered.filter((e) => !e.read).length,
@@ -76,36 +114,41 @@ export function EmailClient() {
   )
 
   const selected = useMemo(
-    () => emails.find((e) => e.id === selectedId) ?? null,
-    [emails, selectedId],
+    () => combinedEmails.find((e) => e.id === selectedId) ?? null,
+    [combinedEmails, selectedId],
   )
 
   // Mark as read when opened
   function handleSelect(id: string) {
     setSelectedId(id)
+    // Update local state
     setEmails((prev) =>
-      prev.map((e) => (e.id === id && !e.read ? { ...e, read: true } : e)),
+      prev.map((e) => (e.id === id && !e.read ? { ...e, read: true } : e))
     )
+    // Also call API if authenticated
+    if (isAuthenticated) {
+      markRead(id)
+    }
   }
 
   function handleToggleStar(id: string) {
     setEmails((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, starred: !e.starred } : e)),
+      prev.map((e) => (e.id === id ? { ...e, starred: !e.starred } : e))
     )
   }
 
   function handleToggleRead(id: string) {
     setEmails((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, read: !e.read } : e)),
+      prev.map((e) => (e.id === id ? { ...e, read: !e.read } : e))
     )
   }
 
   function handleArchive(id: string) {
-    const target = emails.find((e) => e.id === id)
+    const target = combinedEmails.find((e) => e.id === id)
     if (!target) return
     const prevFolder = target.folder
     setEmails((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, folder: "archive" } : e)),
+      prev.map((e) => (e.id === id ? { ...e, folder: "archive" } : e))
     )
     if (selectedId === id) setSelectedId(null)
     toast.success("Archived", {
@@ -114,7 +157,7 @@ export function EmailClient() {
         label: "Undo",
         onClick: () => {
           setEmails((prev) =>
-            prev.map((e) => (e.id === id ? { ...e, folder: prevFolder } : e)),
+            prev.map((e) => (e.id === id ? { ...e, folder: prevFolder } : e))
           )
         },
       },
@@ -122,7 +165,7 @@ export function EmailClient() {
   }
 
   function handleDelete(id: string) {
-    const target = emails.find((e) => e.id === id)
+    const target = combinedEmails.find((e) => e.id === id)
     if (!target) return
     const prevFolder = target.folder
     // If already in trash, permanently delete
@@ -133,7 +176,7 @@ export function EmailClient() {
       return
     }
     setEmails((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, folder: "trash" } : e)),
+      prev.map((e) => (e.id === id ? { ...e, folder: "trash" } : e))
     )
     if (selectedId === id) setSelectedId(null)
     toast.success("Moved to Trash", {
@@ -142,7 +185,7 @@ export function EmailClient() {
         label: "Undo",
         onClick: () => {
           setEmails((prev) =>
-            prev.map((e) => (e.id === id ? { ...e, folder: prevFolder } : e)),
+            prev.map((e) => (e.id === id ? { ...e, folder: prevFolder } : e))
           )
         },
       },
@@ -156,7 +199,7 @@ export function EmailClient() {
 
   function handleReply(id?: string) {
     const target = id
-      ? emails.find((e) => e.id === id) ?? null
+      ? combinedEmails.find((e) => e.id === id) ?? null
       : selected
     if (!target) return
     setComposePrefill({
@@ -270,20 +313,36 @@ export function EmailClient() {
           </div>
 
           <div className="min-h-0 flex-1">
-            <EmailList
-              folder={activeFolder}
-              emails={filtered}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-              onToggleStar={handleToggleStar}
-              onToggleRead={handleToggleRead}
-              onArchive={handleArchive}
-              onDelete={handleDelete}
-              onReply={(id) => handleReply(id)}
-              search={search}
-              onSearchChange={setSearch}
-              unreadCount={unreadCount}
-            />
+            {/* Loading state when fetching from API */}
+            {(messagesLoading || mailboxesLoading) && isAuthenticated ? (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : messagesError || mailboxesError ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
+                <p className="text-sm text-destructive">
+                  {messagesError || mailboxesError}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <EmailList
+                folder={activeFolder}
+                emails={filtered}
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                onToggleStar={handleToggleStar}
+                onToggleRead={handleToggleRead}
+                onArchive={handleArchive}
+                onDelete={handleDelete}
+                onReply={(id) => handleReply(id)}
+                search={search}
+                onSearchChange={setSearch}
+                unreadCount={unreadCount}
+              />
+            )}
           </div>
         </div>
 
