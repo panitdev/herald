@@ -21,18 +21,28 @@ export default {
     const address = message.to.toLowerCase()
     const messageId = crypto.randomUUID()
 
-    // Look up mailbox UUID from address
-    const mailbox = await env.DB.prepare(
-      "SELECT id FROM mailboxes WHERE address = ?"
+    // Look up user by address
+    const user = await env.DB.prepare(
+      "SELECT id FROM users WHERE address = ?"
     ).bind(address).first() as { id: string } | undefined
 
-    if (!mailbox) {
-      // Reject - mailbox not found or not registered
+    if (!user) {
+      // Reject - user not found
       console.log(`Rejecting email for unknown address: ${address}`)
-      return new Response("550 mailbox not found", { status: 550 })
+      return new Response("550 user not found", { status: 550 })
     }
 
-    const mailboxId = mailbox.id  // UUID
+    // Get user's inbox folder
+    const inbox = await env.DB.prepare(
+      "SELECT id FROM mailboxes WHERE user_id = ? AND name = 'inbox'"
+    ).bind(user.id).first() as { id: string } | undefined
+
+    if (!inbox) {
+      console.error(`No inbox folder for user: ${user.id}`)
+      return new Response("550 mailbox error", { status: 550 })
+    }
+
+    const mailboxId = inbox.id
     const rawKey = `raw/${mailboxId}/${messageId}.eml`
 
     // Store raw email to R2
@@ -78,8 +88,7 @@ export default {
     )
 
     // Notify connected WebSocket clients
-    // Use address-based DO ID for easier identification
-    const id = env.MAILBOX_REALTIME.idFromName(`mailbox:${address}`)
+    const id = env.MAILBOX_REALTIME.idFromName(`mailbox:${user.id}`)
     const stub = env.MAILBOX_REALTIME.get(id)
 
     ctx.waitUntil(

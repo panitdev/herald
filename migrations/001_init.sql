@@ -1,15 +1,32 @@
 -- migrations/001_init.sql
--- Initial D1 schema for Herald
--- Run with: wrangler d1 migrations apply herald-database --local --remote
+-- Initial schema for Herald - consolidates all migrations
+-- Run with: pnpm db:migrate:local
 
--- Mailboxes table (user email addresses)
-CREATE TABLE IF NOT EXISTS mailboxes (
+-- ============================================
+-- Users table (email address = login + receiving)
+-- ============================================
+CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   address TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  salt TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Messages table (email metadata)
+-- ============================================
+-- Mailboxes table (folders per user)
+-- ============================================
+CREATE TABLE IF NOT EXISTS mailboxes (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  is_system INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- Messages table
+-- ============================================
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
   mailbox_id TEXT NOT NULL,
@@ -21,21 +38,49 @@ CREATE TABLE IF NOT EXISTS messages (
   r2_raw_key TEXT NOT NULL,
   received_at TEXT NOT NULL,
   read_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (mailbox_id) REFERENCES mailboxes(id)
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Index for listing messages by mailbox
-CREATE INDEX IF NOT EXISTS idx_messages_mailbox_received
-ON messages (mailbox_id, received_at DESC);
-
+-- ============================================
 -- Attachments table
+-- ============================================
 CREATE TABLE IF NOT EXISTS attachments (
   id TEXT PRIMARY KEY,
   message_id TEXT NOT NULL,
   filename TEXT,
   content_type TEXT,
   size INTEGER,
-  r2_key TEXT NOT NULL,
-  FOREIGN KEY (message_id) REFERENCES messages(id)
+  r2_key TEXT NOT NULL
 );
+
+-- ============================================
+-- API tokens table (for programmatic access)
+-- ============================================
+CREATE TABLE IF NOT EXISTS api_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  last_used_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- Refresh tokens table
+-- ============================================
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- Indexes
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_mailboxes_user_name ON mailboxes(user_id, name);
+CREATE INDEX IF NOT EXISTS idx_messages_mailbox_received ON messages(mailbox_id, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_address ON users(address);
+CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);

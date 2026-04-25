@@ -4,12 +4,12 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-04-25",
   "compatibility_flags": ["nodejs_compat"],
-
   "d1_databases": [
     {
+      "migrations_dir": "../../migrations/",
       "binding": "DB",
       "database_name": "herald-database",
-      "database_id": "3155e7ee-e473-4e4e-9b75-904b6936d4b6"
+      "database_id": "6e68d423-6ef3-47a4-8e55-87322c077c93"
     }
   ],
 
@@ -28,15 +28,10 @@
       }
     ]
   },
-
   "migrations": [
     {
       "tag": "init",
       "new_sqlite_classes": ["MailboxRealtime"]
-    },
-    {
-      "tag": "auth",
-      "new_sqlite_classes": []
     }
   ]
 }

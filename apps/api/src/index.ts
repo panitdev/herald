@@ -44,69 +44,79 @@ app.get("/health", (c) => c.json({ ok: true }))
 
 // Register
 app.post("/api/auth/register", async (c) => {
-  const body = await c.req.json<{ email: string; password: string }>()
-  
-  if (!body.email || !body.password) {
-    return c.json({ error: "email and password required" }, 400)
+  const body = await c.req.json<{ address: string; password: string }>()
+
+  if (!body.address || !body.password) {
+    return c.json({ error: "address and password required" }, 400)
   }
-  
+
   if (body.password.length < 8) {
     return c.json({ error: "password must be at least 8 characters" }, 400)
   }
-  
-  const email = body.email.toLowerCase()
+
+  const address = body.address.toLowerCase()
   const { hash: passwordHash, salt } = await hashPasswordWithSalt(body.password)
   const id = crypto.randomUUID()
-  
+
   try {
     await c.env.DB.prepare(
-      `INSERT INTO users (id, email, password_hash, salt) VALUES (?, ?, ?, ?)`
-    ).bind(id, email, passwordHash, salt).run()
+      `INSERT INTO users (id, address, password_hash, salt) VALUES (?, ?, ?, ?)`
+    ).bind(id, address, passwordHash, salt).run()
   } catch (e) {
     if (e instanceof Error && e.message.includes("UNIQUE constraint")) {
-      return c.json({ error: "email already exists" }, 409)
+      return c.json({ error: "address already exists" }, 409)
     }
     throw e
   }
-  
+
+  // Create default folders for the new user
+  await c.env.DB.prepare(
+    `INSERT INTO mailboxes (id, user_id, name, is_system) VALUES (?, ?, 'inbox', 1), (?, ?, 'sent', 1), (?, ?, 'trash', 1), (?, ?, 'spam', 1)`
+  ).bind(
+    crypto.randomUUID(), id, // inbox
+    crypto.randomUUID(), id, // sent
+    crypto.randomUUID(), id, // trash
+    crypto.randomUUID(), id, // spam
+  ).run()
+
   // Create tokens
-  const tokens = await createTokens(c, id, email)
-  
+  const tokens = await createTokens(c, id, address)
+
   return c.json({
-    user: { id, email },
+    user: { id, address },
     ...tokens,
   }, 201)
 })
 
 // Login
 app.post("/api/auth/login", async (c) => {
-  const body = await c.req.json<{ email: string; password: string }>()
-  
-  if (!body.email || !body.password) {
-    return c.json({ error: "email and password required" }, 400)
+  const body = await c.req.json<{ address: string; password: string }>()
+
+  if (!body.address || !body.password) {
+    return c.json({ error: "address and password required" }, 400)
   }
-  
-  const email = body.email.toLowerCase()
-  
+
+  const address = body.address.toLowerCase()
+
   const { results } = await c.env.DB.prepare(
-    `SELECT id, email, password_hash, salt FROM users WHERE email = ?`
-  ).bind(email).all() as { results: UserRow[] }
-  
+    `SELECT id, address, password_hash, salt FROM users WHERE address = ?`
+  ).bind(address).all() as { results: UserRow[] }
+
   if (!results.length) {
     return c.json({ error: "invalid credentials" }, 401)
   }
-  
+
   const user = results[0]
   const valid = await verifyPassword(body.password, user.salt, user.password_hash)
-  
+
   if (!valid) {
     return c.json({ error: "invalid credentials" }, 401)
   }
-  
-  const tokens = await createTokens(c, user.id, user.email)
-  
+
+  const tokens = await createTokens(c, user.id, user.address)
+
   return c.json({
-    user: { id: user.id, email: user.email },
+    user: { id: user.id, address: user.address },
     ...tokens,
   })
 })
@@ -122,17 +132,17 @@ app.post("/api/auth/refresh", async (c) => {
   const tokenHash = await hashToken(body.refreshToken)
   
   const { results } = await c.env.DB.prepare(
-    `SELECT rt.user_id, u.email 
-     FROM refresh_tokens rt 
-     JOIN users u ON rt.user_id = u.id 
+    `SELECT rt.user_id, u.address
+     FROM refresh_tokens rt
+     JOIN users u ON rt.user_id = u.id
      WHERE rt.token_hash = ? AND rt.expires_at > datetime('now')`
   ).bind(tokenHash).all() as { results: RefreshTokenRow[] }
-  
+
   if (!results.length) {
     return c.json({ error: "invalid or expired refresh token" }, 401)
   }
-  
-  const { user_id, email } = results[0]
+
+  const { user_id, address } = results[0]
   
   // Delete old refresh token
   await c.env.DB.prepare(
@@ -140,7 +150,7 @@ app.post("/api/auth/refresh", async (c) => {
   ).bind(tokenHash).run()
   
   // Create new tokens
-  const tokens = await createTokens(c, user_id, email)
+  const tokens = await createTokens(c, user_id, address)
   
   return c.json(tokens)
 })
@@ -160,8 +170,8 @@ app.post("/api/auth/logout", async (c) => {
 })
 
 // Helper to create token pair
-async function createTokens(c: Context, userId: string, email: string): Promise<TokenPair> {
-  const accessToken = await createAccessToken(userId, email)
+async function createTokens(c: Context, userId: string, address: string): Promise<TokenPair> {
+  const accessToken = await createAccessToken(userId, address)
   const refreshToken = createRefreshToken(userId)
   const tokenHash = await hashToken(refreshToken)
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -305,49 +315,52 @@ app.get("/api/ws", authMiddleware, async (c) => {
 
 // Mailboxes CRUD (all protected)
 
-// List mailboxes (protected)
+// List mailboxes (folders) for user (protected)
 app.get("/api/mailboxes", authMiddleware, async (c) => {
   const user = getUser(c)
-  
+
   const { results } = await c.env.DB.prepare(
-    `SELECT id, address, created_at FROM mailboxes WHERE user_id = ? ORDER BY created_at DESC`
+    `SELECT id, name, is_system, created_at FROM mailboxes WHERE user_id = ? ORDER BY is_system DESC, name ASC`
   ).bind(user.id).all() as { results: MailboxRow[] }
 
   return c.json({ mailboxes: results })
 })
 
-// Create mailbox (protected)
+// Create mailbox (folder) (protected)
 app.post("/api/mailboxes", authMiddleware, async (c) => {
   const user = getUser(c)
-  const body = await c.req.json<{ address: string }>()
-  if (!body.address) {
-    return c.json({ error: "missing address" }, 400)
+  const body = await c.req.json<{ name: string }>()
+  if (!body.name) {
+    return c.json({ error: "missing name" }, 400)
+  }
+
+  // Only allow non-system folders via API
+  const name = body.name.toLowerCase()
+
+  // Check for duplicate
+  const existing = await c.env.DB.prepare(
+    `SELECT id FROM mailboxes WHERE user_id = ? AND name = ?`
+  ).bind(user.id, name).first()
+  if (existing) {
+    return c.json({ error: "folder already exists" }, 409)
   }
 
   const id = crypto.randomUUID()
-  const address = body.address.toLowerCase()
 
-  try {
-    await c.env.DB.prepare(
-      `INSERT INTO mailboxes (id, address, user_id) VALUES (?, ?, ?)`
-    ).bind(id, address, user.id).run()
-  } catch (e) {
-    if (e instanceof Error && e.message.includes("UNIQUE constraint")) {
-      return c.json({ error: "address already exists" }, 409)
-    }
-    throw e
-  }
+  await c.env.DB.prepare(
+    `INSERT INTO mailboxes (id, user_id, name, is_system) VALUES (?, ?, ?, 0)`
+  ).bind(id, user.id, name).run()
 
-  return c.json({ mailbox: { id, address } }, 201)
+  return c.json({ mailbox: { id, name, is_system: 0 } }, 201)
 })
 
-// Get single mailbox (protected)
+// Get single mailbox (folder) (protected)
 app.get("/api/mailboxes/:id", authMiddleware, async (c) => {
   const user = getUser(c)
   const mailboxId = c.req.param("id")
 
   const { results } = await c.env.DB.prepare(
-    `SELECT id, address, created_at FROM mailboxes WHERE id = ? AND user_id = ?`
+    `SELECT id, name, is_system, created_at FROM mailboxes WHERE id = ? AND user_id = ?`
   ).bind(mailboxId, user.id).all() as { results: MailboxRow[] }
 
   if (!results.length) {
@@ -357,17 +370,22 @@ app.get("/api/mailboxes/:id", authMiddleware, async (c) => {
   return c.json({ mailbox: results[0] })
 })
 
-// Delete mailbox (protected)
+// Delete mailbox (folder) (protected)
 app.delete("/api/mailboxes/:id", authMiddleware, async (c) => {
   const user = getUser(c)
   const mailboxId = c.req.param("id")
 
   const { results } = await c.env.DB.prepare(
-    `SELECT id FROM mailboxes WHERE id = ? AND user_id = ?`
+    `SELECT id, name, is_system FROM mailboxes WHERE id = ? AND user_id = ?`
   ).bind(mailboxId, user.id).all() as { results: MailboxRow[] }
 
   if (!results.length) {
     return c.json({ error: "mailbox not found" }, 404)
+  }
+
+  // Prevent deletion of system folders
+  if (results[0].is_system) {
+    return c.json({ error: "cannot delete system folder" }, 403)
   }
 
   await c.env.DB.prepare(
@@ -397,20 +415,21 @@ interface MessageRow {
 
 interface MailboxRow {
   id: string
-  address: string
+  name: string
+  is_system: number
   created_at: string
 }
 
 interface UserRow {
   id: string
-  email: string
+  address: string
   password_hash: string
   salt: string
 }
 
 interface RefreshTokenRow {
   user_id: string
-  email: string
+  address: string
 }
 
 export default app

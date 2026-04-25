@@ -14,7 +14,7 @@ export interface UseMailboxesReturn {
   loading: boolean
   error: string | null
   fetch: () => Promise<void>
-  create: (address: string) => Promise<Mailbox>
+  create: (name: string) => Promise<Mailbox>
   remove: (id: string) => Promise<void>
 }
 
@@ -46,9 +46,9 @@ export function useMailboxes(): UseMailboxesReturn {
     }
   }, [])
 
-  const create = useCallback(async (address: string): Promise<Mailbox> => {
-    const mailbox = await apiCreateMailbox(address)
-    setMailboxes((prev) => [mailbox.mailbox, ...prev])
+  const create = useCallback(async (name: string): Promise<Mailbox> => {
+    const mailbox = await apiCreateMailbox(name)
+    setMailboxes((prev) => [...prev, mailbox.mailbox])
     return mailbox.mailbox
   }, [])
 

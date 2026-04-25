@@ -10,7 +10,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://herald-api.panit.de
 
 export interface Mailbox {
   id: string
-  address: string
+  name: string
+  is_system: number
   created_at: string
 }
 
@@ -94,11 +95,11 @@ export async function getMailbox(id: string): Promise<{ mailbox: Mailbox }> {
 }
 
 export async function createMailbox(
-  address: string
+  name: string
 ): Promise<{ mailbox: Mailbox }> {
   return apiFetch<{ mailbox: Mailbox }>("/api/mailboxes", {
     method: "POST",
-    body: JSON.stringify({ address }),
+    body: JSON.stringify({ name }),
   })
 }
 

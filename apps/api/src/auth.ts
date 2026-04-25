@@ -14,7 +14,7 @@ export type { JwtVariables }
 
 export interface JWTPayload {
   sub: string // user_id
-  email: string
+  address: string
   exp: number
   iat: number
 }
@@ -27,7 +27,7 @@ export interface TokenPair {
 export interface AuthContext {
   user: {
     id: string
-    email: string
+    address: string
   }
 }
 
@@ -57,10 +57,10 @@ function base64UrlDecode(str: string): string {
 // JWT functions using hono/jwt
 // ============================================
 
-export async function createAccessToken(userId: string, email: string): Promise<string> {
+export async function createAccessToken(userId: string, address: string): Promise<string> {
   const payload = {
     sub: userId,
-    email,
+    address,
   }
   return await sign(payload, JWT_SECRET, "HS256")
 }
@@ -143,10 +143,10 @@ export async function authMiddleware(c: Context, next: Next) {
     throw new HTTPException(401, { message: "Invalid or expired token" })
   }
   
-  c.set("user", { id: payload.sub, email: payload.email })
+  c.set("user", { id: payload.sub, address: payload.address })
   await next()
 }
 
-export function getUser(c: Context): { id: string; email: string } {
-  return c.get("user") as { id: string; email: string }
+export function getUser(c: Context): { id: string; address: string } {
+  return c.get("user") as { id: string; address: string }
 }

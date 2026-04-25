@@ -8,3 +8,4 @@ node_modules
 
 # Wrangler
 .wrangler
+.persist
