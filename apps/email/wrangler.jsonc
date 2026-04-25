@@ -1,0 +1,41 @@
+// apps/email/wrangler.jsonc
+{
+  "name": "herald-email",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-25",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "herald-database",
+      "database_id": "5c386309-39ae-47fc-95e5-f986dfe14859"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "MAIL_BUCKET",
+      "bucket_name": "herald-mail"
+    }
+  ],
+
+  "queues": {
+    "producers": [
+      {
+        "binding": "INGEST_QUEUE",
+        "queue": "herald-ingest"
+      }
+    ]
+  },
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MAILBOX_REALTIME",
+        "class_name": "MailboxRealtime",
+        "script_name": "herald-api"
+      }
+    ]
+  }
+}

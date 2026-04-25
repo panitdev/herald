@@ -1,0 +1,34 @@
+{
+  "name": "herald",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev:api": "wrangler dev -c apps/api/wrangler.jsonc",
+    "dev:email": "wrangler dev -c apps/email/wrangler.jsonc",
+    "deploy:api": "wrangler deploy -c apps/api/wrangler.jsonc",
+    "deploy:email": "wrangler deploy -c apps/email/wrangler.jsonc",
+    "deploy:queue": "wrangler deploy -c apps/queue/wrangler.jsonc",
+    "deploy": "bun deploy:api && bun deploy:email && bun deploy:queue",
+    "db:migrate:local": "wrangler d1 migrations apply herald-database --local",
+    "db:migrate:remote": "wrangler d1 migrations apply herald-database --remote"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@cloudflare/workers-types": "latest",
+    "typescript": "latest",
+    "wrangler": "latest",
+    "tsx": "latest"
+  },
+  "dependencies": {
+    "hono": "latest",
+    "postal-mime": "latest",
+    "zod": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "workspaces": [
+    "ui"
+  ]
+}

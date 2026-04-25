@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useSettings } from "@/lib/settings-store"
+import { useAuth } from "@/lib/auth-store"
 import { toast } from "sonner"
 
 type Props = {
@@ -36,6 +37,7 @@ type Props = {
 
 export function ProfileMenu({ onOpenSettings }: Props) {
   const { settings, updateSettings, resolvedTheme } = useSettings()
+  const { logout, user } = useAuth()
 
   const ThemeIcon =
     settings.theme === "system" ? Monitor : resolvedTheme === "dark" ? Moon : Sun
@@ -148,12 +150,17 @@ export function ProfileMenu({ onOpenSettings }: Props) {
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuLabel className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          Session
-        </DropdownMenuLabel>
+        {user && (
+          <div className="px-2 py-1.5">
+            <p className="truncate text-[11px] text-muted-foreground">{user.email}</p>
+          </div>
+        )}
         <DropdownMenuItem
           variant="destructive"
-          onSelect={() => toast.success("Signed out", { description: "See you soon." })}
+          onSelect={() => {
+            logout()
+            toast.success("Signed out", { description: "See you soon." })
+          }}
         >
           <LogOut className="h-4 w-4" />
           Sign out
