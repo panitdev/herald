@@ -147,7 +147,7 @@ export async function hashPassword(password: string): Promise<string> {
   // Generate salt
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH))
   
-  // Derive key
+  // Derive key - extractable: true required for Workers
   const key = await crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
@@ -163,18 +163,18 @@ export async function hashPassword(password: string): Promise<string> {
       ["deriveKey"]
     ),
     { name: "HMAC", hash: "SHA-256", length: 256 },
-    false,
+    true,  // extractable: true - REQUIRED for Workers!
     ["sign"]
   )
   
   // Export key
   const keyBytes = await crypto.subtle.exportKey("raw", key)
-  
+
   // Combine salt + hash
   const combined = new Uint8Array(salt.length + keyBytes.byteLength)
   combined.set(salt, 0)
   combined.set(new Uint8Array(keyBytes), salt.length)
-  
+
   return base64UrlEncode(combined)
 }
 
@@ -201,7 +201,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
       ["deriveKey"]
     ),
     { name: "HMAC", hash: "SHA-256", length: 256 },
-    false,
+    true,  // extractable: true - REQUIRED for Workers!
     ["sign"]
   )
   
