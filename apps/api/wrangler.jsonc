@@ -4,6 +4,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-04-25",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "MAIL_DOMAIN": "panit.dev"
+  },
   "d1_databases": [
     {
       "migrations_dir": "../../migrations/",

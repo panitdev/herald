@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "dev:ui": "bun --cwd ui dev",
     "dev:api": "wrangler dev -c apps/api/wrangler.jsonc --persist-to=.persist",
     "dev:email": "wrangler dev -c apps/email/wrangler.jsonc --persist-to=.persist",
     "deploy:api": "wrangler deploy -c apps/api/wrangler.jsonc",

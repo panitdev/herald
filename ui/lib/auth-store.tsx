@@ -21,8 +21,8 @@ type AuthState = {
 }
 
 type AuthCtx = AuthState & {
-  login: (address: string, password: string) => Promise<void>
-  register: (address: string, password: string) => Promise<void>
+  login: (username: string, password: string) => Promise<void>
+  register: (username: string, password: string) => Promise<void>
   logout: () => void
 }
 
@@ -71,11 +71,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = useCallback(async (address: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     const res = await fetch(`${API_URL}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address, password }),
+      body: JSON.stringify({ username, password }),
     })
     if (!res.ok) {
       const data = (await res.json()) as { error?: string }
@@ -90,11 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user: data.user, accessToken: data.accessToken, initialized: true })
   }, [])
 
-  const register = useCallback(async (address: string, password: string) => {
+  const register = useCallback(async (username: string, password: string) => {
     const res = await fetch(`${API_URL}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address, password }),
+      body: JSON.stringify({ username, password }),
     })
     if (!res.ok) {
       const data = (await res.json()) as { error?: string }

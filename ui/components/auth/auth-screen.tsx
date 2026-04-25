@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-store"
 
+const MAIL_DOMAIN = process.env.NEXT_PUBLIC_MAIL_DOMAIN ?? "a.com"
+
 type Mode = "login" | "register"
 
 const stageVariants = {
@@ -70,11 +72,11 @@ export function AuthScreen() {
     if (stage === 0) {
       const value = username.trim()
       if (!value) {
-        toast.error("Please enter an email address")
+        toast.error("Please enter a username")
         return
       }
-      if (!value.includes("@")) {
-        toast.error("Please enter a valid email address")
+      if (!/^[a-zA-Z0-9._-]{1,64}$/.test(value)) {
+        toast.error("Username: 1-64 chars, letters, numbers, dots, underscores, hyphens")
         return
       }
       setDirection(1)
@@ -101,7 +103,7 @@ export function AuthScreen() {
     try {
       if (mode === "register") {
         await register(username.trim(), password)
-        toast.success(`Welcome to Herald, ${username.trim().split("@")[0]}`)
+        toast.success(`Welcome to Herald, ${username.trim()}`)
       } else {
         await login(username.trim(), password)
         toast.success("Signed in successfully")
@@ -127,10 +129,10 @@ export function AuthScreen() {
   const subs = {
     login: [
       "Sign in to continue to Herald.",
-      `Signing in as ${username || "your account"}.`,
+      `Signing in as ${username ? `${username}@${MAIL_DOMAIN}` : "your account"}.`,
     ],
     register: [
-      "Pick an email to get started.",
+      "Pick a username to get started.",
       "Use at least 8 characters to keep things safe.",
     ],
   } as const
@@ -227,13 +229,18 @@ export function AuthScreen() {
                   {stage === 0 ? (
                     <Field
                       id="username"
-                      label="Email"
+                      label="Username"
                       icon={<User className="size-4" />}
                       autoFocus
-                      autoComplete="email"
+                      autoComplete="username"
                       value={username}
                       onChange={setUsername}
-                      placeholder="you@example.com"
+                      placeholder="johndoe"
+                      rightSlot={
+                        <span className="text-xs text-muted-foreground/60">
+                          @{MAIL_DOMAIN}
+                        </span>
+                      }
                     />
                   ) : (
                     <>

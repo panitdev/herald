@@ -44,17 +44,23 @@ app.get("/health", (c) => c.json({ ok: true }))
 
 // Register
 app.post("/api/auth/register", async (c) => {
-  const body = await c.req.json<{ address: string; password: string }>()
+  const MAIL_DOMAIN = (c.env.MAIL_DOMAIN as string | undefined) ?? "a.com"
+  const body = await c.req.json<{ username: string; password: string }>()
 
-  if (!body.address || !body.password) {
-    return c.json({ error: "address and password required" }, 400)
+  if (!body.username || !body.password) {
+    return c.json({ error: "username and password required" }, 400)
+  }
+
+  const username = body.username.toLowerCase().trim()
+  if (!/^[a-z0-9._-]{1,64}$/.test(username)) {
+    return c.json({ error: "username must be 1-64 chars: lowercase letters, numbers, dots, underscores, hyphens" }, 400)
   }
 
   if (body.password.length < 8) {
     return c.json({ error: "password must be at least 8 characters" }, 400)
   }
 
-  const address = body.address.toLowerCase()
+  const address = `${username}@${MAIL_DOMAIN}`
   const { hash: passwordHash, salt } = await hashPasswordWithSalt(body.password)
   const id = crypto.randomUUID()
 
@@ -64,7 +70,7 @@ app.post("/api/auth/register", async (c) => {
     ).bind(id, address, passwordHash, salt).run()
   } catch (e) {
     if (e instanceof Error && e.message.includes("UNIQUE constraint")) {
-      return c.json({ error: "address already exists" }, 409)
+      return c.json({ error: "username already taken" }, 409)
     }
     throw e
   }
@@ -90,13 +96,15 @@ app.post("/api/auth/register", async (c) => {
 
 // Login
 app.post("/api/auth/login", async (c) => {
-  const body = await c.req.json<{ address: string; password: string }>()
+  const MAIL_DOMAIN = (c.env.MAIL_DOMAIN as string | undefined) ?? "a.com"
+  const body = await c.req.json<{ username: string; password: string }>()
 
-  if (!body.address || !body.password) {
-    return c.json({ error: "address and password required" }, 400)
+  if (!body.username || !body.password) {
+    return c.json({ error: "username and password required" }, 400)
   }
 
-  const address = body.address.toLowerCase()
+  const username = body.username.toLowerCase().trim()
+  const address = `${username}@${MAIL_DOMAIN}`
 
   const { results } = await c.env.DB.prepare(
     `SELECT id, address, password_hash, salt FROM users WHERE address = ?`
