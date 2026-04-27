@@ -2,7 +2,7 @@
 // API client for Herald backend
 // Uses AuthContext from auth-store.tsx for authentication
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://herald-api.panit.dev"
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://api.herald.panit.dev"
 
 // ============================================
 // Types
@@ -61,7 +61,7 @@ export async function apiFetch<T>(
   }
 
   if (authToken) {
-    ;(headers as Record<string, string>)["Authorization"] = `Bearer ${authToken}`
+    ; (headers as Record<string, string>)["Authorization"] = `Bearer ${authToken}`
   }
 
   const response = await fetch(`${API_BASE}${path}`, {

@@ -10,5 +10,18 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
-  }
+  },
+  "routes": [
+    {
+      "pattern": "herald.panit.dev",
+      "zone_name": "panit.dev",
+      "custom_domain": true,
+      "enabled": true,
+      "previews_enabled": false
+    },
+  ],
+  "vars": {
+    "NEXT_PUBLIC_API_URL": "https://api.herald.panit.dev",
+    "NEXT_PUBLIC_MAIL_DOMAIN": "panit.dev"
+  },
 }

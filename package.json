@@ -10,7 +10,8 @@
     "deploy:api": "wrangler deploy -c apps/api/wrangler.jsonc",
     "deploy:email": "wrangler deploy -c apps/email/wrangler.jsonc",
     "deploy:queue": "wrangler deploy -c apps/queue/wrangler.jsonc",
-    "deploy": "bun deploy:api && bun deploy:email && bun deploy:queue",
+    "deploy:ui": "bun run --cwd ui deploy",
+    "deploy": "bun deploy:api && bun deploy:email && bun deploy:queue && bun deploy:ui",
     "db:migrate:local": "wrangler d1 migrations apply herald-database --local -c apps/api/wrangler.jsonc --persist-to=.persist",
     "db:migrate:remote": "wrangler d1 migrations apply herald-database --remote -c apps/api/wrangler.jsonc"
   },
