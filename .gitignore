@@ -12,3 +12,4 @@ node_modules
 
 # UI
 .open-next
+next-env.d.ts
