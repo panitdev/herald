@@ -17,7 +17,8 @@ import { SettingsProvider } from "@/lib/settings-store"
 import { useMailNavigation, type Mailbox } from "@/hooks/use-mail-navigation"
 import { useMailboxes } from "@/hooks/use-mailboxes"
 import { useMessages } from "@/hooks/use-messages"
-import { setAuthToken } from "@/lib/api"
+import { setAuthToken, getRawEmail } from "@/lib/api"
+import PostalMime from "postal-mime"
 import { useAuth } from "@/lib/auth-store"
 
 export function EmailClient() {
@@ -33,6 +34,7 @@ export function EmailClient() {
   })
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [emailBody, setEmailBody] = useState<string>("")
 
   // Auth - set token for API calls
   const { accessToken, user } = useAuth()
@@ -116,6 +118,52 @@ export function EmailClient() {
     () => combinedEmails.find((e) => e.id === selectedId) ?? null,
     [combinedEmails, selectedId],
   )
+
+  // Fetch and parse email body when a message is selected
+  useEffect(() => {
+    if (!selectedId || !isAuthenticated) {
+      setEmailBody("")
+      return
+    }
+
+    let cancelled = false
+
+    async function loadBody() {
+      try {
+        const raw = await getRawEmail(selectedId)
+        if (cancelled) return
+        console.log("Raw email length:", raw.length)
+        if (!raw || raw.length === 0) {
+          // Fallback to preview if raw is empty
+          console.warn("Raw email is empty, using preview")
+          const selectedEmail = combinedEmails.find((e) => e.id === selectedId)
+          if (!cancelled) {
+            setEmailBody(selectedEmail?.preview || "(No content available)")
+          }
+          return
+        }
+        const parsed = await PostalMime.parse(raw)
+        // Prefer HTML, fall back to text
+        const body = parsed.html || parsed.text || ""
+        if (!cancelled) {
+          setEmailBody(body || "(No content available)")
+        }
+      } catch (err) {
+        console.error("Failed to load email body:", err)
+        // Fallback to preview on error
+        const selectedEmail = combinedEmails.find((e) => e.id === selectedId)
+        if (!cancelled) {
+          setEmailBody(selectedEmail?.preview || "(Failed to load content)")
+        }
+      }
+    }
+
+    loadBody()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId, isAuthenticated])
 
   // Mark as read when opened
   function handleSelect(id: string) {
@@ -348,7 +396,7 @@ export function EmailClient() {
         {/* Detail pane (desktop) */}
         <div className="hidden min-w-0 flex-1 md:block">
           <EmailDetail
-            email={selected}
+            email={selected ? { ...selected, body: emailBody } : null}
             onBack={() => setSelectedId(null)}
             onArchive={handleArchive}
             onDelete={handleDelete}
@@ -370,7 +418,7 @@ export function EmailClient() {
               className="absolute inset-0 z-30 bg-background md:hidden"
             >
               <EmailDetail
-                email={selected}
+                email={selected ? { ...selected, body: emailBody } : null}
                 onBack={() => setSelectedId(null)}
                 onArchive={handleArchive}
                 onDelete={handleDelete}

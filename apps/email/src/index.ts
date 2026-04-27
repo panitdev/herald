@@ -47,7 +47,9 @@ export default {
 
     // Store raw email to R2
     const raw = await new Response(message.raw).arrayBuffer()
+    console.log("Storing raw email, size:", raw.byteLength, "key:", rawKey)
     await env.MAIL_BUCKET.put(rawKey, raw)
+    console.log("Raw email stored successfully")
 
     // Parse email
     const parsed = await PostalMime.parse(raw)

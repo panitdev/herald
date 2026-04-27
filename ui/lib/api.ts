@@ -126,3 +126,24 @@ export async function markAsRead(messageId: string): Promise<{ ok: boolean }> {
     method: "POST",
   })
 }
+
+export async function getRawEmail(messageId: string): Promise<string> {
+  // Don't use apiFetch - it tries to parse as JSON
+  // The /raw endpoint returns message/rfc822 content
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE}/api/messages/${messageId}/raw`, {
+    method: "GET",
+    headers,
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "")
+    throw new Error(`Failed to fetch raw email: ${response.status} ${response.statusText} - ${errorText}`)
+  }
+
+  return response.text()
+}

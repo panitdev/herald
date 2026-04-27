@@ -285,12 +285,20 @@ app.get("/api/messages/:id/raw", authMiddleware, async (c) => {
     return c.json({ error: "message not found or access denied" }, 404)
   }
 
-  const rawEmail = await c.env.MAIL_BUCKET.get(msgResults[0].r2_raw_key)
+  const r2Key = msgResults[0].r2_raw_key
+  console.log("Fetching raw email with key:", r2Key)
+
+  const rawEmail = await c.env.MAIL_BUCKET.get(r2Key)
   if (!rawEmail) {
+    console.error("R2 object not found for key:", r2Key)
     return c.json({ error: "raw email not found" }, 404)
   }
 
-  return new Response(rawEmail.body, {
+  // Convert R2 body to string
+  const bodyText = await rawEmail.text()
+  console.log("Raw email body length:", bodyText.length)
+
+  return new Response(bodyText, {
     headers: {
       "Content-Type": "message/rfc822",
       "Content-Disposition": "inline",
