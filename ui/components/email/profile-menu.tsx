@@ -152,7 +152,7 @@ export function ProfileMenu({ onOpenSettings }: Props) {
 
         {user && (
           <div className="px-2 py-1.5">
-            <p className="truncate text-[11px] text-muted-foreground">{user.email}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{user.address}</p>
           </div>
         )}
         <DropdownMenuItem

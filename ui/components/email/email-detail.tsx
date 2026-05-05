@@ -31,9 +31,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { SafeEmailBody } from "./safe-email-body"
 
 type Props = {
   email: Email | null
+  emailBody: string
+  emailBodyFormat: "html" | "text"
   onBack: () => void
   onArchive: (id: string) => void
   onDelete: (id: string) => void
@@ -44,6 +47,8 @@ type Props = {
 
 export function EmailDetail({
   email,
+  emailBody,
+  emailBodyFormat,
   onBack,
   onArchive,
   onDelete,
@@ -52,8 +57,8 @@ export function EmailDetail({
   onReply,
 }: Props) {
   return (
-    <div className="relative flex h-full flex-col bg-background">
-      <AnimatePresence mode="wait">
+    <div className="relative h-full bg-background">
+      <AnimatePresence initial={false}>
         {email ? (
           <motion.div
             key={email.id}
@@ -61,7 +66,7 @@ export function EmailDetail({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="flex h-full flex-col"
+            className="absolute inset-0 flex h-full flex-col bg-background"
           >
             {/* Toolbar */}
             <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5 md:px-5">
@@ -193,9 +198,9 @@ export function EmailDetail({
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
-                  className="mt-6 whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/90"
+                  className="mt-6"
                 >
-                  {email.body}
+                  <SafeEmailBody body={emailBody} format={emailBodyFormat} />
                 </motion.div>
 
                 {email.hasAttachment && (
@@ -246,7 +251,7 @@ export function EmailDetail({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
+            className="absolute inset-0 flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
           >
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
               <MailIcon className="h-6 w-6 text-muted-foreground" aria-hidden />
