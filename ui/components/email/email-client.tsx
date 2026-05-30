@@ -13,15 +13,23 @@ import { ComposePanel } from "./compose-panel"
 import { SettingsDialog } from "./settings-dialog"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { SettingsProvider } from "@/lib/settings-store"
+import { SettingsProvider, useSettings } from "@/lib/settings-store"
 import { useMailNavigation, type Mailbox } from "@/hooks/use-mail-navigation"
 import { useMailboxes } from "@/hooks/use-mailboxes"
 import { useMessages } from "@/hooks/use-messages"
-import { setAuthToken, getRawEmail } from "@/lib/api"
+import { setAuthToken, getRawEmail, sendMail } from "@/lib/api"
 import PostalMime from "postal-mime"
 import { useAuth } from "@/lib/auth-store"
 
 export function EmailClient() {
+  return (
+    <SettingsProvider>
+      <EmailClientContent />
+    </SettingsProvider>
+  )
+}
+
+function EmailClientContent() {
   const [emails, setEmails] = useState<Email[]>([])
   const { mailbox: activeFolder, setMailbox, selectedId, setSelectedId } = useMailNavigation({
     initialMailbox: "inbox",
@@ -36,6 +44,7 @@ export function EmailClient() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [emailBody, setEmailBody] = useState<string>("")
   const [emailBodyFormat, setEmailBodyFormat] = useState<"html" | "text">("text")
+  const { settings } = useSettings()
 
   // Auth - set token for API calls
   const { accessToken, user } = useAuth()
@@ -45,13 +54,18 @@ export function EmailClient() {
 
   // API data
   const { mailboxes, loading: mailboxesLoading, error: mailboxesError } = useMailboxes()
-  const activeMailboxId = mailboxes[0]?.id ?? null
+  const activeMailboxId = useMemo(() => {
+    if (activeFolder === "starred" || activeFolder === "drafts") {
+      return null
+    }
+    return mailboxes.find((mailbox) => mailbox.name === activeFolder)?.id ?? null
+  }, [activeFolder, mailboxes])
   const {
     emails: apiEmails,
     loading: messagesLoading,
     error: messagesError,
     markRead,
-  } = useMessages(activeMailboxId)
+  } = useMessages(activeMailboxId, activeFolder)
 
   const isAuthenticated = !!user
 
@@ -59,10 +73,14 @@ export function EmailClient() {
   const combinedEmails = useMemo(() => {
     // If authenticated, always use API (even if empty — no mock data)
     if (isAuthenticated && activeMailboxId !== null) {
-      return apiEmails.map((apiEmail) => {
+      const mergedApiEmails = apiEmails.map((apiEmail) => {
         const local = emails.find((e) => e.id === apiEmail.id)
         return local ? { ...apiEmail, starred: local.starred, folder: local.folder } : apiEmail
       })
+      const localOnlyEmails = emails.filter(
+        (email) => !apiEmails.some((apiEmail) => apiEmail.id === email.id)
+      )
+      return [...localOnlyEmails, ...mergedApiEmails]
     }
     // Not authenticated — show nothing (no mock data)
     return []
@@ -149,7 +167,7 @@ export function EmailClient() {
           }
           return
         }
-        const parsed = await PostalMime.parse(raw)
+        const parsed = await new PostalMime().parse(raw)
         // Prefer HTML, fall back to text
         const hasHtml = typeof parsed.html === "string" && parsed.html.trim().length > 0
         const body = (hasHtml ? parsed.html : parsed.text) || ""
@@ -268,21 +286,29 @@ export function EmailClient() {
   }
 
   async function handleSend(data: { to: string; subject: string; body: string }) {
-    // Simulate send delay
-    await new Promise((r) => setTimeout(r, 700))
+    let result
+    try {
+      result = await sendMail({ ...data, fromName: settings.displayName })
+    } catch (err) {
+      toast.error("Message failed to send", {
+        description: err instanceof Error ? err.message : "Mail provider rejected the request",
+      })
+      return
+    }
+
     const newEmail: Email = {
-      id: `e-${Date.now()}`,
+      id: result.message.id,
       from: {
         name: "You",
-        email: "you@inbox.co",
-        initials: "YO",
+        email: user?.address ?? result.message.from_addr,
+        initials: settings.initials,
         color: "oklch(0.7 0.16 258)",
       },
       to: data.to,
       subject: data.subject,
-      preview: data.body.slice(0, 120),
+      preview: result.message.preview || data.body.slice(0, 120),
       body: data.body,
-      date: new Date().toISOString(),
+      date: result.message.received_at,
       read: true,
       starred: false,
       folder: "sent",
@@ -337,7 +363,6 @@ export function EmailClient() {
   )
 
   return (
-    <SettingsProvider>
     <div className="flex h-dvh w-full overflow-hidden bg-background">
       {/* Desktop sidebar */}
       <div className="hidden w-64 shrink-0 border-r border-border md:block lg:w-72">
@@ -454,6 +479,5 @@ export function EmailClient() {
 
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
-    </SettingsProvider>
   )
 }

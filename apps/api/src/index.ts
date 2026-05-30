@@ -5,6 +5,7 @@ import { Hono } from "hono"
 import type { Context } from "hono"
 import { cors } from "hono/cors"
 import { MailboxRealtime } from "./realtime"
+import { createMailSender, createRawEmail, normalizeAddress } from "./mail"
 import {
   hashPasswordWithSalt,
   verifyPassword,
@@ -21,6 +22,11 @@ type Env = {
   DB: D1Database
   MAIL_BUCKET: R2Bucket
   MAILBOX_REALTIME: DurableObjectNamespace
+  MAIL_DOMAIN?: string
+  MAIL_PROVIDER?: string
+  MAIL_FROM_NAME?: string
+  BREVO_API_KEY?: string
+  RESEND_API_KEY?: string
 }
 
 const app = new Hono<{ Bindings: Env }>()
@@ -213,7 +219,7 @@ app.get("/api/messages", authMiddleware, async (c) => {
   }
 
   const { results } = await c.env.DB.prepare(
-    `SELECT id, thread_id, from_addr, subject, preview, received_at, read_at
+    `SELECT id, mailbox_id, thread_id, from_addr, subject, preview, received_at, read_at
      FROM messages
      WHERE mailbox_id = ?
      ORDER BY received_at DESC
@@ -267,6 +273,98 @@ app.post("/api/messages/:id/read", authMiddleware, async (c) => {
   ).bind(new Date().toISOString(), messageId).run()
 
   return c.json({ ok: true })
+})
+
+// Send a new message (protected)
+app.post("/api/messages/send", authMiddleware, async (c) => {
+  const user = getUser(c)
+  const body = await c.req.json<{ to?: string; subject?: string; body?: string; fromName?: string }>()
+
+  const to = body.to ? normalizeAddress(body.to) : null
+  const subject = body.subject?.trim()
+  const text = body.body ?? ""
+
+  if (!to) {
+    return c.json({ error: "valid recipient email required" }, 400)
+  }
+  if (!subject) {
+    return c.json({ error: "subject required" }, 400)
+  }
+
+  const { results: mailboxResults } = await c.env.DB.prepare(
+    `SELECT id FROM mailboxes WHERE user_id = ? AND name = 'sent'`
+  ).bind(user.id).all() as { results: { id: string }[] }
+
+  if (!mailboxResults.length) {
+    return c.json({ error: "sent mailbox not found" }, 500)
+  }
+
+  const from = {
+    email: user.address,
+    name: normalizeDisplayName(body.fromName) ?? displayNameFromAddress(user.address),
+  }
+  const input = {
+    from,
+    to: [to],
+    replyTo: { email: user.address },
+    subject,
+    text,
+  }
+
+  let sendResult
+  try {
+    const sender = createMailSender(c.env)
+    sendResult = await sender.send(input)
+  } catch (e) {
+    console.error("Failed to send message:", e)
+    const message = e instanceof Error ? e.message : "mail provider send failed"
+    return c.json({ error: message }, 502)
+  }
+
+  const messageId = crypto.randomUUID()
+  const mailboxId = mailboxResults[0].id
+  const sentAt = new Date().toISOString()
+  const rawKey = `raw/${mailboxId}/${messageId}.eml`
+  const raw = createRawEmail(input, sentAt)
+  const preview = text.replace(/\s+/g, " ").trim().slice(0, 240)
+
+  await c.env.MAIL_BUCKET.put(rawKey, raw, {
+    httpMetadata: { contentType: "message/rfc822" },
+  })
+
+  await c.env.DB.prepare(
+    `INSERT INTO messages
+      (id, mailbox_id, thread_id, provider_message_id, from_addr, subject, preview, r2_raw_key, received_at, read_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    messageId,
+    mailboxId,
+    messageId,
+    sendResult.providerMessageId,
+    user.address,
+    subject,
+    preview,
+    rawKey,
+    sentAt,
+    sentAt,
+  ).run()
+
+  return c.json({
+    message: {
+      id: messageId,
+      mailbox_id: mailboxId,
+      thread_id: messageId,
+      provider_message_id: sendResult.providerMessageId,
+      from_addr: user.address,
+      subject,
+      preview,
+      r2_raw_key: rawKey,
+      received_at: sentAt,
+      read_at: sentAt,
+      created_at: sentAt,
+    },
+    delivery: sendResult,
+  }, 201)
 })
 
 // Get raw email content from R2 (protected)
@@ -446,6 +544,23 @@ interface UserRow {
 interface RefreshTokenRow {
   user_id: string
   address: string
+}
+
+function normalizeDisplayName(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed || trimmed === "Your Name") {
+    return undefined
+  }
+  return trimmed.slice(0, 128)
+}
+
+function displayNameFromAddress(address: string): string {
+  const local = address.split("@")[0] ?? address
+  return local
+    .split(/[._-]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || address
 }
 
 export default app

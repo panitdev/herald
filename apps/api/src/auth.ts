@@ -72,7 +72,7 @@ export function createRefreshToken(userId: string): string {
 export async function verifyAccessToken(token: string): Promise<JWTPayload | null> {
   try {
     const payload = await verify(token, JWT_SECRET, "HS256")
-    return payload as JWTPayload
+    return payload as unknown as JWTPayload
   } catch {
     return null
   }

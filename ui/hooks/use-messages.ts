@@ -74,7 +74,7 @@ export interface UseMessagesReturn {
   markRead: (messageId: string) => Promise<void>
 }
 
-export function useMessages(mailboxId: string | null): UseMessagesReturn {
+export function useMessages(mailboxId: string | null, folder: Folder = "inbox"): UseMessagesReturn {
   const [emails, setEmails] = useState<Email[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -90,9 +90,8 @@ export function useMessages(mailboxId: string | null): UseMessagesReturn {
     setError(null)
     try {
       const data = await apiGetMessages(mailboxId)
-      // All messages from API go to inbox initially
-      // Starred etc handled locally
-      const transformed = data.messages.map((m) => transformMessage(m, "inbox"))
+      // Starred etc handled locally.
+      const transformed = data.messages.map((m) => transformMessage(m, folder))
       transformed.sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       )
@@ -111,7 +110,7 @@ export function useMessages(mailboxId: string | null): UseMessagesReturn {
     } finally {
       setLoading(false)
     }
-  }, [mailboxId])
+  }, [mailboxId, folder])
 
   const markRead = useCallback(async (messageId: string) => {
     try {

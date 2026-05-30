@@ -26,6 +26,13 @@ export interface Message {
   read_at: string | null
 }
 
+export interface SendMailInput {
+  to: string
+  subject: string
+  body: string
+  fromName?: string
+}
+
 // ============================================
 // Custom error
 // ============================================
@@ -125,6 +132,18 @@ export async function markAsRead(messageId: string): Promise<{ ok: boolean }> {
   return apiFetch<{ ok: boolean }>(`/api/messages/${messageId}/read`, {
     method: "POST",
   })
+}
+
+export async function sendMail(
+  input: SendMailInput
+): Promise<{ message: Message; delivery: { provider: string; providerMessageId: string | null } }> {
+  return apiFetch<{ message: Message; delivery: { provider: string; providerMessageId: string | null } }>(
+    "/api/messages/send",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  )
 }
 
 export async function getRawEmail(messageId: string): Promise<string> {

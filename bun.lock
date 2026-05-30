@@ -65,6 +65,7 @@
         "motion": "^12.38.0",
         "next": "16.2.4",
         "next-themes": "^0.4.6",
+        "postal-mime": "^1.0.0",
         "react": "^19",
         "react-day-picker": "9.13.2",
         "react-dom": "^19",
@@ -1328,6 +1329,8 @@
     "foreground-child/signal-exit": ["signal-exit@4.1.0", "", {}, "sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw=="],
 
     "form-data/mime-types": ["mime-types@2.1.35", "", { "dependencies": { "mime-db": "1.52.0" } }, "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw=="],
+
+    "herald/postal-mime": ["postal-mime@1.1.0", "", {}, "sha512-IyYhoZpCq/I9l9om5soJ5Ch5vsS76EGu/tn7mHQGiAEmIKf2uvr3TdiYTB56FmD5bOm78eYjCPryM+0GuJcMJg=="],
 
     "herald/typescript": ["typescript@5.7.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw=="],
 
