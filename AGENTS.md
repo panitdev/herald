@@ -17,16 +17,13 @@ Scope must be one of: `api`, `auth`, `db`, `ui`, `mail`, `queue`, `infra`
 
 ## Backend (REST API)
 
-The backend REST API lives in `api/` and is built with **Axum** (Rust) on top of
-PostgreSQL via `diesel` / `diesel-async`. Authentication uses **Ory Kratos**
-sessions verified through `/sessions/whoami` — the same pattern as the sibling
-`dispatch` project. Local `User` rows (and their default mailbox folders) are
-lazily provisioned on first authenticated request.
+The backend REST API lives in `apps/api/` and is built with **Hono** on
+Cloudflare Workers. It uses D1 for relational data, R2 for raw email storage,
+and a Durable Object for mailbox realtime events.
 
-Run locally with `cargo run -p api` (requires `DATABASE_URL` and a reachable
-Kratos). See `.env.example` for configuration.
+Run locally with `bun dev:api`.
 
 ## Browser interaction
 
 Use `https://localhost.panit.dev` instead of `http://localhost:3000` for real
-browser testing. This is required for Kratos auth integration.
+browser testing.

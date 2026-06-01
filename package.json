@@ -5,15 +5,13 @@
   "private": true,
   "scripts": {
     "dev:ui": "bun --cwd ui dev",
-    "dev:api": "cargo run -p api",
-    "build:api": "cargo build -p api",
+    "dev:api": "wrangler dev -c apps/api/wrangler.jsonc --persist-to=.persist",
     "dev:email": "wrangler dev -c apps/email/wrangler.jsonc --persist-to=.persist",
     "deploy:email": "wrangler deploy -c apps/email/wrangler.jsonc",
     "deploy:queue": "wrangler deploy -c apps/queue/wrangler.jsonc",
     "deploy:ui": "bun run --cwd ui deploy",
-    "deploy": "bun deploy:api:legacy && bun deploy:email && bun deploy:queue && bun deploy:ui",
-    "dev:api:legacy": "wrangler dev -c apps/api/wrangler.jsonc --persist-to=.persist",
-    "deploy:api:legacy": "wrangler deploy -c apps/api/wrangler.jsonc",
+    "deploy": "bun deploy:api && bun deploy:email && bun deploy:queue && bun deploy:ui",
+    "deploy:api": "wrangler deploy -c apps/api/wrangler.jsonc",
     "db:migrate:local": "wrangler d1 migrations apply herald-database --local -c apps/api/wrangler.jsonc --persist-to=.persist",
     "db:migrate:remote": "wrangler d1 migrations apply herald-database --remote -c apps/api/wrangler.jsonc"
   },
