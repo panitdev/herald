@@ -1,14 +1,13 @@
 "use client"
 
-import { useState, type FormEvent, type ReactNode } from "react"
-import { AnimatePresence, motion } from "motion/react"
+import { useState, type FormEvent } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import {
   ArrowLeft,
   ArrowRight,
   Check,
   Eye,
   EyeOff,
-  Loader2,
   Lock,
   Mail,
   User,
@@ -16,6 +15,7 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { AnimatedField } from "@/components/ui/animated-field"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-store"
 
@@ -142,25 +142,35 @@ export function AuthScreen() {
 
   return (
     <div className="relative flex h-dvh w-full items-center justify-center overflow-hidden bg-background p-4">
-      {/* Subtle dotted background, faded at the edges */}
+      {/* Dotted grid — fades at edges */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-60 [background-image:radial-gradient(var(--border)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_center,black_15%,transparent_70%)]"
+        className="pointer-events-none absolute inset-0 opacity-50 [background-image:radial-gradient(var(--border)_1px,transparent_1px)] [background-size:24px_24px] [mask-image:radial-gradient(ellipse_at_center,black_10%,transparent_68%)]"
       />
 
       <div className="relative z-10 w-full max-w-[400px]">
-        {/* Brand */}
-        <div className="mb-6 flex flex-col items-center gap-2.5">
-          <div className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/20">
+        {/* Brand mark */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-6 flex flex-col items-center gap-2.5"
+        >
+          <div className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-[0_8px_20px_-8px_color-mix(in_oklab,var(--primary)_55%,transparent)]">
             <Mail className="size-5" />
           </div>
-          <span className="text-[13px] font-medium tracking-tight text-foreground">
+          <span className="font-serif text-[13px] font-medium tracking-tight text-foreground">
             Herald
           </span>
-        </div>
+        </motion.div>
 
         {/* Mode toggle */}
-        <div className="mx-auto mb-5 flex w-fit items-center gap-1 rounded-full border bg-card p-1 shadow-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: 0.05 }}
+          className="mx-auto mb-5 flex w-fit items-center gap-1 rounded-full border bg-card p-1 shadow-sm"
+        >
           {(["login", "register"] as Mode[]).map((m) => (
             <button
               key={m}
@@ -185,10 +195,15 @@ export function AuthScreen() {
               </span>
             </button>
           ))}
-        </div>
+        </motion.div>
 
         {/* Card */}
-        <div className="rounded-2xl border bg-card p-6 shadow-xl shadow-foreground/[0.04]">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
+          className="rounded-2xl border border-border bg-card p-6 shadow-[0_1px_3px_oklch(0.18_0.06_264_/_0.08)]"
+        >
           {/* Animated heading */}
           <div className="relative mb-5 h-[54px] overflow-hidden">
             <AnimatePresence custom={direction} initial={false}>
@@ -202,7 +217,7 @@ export function AuthScreen() {
                 transition={stageTransition}
                 className="absolute inset-0"
               >
-                <h1 className="text-pretty text-xl font-semibold tracking-tight">
+                <h1 className="font-serif text-pretty text-xl font-medium tracking-tight">
                   {headings[mode][stage]}
                 </h1>
                 <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
@@ -227,7 +242,7 @@ export function AuthScreen() {
                   className="absolute inset-0 flex flex-col gap-3"
                 >
                   {stage === 0 ? (
-                    <Field
+                    <AnimatedField
                       id="username"
                       label="Username"
                       icon={<User className="size-4" />}
@@ -237,14 +252,14 @@ export function AuthScreen() {
                       onChange={setUsername}
                       placeholder="johndoe"
                       rightSlot={
-                        <span className="text-xs text-muted-foreground/60">
+                        <span className="text-xs text-muted-foreground/60 pr-1">
                           @{MAIL_DOMAIN}
                         </span>
                       }
                     />
                   ) : (
                     <>
-                      <Field
+                      <AnimatedField
                         id="password"
                         label="Password"
                         icon={<Lock className="size-4" />}
@@ -260,9 +275,7 @@ export function AuthScreen() {
                           <button
                             type="button"
                             onClick={() => setShowPwd((v) => !v)}
-                            aria-label={
-                              showPwd ? "Hide password" : "Show password"
-                            }
+                            aria-label={showPwd ? "Hide password" : "Show password"}
                             className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                           >
                             {showPwd ? (
@@ -274,7 +287,7 @@ export function AuthScreen() {
                         }
                       />
                       {mode === "register" ? (
-                        <Field
+                        <AnimatedField
                           id="confirm"
                           label="Confirm password"
                           icon={<Lock className="size-4" />}
@@ -289,9 +302,7 @@ export function AuthScreen() {
                           <button
                             type="button"
                             onClick={() =>
-                              toast.message(
-                                "A reset link would be sent to your inbox.",
-                              )
+                              toast.message("A reset link would be sent to your inbox.")
                             }
                             className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
                           >
@@ -339,91 +350,34 @@ export function AuthScreen() {
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={submitting}
+                  loading={submitting}
+                  loadingText="Just a sec…"
                   className="min-w-[132px]"
                 >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="animate-spin" />
-                      Just a sec
-                    </>
-                  ) : (
-                    <>
-                      {primaryLabel}
-                      {stage === 0 ? <ArrowRight /> : <Check />}
-                    </>
-                  )}
+                  {primaryLabel}
+                  {stage === 0 ? <ArrowRight /> : <Check />}
                 </Button>
               </div>
             </div>
           </form>
-        </div>
+        </motion.div>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-xs text-muted-foreground">
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.25, duration: 0.4 }}
+          className="mt-6 text-center text-xs text-muted-foreground"
+        >
           {mode === "login" ? "New to Herald? " : "Already have an account? "}
           <button
             type="button"
-            onClick={() =>
-              switchMode(mode === "login" ? "register" : "login")
-            }
+            onClick={() => switchMode(mode === "login" ? "register" : "login")}
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
             {mode === "login" ? "Create an account" : "Sign in instead"}
           </button>
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function Field({
-  id,
-  label,
-  icon,
-  rightSlot,
-  value,
-  onChange,
-  type = "text",
-  placeholder,
-  autoFocus,
-  autoComplete,
-}: {
-  id: string
-  label: string
-  icon: ReactNode
-  rightSlot?: ReactNode
-  value: string
-  onChange: (v: string) => void
-  type?: string
-  placeholder?: string
-  autoFocus?: boolean
-  autoComplete?: string
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label
-        htmlFor={id}
-        className="text-xs font-medium text-muted-foreground"
-      >
-        {label}
-      </label>
-      <div className="group flex h-11 items-center gap-2 rounded-lg border bg-background px-3 transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30">
-        <span className="text-muted-foreground transition-colors group-focus-within:text-foreground">
-          {icon}
-        </span>
-        <input
-          id={id}
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoFocus={autoFocus}
-          autoComplete={autoComplete}
-          spellCheck={false}
-          className="flex-1 bg-transparent text-sm tracking-tight outline-none placeholder:text-muted-foreground/60"
-        />
-        {rightSlot}
+        </motion.p>
       </div>
     </div>
   )

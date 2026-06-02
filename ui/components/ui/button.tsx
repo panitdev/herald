@@ -1,59 +1,126 @@
-import * as React from 'react'
-import { Slot } from '@radix-ui/react-slot'
-import { cva, type VariantProps } from 'class-variance-authority'
+"use client"
 
-import { cn } from '@/lib/utils'
+import * as React from "react"
+import { Loader2 } from "lucide-react"
+import { AnimatePresence, motion } from "framer-motion"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border text-sm font-medium select-none outline-none transition-colors disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 focus-visible:ring-[3px] focus-visible:ring-ring/50",
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        default:
+          "border-none bg-primary text-primary-foreground shadow-[0_1px_0_0_oklch(1_0_0_/_0.15)_inset,0_8px_20px_-8px_color-mix(in_oklab,var(--primary)_55%,transparent)] hover:bg-primary/90",
         destructive:
-          'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
+          "border-none bg-destructive text-white shadow-[0_1px_0_0_oklch(1_0_0_/_0.12)_inset,0_8px_20px_-8px_color-mix(in_oklab,var(--destructive)_45%,transparent)] hover:bg-destructive/90 focus-visible:ring-destructive/20",
         outline:
-          'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
+          "border-border bg-card text-foreground hover:border-foreground/30",
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+          "border-none bg-secondary text-secondary-foreground hover:bg-secondary/85",
         ghost:
-          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
-        link: 'text-primary underline-offset-4 hover:underline',
+          "border-none bg-transparent text-foreground hover:bg-muted",
+        link:
+          "h-auto rounded-none border-none bg-transparent px-0 py-0 text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: 'h-9 px-4 py-2 has-[>svg]:px-3',
-        sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5',
-        lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
-        icon: 'size-9',
-        'icon-sm': 'size-8',
-        'icon-lg': 'size-10',
+        default: "h-10 px-5 py-2 has-[>svg]:px-4",
+        xs: "h-8 px-3 py-1.5 text-xs has-[>svg]:px-2.5",
+        sm: "h-9 px-4 py-1.5 has-[>svg]:px-3.5",
+        lg: "h-11 px-6 py-2.5 has-[>svg]:px-5",
+        icon: "size-10",
+        "icon-xs": "size-8",
+        "icon-sm": "size-9",
+        "icon-lg": "size-11",
+      },
+      fullWidth: {
+        true: "w-full",
       },
     },
     defaultVariants: {
-      variant: 'default',
-      size: 'default',
+      variant: "default",
+      size: "default",
     },
-  },
+  }
 )
+
+type ButtonProps = React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+    loading?: boolean
+    loadingText?: React.ReactNode
+  }
 
 function Button({
   className,
-  variant,
-  size,
+  variant = "default",
+  size = "default",
   asChild = false,
+  loading = false,
+  loadingText,
+  disabled,
+  children,
+  fullWidth,
+  onClick,
   ...props
-}: React.ComponentProps<'button'> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
-  const Comp = asChild ? Slot : 'button'
+}: ButtonProps) {
+  const isDisabled = disabled || loading
+
+  const content = (
+    <AnimatePresence mode="wait" initial={false}>
+      {loading ? (
+        <motion.span
+          key="loading"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          className="inline-flex items-center gap-2"
+        >
+          <Loader2 className="size-4 animate-spin" />
+          {loadingText ?? children}
+        </motion.span>
+      ) : (
+        <motion.span
+          key="idle"
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 4 }}
+          className="inline-flex items-center gap-2"
+        >
+          {children}
+        </motion.span>
+      )}
+    </AnimatePresence>
+  )
+
+  if (asChild) {
+    return (
+      <Slot
+        data-slot="button"
+        className={cn(buttonVariants({ variant, size, fullWidth, className }))}
+        {...props}
+      >
+        {children}
+      </Slot>
+    )
+  }
 
   return (
-    <Comp
+    <motion.button
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
+      whileTap={isDisabled ? undefined : { scale: 0.97 }}
+      whileHover={isDisabled ? undefined : { y: -1 }}
+      transition={{ type: "spring", stiffness: 600, damping: 30 }}
+      className={cn(buttonVariants({ variant, size, fullWidth, className }))}
+      disabled={isDisabled}
+      onClick={onClick}
+      {...(props as React.ComponentProps<typeof motion.button>)}
+    >
+      {content}
+    </motion.button>
   )
 }
 

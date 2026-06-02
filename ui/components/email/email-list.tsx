@@ -1,10 +1,9 @@
 "use client"
 
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, motion } from "framer-motion"
 import { Search, Inbox as InboxIcon } from "lucide-react"
 import type { Email, Folder } from "@/lib/types"
 import { EmailListItem } from "./email-list-item"
-import { Input } from "@/components/ui/input"
 
 const FOLDER_LABEL: Record<Folder, string> = {
   inbox: "Inbox",
@@ -55,16 +54,16 @@ export function EmailList({
             </span>
           )}
         </div>
-        <div className="relative mt-3">
+        <div className="relative mt-3 flex h-9 items-center gap-2 rounded-lg border border-border bg-muted px-3 transition-[border-color,box-shadow] focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
             aria-hidden
           />
-          <Input
+          <input
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search mail"
-            className="h-9 rounded-lg border-0 bg-muted pl-9 focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
             aria-label="Search mail"
           />
         </div>

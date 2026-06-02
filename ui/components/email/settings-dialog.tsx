@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, motion } from "framer-motion"
 import {
   User,
   Palette,
@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { AnimatedField } from "@/components/ui/animated-field"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -211,36 +211,33 @@ function AccountPanel() {
       <Separator />
 
       <div className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="display-name">Display name</Label>
-          <Input
-            id="display-name"
-            value={settings.displayName}
-            onChange={(e) => {
-              const v = e.target.value
-              const initials =
-                v
-                  .split(/\s+/)
-                  .map((p) => p[0])
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .join("")
-                  .toUpperCase() || "YO"
-              updateSettings({ displayName: v, initials })
-            }}
-            placeholder="Your name"
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="email">Email address</Label>
-          <Input
-            id="email"
-            type="email"
-            value={settings.email}
-            onChange={(e) => updateSettings({ email: e.target.value })}
-            placeholder="you@domain.com"
-          />
-        </div>
+        <AnimatedField
+          id="display-name"
+          label="Display name"
+          value={settings.displayName}
+          onChange={(v) => {
+            const initials =
+              v
+                .split(/\s+/)
+                .map((p) => p[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join("")
+                .toUpperCase() || "YO"
+            updateSettings({ displayName: v, initials })
+          }}
+          placeholder="Your name"
+          autoComplete="name"
+        />
+        <AnimatedField
+          id="email"
+          label="Email address"
+          type="email"
+          value={settings.email}
+          onChange={(v) => updateSettings({ email: v })}
+          placeholder="you@domain.com"
+          autoComplete="email"
+        />
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, motion } from "framer-motion"
 import { AuthProvider, useAuth } from "@/lib/auth-store"
 import { AuthScreen } from "@/components/auth/auth-screen"
 
