@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react"
 import { initiateLogout } from "./kratos"
+import { API_URL } from "./env"
 
 export type AuthUser = {
   id: string
@@ -28,7 +29,6 @@ type AuthCtx = AuthState & {
 
 const AuthContext = createContext<AuthCtx | null>(null)
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ""
 
 async function fetchMe(): Promise<AuthUser | null> {
   try {

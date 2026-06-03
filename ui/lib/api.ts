@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://api.herald.panit.dev"
+import { API_URL as API_BASE } from "@/lib/env"
 
 // ============================================
 // Types

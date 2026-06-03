@@ -11,13 +11,13 @@ target/
 
 # Common ignores
 node_modules
-.next/
 .DS_Store
 
 # Wrangler
 .wrangler
 .persist
 
-# UI
-.open-next
-next-env.d.ts
+# Vite / TanStack Start build output
+.output
+dist
+ui/src/routeTree.gen.ts

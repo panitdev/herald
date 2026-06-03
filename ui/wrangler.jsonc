@@ -1,15 +1,15 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "herald-ui",
-  // Set this to today's date
   "compatibility_date": "2026-04-25",
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
+  // TanStack Start's default server entry; the @cloudflare/vite-plugin wires
+  // the client assets from the build output automatically.
+  "main": "@tanstack/react-start/server-entry",
+  "observability": {
+    "enabled": true
   },
   "routes": [
     {
@@ -18,10 +18,11 @@
       "custom_domain": true,
       "enabled": true,
       "previews_enabled": false
-    },
+    }
   ],
   "vars": {
-    "NEXT_PUBLIC_API_URL": "https://api.herald.panit.dev",
-    "NEXT_PUBLIC_MAIL_DOMAIN": "panit.dev"
-  },
+    "VITE_API_URL": "https://api.herald.panit.dev",
+    "VITE_MAIL_DOMAIN": "panit.dev",
+    "VITE_KRATOS_PUBLIC_URL": "https://auth.panit.dev"
+  }
 }

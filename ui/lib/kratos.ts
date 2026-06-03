@@ -1,4 +1,4 @@
-const KRATOS_URL = (process.env.NEXT_PUBLIC_KRATOS_PUBLIC_URL ?? "").replace(/\/$/, "")
+import { KRATOS_URL } from "./env"
 
 export type AuthStatus = "loading" | "authed" | "unauthed"
 
