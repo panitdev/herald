@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .card { gap: 12px; }
+  .row { display: flex; align-items: baseline; gap: 18px; }
+  .lbl { width: 92px; flex-shrink: 0; font-family: var(--panit-font-mono); font-size: 10.5px; color: var(--panit-muted-foreground); }
+  .mono { font-family: var(--panit-font-mono); font-size: 13px; color: var(--panit-foreground); }
+  .mono-sm { font-family: var(--panit-font-mono); font-size: 11px; color: var(--panit-muted-foreground); }
+  .id { font-family: var(--panit-font-mono); font-size: 12px; color: var(--panit-muted-foreground); }
+  .num { font-family: var(--panit-font-mono); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--panit-foreground); }
+  .codebox { font-family: var(--panit-font-mono); font-size: 12.5px; padding: 12px 14px; border-radius: 8px; background: var(--panit-muted); color: var(--panit-foreground); line-height: 1.5; border: 1px solid var(--panit-border); }
+  .tok { color: var(--panit-primary); }
+  .str { color: oklch(0.55 0.12 30); }
+</style></head><body>
+<div class="card">
+  <div class="kicker">Mono — Geist Mono · tabular nums</div>
+  <div class="row"><span class="lbl">stat number</span><span class="num">+6.42%</span></div>
+  <div class="row"><span class="lbl">timestamp</span><span class="num">14:32:08</span></div>
+  <div class="row"><span class="lbl">session id</span><span class="id">ses_8x91nNAlGu0</span></div>
+  <div class="codebox"><span class="tok">extract_intent</span>(<span class="str">"order #4421"</span>) → <span class="tok">{ id, urgency }</span></div>
+</div>
+</body></html>

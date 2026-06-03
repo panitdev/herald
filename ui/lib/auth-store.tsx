@@ -8,114 +8,57 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { initiateLogout } from "./kratos"
 
 export type AuthUser = {
   id: string
   address: string
+  username: string
 }
 
 type AuthState = {
   user: AuthUser | null
-  accessToken: string | null
   initialized: boolean
 }
 
 type AuthCtx = AuthState & {
-  login: (username: string, password: string) => Promise<void>
-  register: (username: string, password: string) => Promise<void>
   logout: () => void
+  refresh: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthCtx | null>(null)
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ""
-const STORAGE_KEY = "herald_auth"
 
-type Stored = {
-  user: AuthUser
-  accessToken: string
-  refreshToken: string
-}
-
-function loadStored(): Stored | null {
+async function fetchMe(): Promise<AuthUser | null> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    return JSON.parse(raw) as Stored
+    const res = await fetch(`${API_URL}/api/me`, { credentials: "include" })
+    if (!res.ok) return null
+    const data = (await res.json()) as { id: string; address: string; username: string }
+    return { id: data.id, address: data.address, username: data.username }
   } catch {
     return null
   }
 }
 
-function saveStored(data: Stored) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-}
-
-function clearStored() {
-  localStorage.removeItem(STORAGE_KEY)
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    accessToken: null,
-    initialized: false,
-  })
+  const [state, setState] = useState<AuthState>({ user: null, initialized: false })
+
+  const refresh = useCallback(async () => {
+    const user = await fetchMe()
+    setState({ user, initialized: true })
+  }, [])
 
   useEffect(() => {
-    const stored = loadStored()
-    if (stored) {
-      setState({ user: stored.user, accessToken: stored.accessToken, initialized: true })
-    } else {
-      setState((s) => ({ ...s, initialized: true }))
-    }
-  }, [])
-
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    })
-    if (!res.ok) {
-      const data = (await res.json()) as { error?: string }
-      throw new Error(data.error ?? "Login failed")
-    }
-    const data = (await res.json()) as {
-      user: AuthUser
-      accessToken: string
-      refreshToken: string
-    }
-    saveStored({ user: data.user, accessToken: data.accessToken, refreshToken: data.refreshToken })
-    setState({ user: data.user, accessToken: data.accessToken, initialized: true })
-  }, [])
-
-  const register = useCallback(async (username: string, password: string) => {
-    const res = await fetch(`${API_URL}/api/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    })
-    if (!res.ok) {
-      const data = (await res.json()) as { error?: string }
-      throw new Error(data.error ?? "Registration failed")
-    }
-    const data = (await res.json()) as {
-      user: AuthUser
-      accessToken: string
-      refreshToken: string
-    }
-    saveStored({ user: data.user, accessToken: data.accessToken, refreshToken: data.refreshToken })
-    setState({ user: data.user, accessToken: data.accessToken, initialized: true })
-  }, [])
+    refresh()
+  }, [refresh])
 
   const logout = useCallback(() => {
-    clearStored()
-    setState((s) => ({ ...s, user: null, accessToken: null }))
+    initiateLogout()
   }, [])
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider value={{ ...state, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )

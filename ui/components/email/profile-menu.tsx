@@ -157,10 +157,7 @@ export function ProfileMenu({ onOpenSettings }: Props) {
         )}
         <DropdownMenuItem
           variant="destructive"
-          onSelect={() => {
-            logout()
-            toast.success("Signed out", { description: "See you soon." })
-          }}
+          onSelect={() => logout()}
         >
           <LogOut className="h-4 w-4" />
           Sign out

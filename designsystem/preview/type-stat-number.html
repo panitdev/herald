@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .card { gap: 14px; align-items: center; justify-content: center; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; width: 100%; }
+  .stat { border: 1px solid var(--panit-border); background: var(--panit-card); border-radius: 12px; padding: 14px 16px; }
+  .stat .lbl { font-size: 11px; font-weight: 500; color: var(--panit-muted-foreground); }
+  .stat .num { font-family: var(--panit-font-serif); font-weight: 500; font-size: 40px; line-height: 1; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--panit-foreground); margin-top: 8px; }
+  .stat .num.green { color: var(--panit-primary); }
+  .stat .delta { font-size: 11px; color: var(--panit-muted-foreground); margin-top: 8px; }
+  .anno { font-family: var(--panit-font-mono); font-size: 11px; color: var(--panit-muted-foreground); }
+</style></head><body>
+<div class="card">
+  <div class="kicker">Serif stat number — tabular nums, 36–40px</div>
+  <div class="grid">
+    <div class="stat"><div class="lbl">Submissions today</div><div class="num green">29</div><div class="delta">+6 vs. yesterday</div></div>
+    <div class="stat"><div class="lbl">Running apps</div><div class="num">3</div><div class="delta">All healthy</div></div>
+    <div class="stat"><div class="lbl">Avg. completion</div><div class="num">2m 14s</div><div class="delta">— 11s this week</div></div>
+    <div class="stat"><div class="lbl">Runs this week</div><div class="num">48</div><div class="delta">Across 2 workflows</div></div>
+  </div>
+  <div class="anno">font-serif · weight 500 · letter-spacing -0.01em · tabular-nums</div>
+</div>
+</body></html>

@@ -1,7 +1,3 @@
-// ui/lib/api.ts
-// API client for Herald backend
-// Uses AuthContext from auth-store.tsx for authentication
-
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://api.herald.panit.dev"
 
 // ============================================
@@ -48,42 +44,29 @@ export class APIError extends Error {
 }
 
 // ============================================
-// API fetch - works both with and without auth (for SSR)
+// API fetch — session cookie is sent automatically via credentials: 'include'
 // ============================================
-
-let authToken: string | null = null
-
-// Hook to set auth token from auth context
-export function setAuthToken(token: string | null) {
-  authToken = token
-}
 
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  }
-
-  if (authToken) {
-    ; (headers as Record<string, string>)["Authorization"] = `Bearer ${authToken}`
-  }
-
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
   })
 
-  // Handle 401 - try refresh (would need refresh token)
   if (response.status === 401) {
     throw new APIError(401, "Session expired")
   }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new APIError(response.status, error.error || "Request failed")
+    throw new APIError(response.status, (error as { error?: string }).error ?? "Request failed")
   }
 
   return response.json()
@@ -147,16 +130,8 @@ export async function sendMail(
 }
 
 export async function getRawEmail(messageId: string): Promise<string> {
-  // Don't use apiFetch - it tries to parse as JSON
-  // The /raw endpoint returns message/rfc822 content
-  const headers: Record<string, string> = {}
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`
-  }
-
   const response = await fetch(`${API_BASE}/api/messages/${messageId}/raw`, {
-    method: "GET",
-    headers,
+    credentials: "include",
   })
 
   if (!response.ok) {

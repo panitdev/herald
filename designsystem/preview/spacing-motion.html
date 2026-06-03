@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .card { gap: 14px; }
+  .row { display: flex; gap: 14px; align-items: center; }
+  .lbl { width: 130px; font-family: var(--panit-font-mono); font-size: 10.5px; color: var(--panit-muted-foreground); flex-shrink: 0; }
+  .track { position: relative; flex: 1; height: 32px; background: var(--panit-muted); border-radius: 999px; overflow: hidden; }
+  .ball { position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 999px; background: var(--panit-primary); }
+  .b1 { animation: m1 2.2s cubic-bezier(0.32, 0.72, 0, 1) infinite alternate; }
+  .b2 { animation: m1 2.2s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate; background: var(--panit-accent); }
+  .b3 { animation: m1 2.2s linear infinite alternate; background: var(--panit-muted-foreground); }
+  @keyframes m1 { from { left: 6px; } to { left: calc(100% - 26px); } }
+  .desc { font-size: 11px; color: var(--panit-muted-foreground); }
+</style></head><body>
+<div class="card">
+  <div class="kicker">Easing — two curves, used everywhere</div>
+  <div class="row"><div class="lbl">ease-out · list/page</div><div class="track"><div class="ball b1"></div></div><div class="desc">0.32, 0.72, 0, 1</div></div>
+  <div class="row"><div class="lbl">ease-page · hero copy</div><div class="track"><div class="ball b2"></div></div><div class="desc">0.22, 1, 0.36, 1</div></div>
+  <div class="row"><div class="lbl">linear · for reference</div><div class="track"><div class="ball b3"></div></div><div class="desc">don't use</div></div>
+  <div style="display:flex;gap:24px;margin-top:6px;font-family:var(--panit-font-mono);font-size:11px;color:var(--panit-muted-foreground);">
+    <span>fast 150ms</span><span>base 300ms</span><span>slow 500ms</span><span>loop 4.5s</span>
+  </div>
+</div>
+</body></html>

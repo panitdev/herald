@@ -17,7 +17,7 @@ import { SettingsProvider, useSettings } from "@/lib/settings-store"
 import { useMailNavigation, type Mailbox } from "@/hooks/use-mail-navigation"
 import { useMailboxes } from "@/hooks/use-mailboxes"
 import { useMessages } from "@/hooks/use-messages"
-import { setAuthToken, getRawEmail, sendMail } from "@/lib/api"
+import { getRawEmail, sendMail } from "@/lib/api"
 import PostalMime from "postal-mime"
 import { useAuth } from "@/lib/auth-store"
 
@@ -46,11 +46,7 @@ function EmailClientContent() {
   const [emailBodyFormat, setEmailBodyFormat] = useState<"html" | "text">("text")
   const { settings } = useSettings()
 
-  // Auth - set token for API calls
-  const { accessToken, user } = useAuth()
-  useEffect(() => {
-    setAuthToken(accessToken)
-  }, [accessToken])
+  const { user } = useAuth()
 
   // API data
   const { mailboxes, loading: mailboxesLoading, error: mailboxesError } = useMailboxes()

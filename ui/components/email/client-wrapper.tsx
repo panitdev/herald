@@ -4,6 +4,7 @@ import dynamic from "next/dynamic"
 import { AnimatePresence, motion } from "framer-motion"
 import { AuthProvider, useAuth } from "@/lib/auth-store"
 import { AuthScreen } from "@/components/auth/auth-screen"
+import { AuthGuardDialog } from "@/components/auth/auth-guard-dialog"
 
 const EmailClient = dynamic(
   () => import("@/components/email/email-client").then((mod) => mod.EmailClient),
@@ -48,6 +49,7 @@ export function ClientWrapper() {
   return (
     <AuthProvider>
       <AppContent />
+      <AuthGuardDialog />
     </AuthProvider>
   )
 }

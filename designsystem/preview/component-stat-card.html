@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .card { gap: 14px; justify-content: center; padding: 28px 32px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .stat { position: relative; overflow: hidden; border: 1px solid var(--panit-border); background: var(--panit-card); border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px oklch(0.18 0.06 264 / 0.08); }
+  .stat .top { display: flex; align-items: center; justify-content: space-between; }
+  .stat .lbl { font-size: 11px; font-weight: 500; color: var(--panit-muted-foreground); }
+  .stat .tile { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; }
+  .stat .tile--p { background: var(--panit-primary-10); color: var(--panit-primary); }
+  .stat .tile--a { background: oklch(0.82 0.13 75 / 0.2); color: oklch(0.45 0.10 60); }
+  .stat .num { font-family: var(--panit-font-serif); font-weight: 500; font-size: 40px; line-height: 1; letter-spacing: -0.01em; margin-top: 8px; }
+  .stat .delta { font-size: 11px; color: var(--panit-muted-foreground); margin-top: 6px; }
+  /* variant: thin accent stripe on left */
+  .stat--p::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--panit-primary); }
+</style></head><body>
+<div class="card">
+  <div class="kicker">StatCard — cobalt or amber tile, big serif number, optional accent stripe</div>
+  <div class="grid">
+    <div class="stat stat--p">
+      <div class="top"><span class="lbl">Submissions today</span><span class="tile tile--p"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span></div>
+      <div class="num">29</div>
+      <div class="delta">+6 vs. yesterday</div>
+    </div>
+    <div class="stat">
+      <div class="top"><span class="lbl">Running apps</span><span class="tile tile--a"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.5.5 0 0 1-.96 0L9.24 3.18a.5.5 0 0 0-.96 0l-2.35 8.36A2 2 0 0 1 4 13H2"/></svg></span></div>
+      <div class="num">3</div>
+      <div class="delta">All healthy</div>
+    </div>
+  </div>
+</div>
+</body></html>

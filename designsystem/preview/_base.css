@@ -1,0 +1,90 @@
+/* Shared base styles for design-system preview cards.
+   Each card is ~700px wide, height varies. Cards are minimal — no titles or
+   framing, just the swatches/specimens/tokens. */
+
+@import url('../colors_and_type.css');
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--panit-font-sans);
+  color: var(--panit-foreground);
+  background: var(--panit-background);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+.card {
+  padding: 24px 28px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.grain-bg {
+  position: relative;
+  isolation: isolate;
+}
+.grain-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: radial-gradient(
+    oklch(0.8 0.02 85 / 0.35) 1px,
+    transparent 1px
+  );
+  background-size: 3px 3px;
+}
+
+/* swatch grids */
+.swatch-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.swatch {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.swatch__chip {
+  height: 64px;
+  border-radius: 10px;
+  border: 1px solid var(--panit-border);
+  position: relative;
+}
+.swatch__name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--panit-foreground);
+  line-height: 1.2;
+}
+.swatch__val {
+  font-family: var(--panit-font-mono);
+  font-size: 10.5px;
+  color: var(--panit-muted-foreground);
+  line-height: 1.3;
+  word-break: break-all;
+}
+
+/* labels */
+.kicker {
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: color-mix(in oklab, var(--panit-muted-foreground) 90%, transparent);
+}

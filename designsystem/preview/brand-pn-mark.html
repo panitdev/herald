@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .card { gap: 18px; align-items: center; justify-content: center; padding: 26px; }
+  .row { display: flex; gap: 22px; align-items: center; }
+  .panel { background: black; border-radius: 22px; width: 92px; height: 92px; display: flex; align-items: center; justify-content: center; }
+  .panel--inv { background: var(--panit-background); border: 1px solid var(--panit-border); }
+  img { width: 56px; height: 56px; }
+  .anno { font-family: var(--panit-font-mono); font-size: 10.5px; color: var(--panit-muted-foreground); text-align: center; max-width: 460px; }
+</style></head><body>
+<div class="card">
+  <div class="kicker">App icon — geometric "PN" mark · favicon &amp; iOS home screen</div>
+  <div class="row">
+    <div class="panel"><img src="../assets/panit-icon-dark-32.png" alt="" style="filter: invert(1);"/></div>
+    <div class="panel"><img src="../assets/panit-icon.svg" alt=""/></div>
+    <div class="panel panel--inv"><img src="../assets/panit-icon-light-32.png" alt=""/></div>
+  </div>
+  <div class="anno">Two-letter ligature mark · used as favicon and app icon · auto-swaps on prefers-color-scheme. For all in-app and marketing surfaces, prefer the workflow-graph mark.</div>
+</div>
+</body></html>
