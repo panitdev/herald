@@ -83,10 +83,11 @@ app.post("/api/auth/register", async (c) => {
 
   // Create default folders for the new user
   await c.env.DB.prepare(
-    `INSERT INTO mailboxes (id, user_id, name, is_system) VALUES (?, ?, 'inbox', 1), (?, ?, 'sent', 1), (?, ?, 'trash', 1), (?, ?, 'spam', 1)`
+    `INSERT INTO mailboxes (id, user_id, name, is_system) VALUES (?, ?, 'inbox', 1), (?, ?, 'sent', 1), (?, ?, 'archive', 1), (?, ?, 'trash', 1), (?, ?, 'spam', 1)`
   ).bind(
     crypto.randomUUID(), id, // inbox
     crypto.randomUUID(), id, // sent
+    crypto.randomUUID(), id, // archive
     crypto.randomUUID(), id, // trash
     crypto.randomUUID(), id, // spam
   ).run()
