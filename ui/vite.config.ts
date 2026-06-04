@@ -22,6 +22,12 @@ export default defineConfig({
     host: true,
     port: 3000,
     allowedHosts: ['localhost.panit.dev'],
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [
     // Plugin order is load-bearing: Cloudflare before TanStack Start.

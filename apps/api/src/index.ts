@@ -41,6 +41,28 @@ const DEFAULT_CORS_ORIGINS = [
   "http://localhost:5173",
 ]
 
+const EMAIL_RENDER_CSP = [
+  "default-src 'none'",
+  "img-src * data: blob:",
+  "style-src * 'unsafe-inline'",
+  "font-src * data:",
+  "frame-src 'none'",
+  "script-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "upgrade-insecure-requests",
+].join("; ")
+
+type MessageBodyError =
+  | "message not found or access denied"
+  | "raw email not found"
+  | "message body could not be parsed"
+
+type MessageBodyResult =
+  | { format: "html" | "text"; body: string }
+  | { error: MessageBodyError }
+
 // CORS for frontend
 app.use(
   "/*",
@@ -398,11 +420,11 @@ app.post("/api/messages/send", authMiddleware, async (c) => {
   }, 201)
 })
 
-// Get parsed message body from R2 (protected)
-app.get("/api/messages/:id/body", authMiddleware, async (c) => {
+async function getMessageRawEmail(
+  c: Context<{ Bindings: Env }>,
+  messageId: string
+): Promise<{ rawEmail: R2ObjectBody } | { error: MessageBodyError }> {
   const user = getUser(c)
-  const messageId = c.req.param("id")
-
   const { results: msgResults } = await c.env.DB.prepare(
     `SELECT m.r2_raw_key FROM messages m
      JOIN mailboxes mb ON m.mailbox_id = mb.id
@@ -410,34 +432,161 @@ app.get("/api/messages/:id/body", authMiddleware, async (c) => {
   ).bind(messageId, user.id).all() as { results: { r2_raw_key: string }[] }
 
   if (!msgResults.length) {
-    return c.json({ error: "message not found or access denied" }, 404)
+    return { error: "message not found or access denied" as const }
   }
 
-  const r2Key = msgResults[0].r2_raw_key
-  const rawEmail = await c.env.MAIL_BUCKET.get(r2Key)
+  const message = msgResults[0]
+  const rawEmail = await c.env.MAIL_BUCKET.get(message.r2_raw_key)
   if (!rawEmail) {
-    console.error("R2 object not found for key:", r2Key)
-    return c.json({ error: "raw email not found" }, 404)
+    console.error("R2 object not found for key:", message.r2_raw_key)
+    return { error: "raw email not found" as const }
   }
+
+  return { rawEmail }
+}
+
+async function getParsedMessageBody(
+  c: Context<{ Bindings: Env }>,
+  messageId: string
+): Promise<MessageBodyResult> {
+  const result = await getMessageRawEmail(c, messageId)
+  if ("error" in result) return result
 
   try {
-    const parsed = await PostalMime.parse(await rawEmail.arrayBuffer())
+    const parsed = await PostalMime.parse(await result.rawEmail.arrayBuffer())
     const hasHtml =
       typeof parsed.html === "string" && parsed.html.trim().length > 0
-    return c.json({
+    return {
       format: hasHtml ? "html" : "text",
       body: (hasHtml ? parsed.html : parsed.text) || "",
-    })
+    } as const
   } catch (error) {
     console.error("Failed to parse raw email:", error)
-    return c.json({ error: "message body could not be parsed" }, 422)
+    return { error: "message body could not be parsed" as const }
   }
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
+function sanitizeStyle(value: string) {
+  return value
+    .replace(/expression\s*\([^)]*\)/gi, "")
+    .replace(/@import/gi, "")
+    .replace(/-moz-binding/gi, "")
+    .replace(/behavior\s*:/gi, "")
+    .trim()
+}
+
+function sanitizeSrcset(value: string) {
+  const candidates = value
+    .split(",")
+    .map((candidate) => candidate.trim())
+    .filter(Boolean)
+    .filter((candidate) => /^(https?:|data:image\/|cid:|blob:)/i.test(candidate))
+
+  return candidates.join(", ")
+}
+
+function sanitizeEmailHtml(html: string) {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript\s*>/gi, "")
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe\s*>/gi, "")
+    .replace(/<object\b[^>]*>[\s\S]*?<\/object\s*>/gi, "")
+    .replace(/<embed\b[^>]*>[\s\S]*?<\/embed\s*>/gi, "")
+    .replace(/<form\b[^>]*>[\s\S]*?<\/form\s*>/gi, "")
+    .replace(/\s+on[a-z0-9_-]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+)/gi, "")
+    .replace(/\s+(?:href|src|action|formaction|poster|background)\s*=\s*"[^"]*(?:javascript:|data:(?!image\/))[^"]*"/gi, "")
+    .replace(/\s+(?:href|src|action|formaction|poster|background)\s*=\s*'[^']*(?:javascript:|data:(?!image\/))[^']*'/gi, "")
+    .replace(/\s+(?:href|src|action|formaction|poster|background)\s*=\s*[^\s"'=<>`]*(?:javascript:|data:(?!image\/))[^\s"'=<>`]*/gi, "")
+    .replace(/\s+style\s*=\s*(["'])([\s\S]*?)\1/gi, (_match, quote: string, style: string) => {
+      const sanitized = sanitizeStyle(style)
+      return sanitized ? ` style=${quote}${sanitized}${quote}` : ""
+    })
+    .replace(/\s+srcset\s*=\s*(["'])([\s\S]*?)\1/gi, (_match, quote: string, srcset: string) => {
+      const sanitized = sanitizeSrcset(srcset)
+      return sanitized ? ` srcset=${quote}${sanitized}${quote}` : ""
+    })
+}
+
+function renderTextBodyAsHtml(text: string) {
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        color: #111827;
+        font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      body {
+        padding: 20px;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>${escapeHtml(text)}</body>
+</html>`
+}
+
+function frameAncestors(c: Context<{ Bindings: Env }>) {
+  const configured = c.env.CORS_ORIGIN?.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+  const origins = configured?.length ? configured : DEFAULT_CORS_ORIGINS
+
+  return `frame-ancestors ${origins.join(" ")}`
+}
+
+// Get parsed message body from R2 (protected)
+app.get("/api/messages/:id/body", authMiddleware, async (c) => {
+  const messageId = c.req.param("id") ?? ""
+  const body = await getParsedMessageBody(c, messageId)
+  if ("error" in body) {
+    const status = body.error === "message body could not be parsed" ? 422 : 404
+    return c.json({ error: body.error }, status)
+  }
+
+  return c.json(body)
+})
+
+// Render parsed message HTML in an iframe-governed document (protected)
+app.get("/api/messages/:id/render", authMiddleware, async (c) => {
+  const messageId = c.req.param("id") ?? ""
+  const body = await getParsedMessageBody(c, messageId)
+  if ("error" in body) {
+    const status = body.error === "message body could not be parsed" ? 422 : 404
+    return c.text(body.error, status)
+  }
+
+  const html =
+    body.format === "html"
+      ? sanitizeEmailHtml(body.body)
+      : renderTextBodyAsHtml(body.body)
+
+  return c.html(html, 200, {
+    "Content-Security-Policy": `${EMAIL_RENDER_CSP}; ${frameAncestors(c)}`,
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "SAMEORIGIN",
+    "X-Content-Type-Options": "nosniff",
+  })
 })
 
 // Get raw email content from R2 (protected)
 app.get("/api/messages/:id/raw", authMiddleware, async (c) => {
   const user = getUser(c)
-  const messageId = c.req.param("id")
+  const messageId = c.req.param("id") ?? ""
 
   const { results: msgResults } = await c.env.DB.prepare(
     `SELECT m.r2_raw_key, m.subject FROM messages m
@@ -449,7 +598,8 @@ app.get("/api/messages/:id/raw", authMiddleware, async (c) => {
     return c.json({ error: "message not found or access denied" }, 404)
   }
 
-  const r2Key = msgResults[0].r2_raw_key
+  const message = msgResults[0]
+  const r2Key = message.r2_raw_key
   console.log("Fetching raw email with key:", r2Key)
 
   const rawEmail = await c.env.MAIL_BUCKET.get(r2Key)
@@ -462,7 +612,7 @@ app.get("/api/messages/:id/raw", authMiddleware, async (c) => {
   const bodyText = await rawEmail.text()
   console.log("Raw email body length:", bodyText.length)
 
-  const filename = sourceFilename(msgResults[0].subject, messageId)
+  const filename = sourceFilename(message.subject, messageId)
 
   return new Response(bodyText, {
     headers: {

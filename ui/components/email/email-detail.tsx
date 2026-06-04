@@ -36,6 +36,7 @@ import { SafeEmailBody } from "./safe-email-body"
 
 type Props = {
   email: Email | null
+  messageId: string | null
   emailBody: string
   emailBodyFormat: "html" | "text"
   onBack: () => void
@@ -49,6 +50,7 @@ type Props = {
 
 export function EmailDetail({
   email,
+  messageId,
   emailBody,
   emailBodyFormat,
   onBack,
@@ -216,7 +218,11 @@ export function EmailDetail({
                   transition={{ delay: 0.15 }}
                   className="mt-6"
                 >
-                  <SafeEmailBody body={emailBody} format={emailBodyFormat} />
+                  <SafeEmailBody
+                    body={emailBody}
+                    format={emailBodyFormat}
+                    messageId={messageId ?? email.id}
+                  />
                 </motion.div>
 
                 {email.hasAttachment && (

@@ -11,6 +11,19 @@
     "KRATOS_PUBLIC_URL": "https://kratos.panit.dev",
     "CORS_ORIGIN": "https://herald.panit.dev,https://localhost.panit.dev,http://localhost:3000,http://localhost:5173"
   },
+  "routes": [
+    {
+      "pattern": "api.herald.panit.dev",
+      "zone_name": "panit.dev",
+      "custom_domain": true,
+      "enabled": true,
+      "previews_enabled": false
+    },
+    {
+      "pattern": "herald.panit.dev/api/*",
+      "zone_name": "panit.dev"
+    }
+  ],
   "d1_databases": [
     {
       "migrations_dir": "../../migrations/",

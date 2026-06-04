@@ -191,6 +191,7 @@ function EmptyDetailPane() {
     <div className="hidden min-w-0 flex-1 md:block">
       <EmailDetail
         email={null}
+        messageId={null}
         emailBody=""
         emailBodyFormat="text"
         onBack={noop}
@@ -240,6 +241,7 @@ function MessageDetailPane({
   const detail = (
     <EmailDetail
       email={email}
+      messageId={messageId}
       emailBody={emailBody}
       emailBodyFormat={emailBodyFormat}
       onBack={actions.backToList}
