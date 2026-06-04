@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck UI
+        run: bun run --cwd ui lint
+
+      - name: Build UI
+        run: bun run --cwd ui build
+
+      - name: Validate API Worker bundle
+        run: bun wrangler deploy --dry-run -c apps/api/wrangler.jsonc
+
+      - name: Validate email Worker bundle
+        run: bun wrangler deploy --dry-run -c apps/email/wrangler.jsonc
+
+      - name: Validate queue Worker bundle
+        run: bun wrangler deploy --dry-run -c apps/queue/wrangler.jsonc
