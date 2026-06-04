@@ -182,18 +182,12 @@ export function ComposePanel({
                     disabled={!canSend}
                     className="gap-2"
                     size="sm"
+                    loading={sending}
+                    loadingText="Sending"
+                    animateWidth
                   >
-                    {sending ? (
-                      <>
-                        <Spinner className="h-3.5 w-3.5" />
-                        Sending…
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-3.5 w-3.5" />
-                        Send
-                      </>
-                    )}
+                    <Send className="h-3.5 w-3.5" />
+                    Send
                   </Button>
                 </div>
               </motion.div>
