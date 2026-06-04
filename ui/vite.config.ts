@@ -10,6 +10,13 @@ export default defineConfig({
     // Mirrors tsconfig "@/*": ["./*"] — "@" maps to the ui/ root.
     alias: { '@': path.resolve(import.meta.dirname, '.') },
   },
+  // Exclude postal-mime from Vite's esbuild pre-optimisation so the dev server
+  // serves its native ESM source directly instead of wrapping it in a
+  // __commonJS/__toESM shim.  The production build handles the interop in
+  // lib/queries.ts via an explicit typeof guard on the dynamic import result.
+  optimizeDeps: {
+    exclude: ['postal-mime'],
+  },
   server: {
     // Keep AGENTS.md's https://localhost.panit.dev browser-testing flow working.
     host: true,
