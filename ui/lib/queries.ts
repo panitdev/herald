@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query"
-import PostalMime from "postal-mime"
 import * as api from "@/lib/api"
+import type { MessageBody } from "@/lib/api"
 
 export const mailboxesQuery = () =>
   queryOptions({
@@ -17,20 +17,8 @@ export const messagesQuery = (mailboxId: string | null) =>
         : Promise.resolve([]),
   })
 
-export type MessageBody = { format: "html" | "text"; body: string }
-
 export const messageBodyQuery = (messageId: string) =>
   queryOptions({
     queryKey: ["messageBody", messageId] as const,
-    queryFn: async (): Promise<MessageBody> => {
-      const raw = await api.getRawEmail(messageId)
-      if (!raw) return { format: "text", body: "" }
-      const parsed = await new PostalMime().parse(raw)
-      const hasHtml =
-        typeof parsed.html === "string" && parsed.html.trim().length > 0
-      return {
-        format: hasHtml ? "html" : "text",
-        body: (hasHtml ? parsed.html : parsed.text) || "",
-      }
-    },
+    queryFn: (): Promise<MessageBody> => api.getMessageBody(messageId),
   })
