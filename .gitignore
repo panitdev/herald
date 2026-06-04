@@ -20,4 +20,3 @@ node_modules
 # Vite / TanStack Start build output
 .output
 dist
-ui/src/routeTree.gen.ts
