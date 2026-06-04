@@ -439,12 +439,11 @@ app.get("/api/messages/:id/raw", authMiddleware, async (c) => {
   const user = getUser(c)
   const messageId = c.req.param("id")
 
-  // Verify ownership
   const { results: msgResults } = await c.env.DB.prepare(
-    `SELECT m.r2_raw_key FROM messages m
+    `SELECT m.r2_raw_key, m.subject FROM messages m
      JOIN mailboxes mb ON m.mailbox_id = mb.id
      WHERE m.id = ? AND mb.user_id = ?`
-  ).bind(messageId, user.id).all() as { results: { r2_raw_key: string }[] }
+  ).bind(messageId, user.id).all() as { results: { r2_raw_key: string; subject: string }[] }
 
   if (!msgResults.length) {
     return c.json({ error: "message not found or access denied" }, 404)
@@ -463,13 +462,26 @@ app.get("/api/messages/:id/raw", authMiddleware, async (c) => {
   const bodyText = await rawEmail.text()
   console.log("Raw email body length:", bodyText.length)
 
+  const filename = sourceFilename(msgResults[0].subject, messageId)
+
   return new Response(bodyText, {
     headers: {
       "Content-Type": "message/rfc822",
-      "Content-Disposition": "inline",
+      "Content-Disposition": `attachment; filename="${filename}"`,
     },
   })
 })
+
+function sourceFilename(subject: string | null | undefined, fallback: string) {
+  const base = (subject || fallback)
+    .replace(/[\r\n"]/g, "")
+    .replace(/[^\x20-\x7E]+/g, "")
+    .replace(/[\\/:*?<>|]+/g, "-")
+    .trim()
+    .slice(0, 80)
+
+  return `${base || fallback}.eml`
+}
 
 // WebSocket endpoint for real-time updates (protected)
 app.get("/api/ws", authMiddleware, async (c) => {

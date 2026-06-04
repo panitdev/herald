@@ -150,3 +150,20 @@ export async function getRawEmail(messageId: string): Promise<string> {
 
   return response.text()
 }
+
+export async function getRawEmailBlob(messageId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/api/messages/${messageId}/raw`, {
+    credentials: "include",
+  })
+
+  if (response.status === 401) {
+    throw new APIError(401, "Session expired")
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "")
+    throw new Error(`Failed to fetch raw email: ${response.status} ${response.statusText} - ${errorText}`)
+  }
+
+  return response.blob()
+}

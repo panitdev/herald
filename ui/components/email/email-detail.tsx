@@ -1,9 +1,11 @@
 "use client"
 
+import { useState, type ReactNode } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   ArrowLeft,
   Archive,
+  Download,
   Trash2,
   Star,
   Reply,
@@ -28,7 +30,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { SafeEmailBody } from "./safe-email-body"
@@ -43,6 +44,7 @@ type Props = {
   onToggleStar: (id: string) => void
   onToggleRead: (id: string) => void
   onReply: () => void
+  onDownloadSource: (id: string) => Promise<void> | void
 }
 
 export function EmailDetail({
@@ -55,7 +57,19 @@ export function EmailDetail({
   onToggleStar,
   onToggleRead,
   onReply,
+  onDownloadSource,
 }: Props) {
+  const [isDownloadingSource, setIsDownloadingSource] = useState(false)
+
+  async function handleDownloadSource(id: string) {
+    try {
+      setIsDownloadingSource(true)
+      await onDownloadSource(id)
+    } finally {
+      setIsDownloadingSource(false)
+    }
+  }
+
   return (
     <div className="relative h-full bg-background">
       <AnimatePresence initial={false}>
@@ -129,11 +143,13 @@ export function EmailDetail({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>Mute thread</DropdownMenuItem>
-                  <DropdownMenuItem>Snooze</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>Report spam</DropdownMenuItem>
-                  <DropdownMenuItem>Block sender</DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={isDownloadingSource}
+                    onSelect={() => void handleDownloadSource(email.id)}
+                  >
+                    <Download className="h-4 w-4" />
+                    Download source
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -276,7 +292,7 @@ function ToolbarButton({
 }: {
   label: string
   onClick: () => void
-  icon: React.ReactNode
+  icon: ReactNode
 }) {
   return (
     <Tooltip>

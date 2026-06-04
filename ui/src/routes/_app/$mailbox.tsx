@@ -7,6 +7,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import { Menu, Loader2 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
+import { toast } from "sonner"
 
 import { EmailSidebar } from "@/components/email/sidebar"
 import { EmailList } from "@/components/email/email-list"
@@ -14,6 +15,7 @@ import { EmailDetail } from "@/components/email/email-detail"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { mailboxesQuery, messageBodyQuery, messagesQuery } from "@/lib/queries"
+import { getRawEmailBlob } from "@/lib/api"
 import { transformMessage } from "@/lib/email-transform"
 import { useMergedEmails } from "@/lib/local-overrides-store"
 import { useEmailActions } from "@/lib/use-email-actions"
@@ -197,6 +199,7 @@ function EmptyDetailPane() {
         onToggleStar={noop}
         onToggleRead={noop}
         onReply={noop}
+        onDownloadSource={noop}
       />
     </div>
   )
@@ -216,6 +219,23 @@ function MessageDetailPane({
     ? bodyQ.data.body || "(No content available)"
     : email?.preview || "Loading message..."
   const emailBodyFormat = bodyQ.isSuccess ? bodyQ.data.format : "text"
+  const handleDownloadSource = async (id: string) => {
+    try {
+      const blob = await getRawEmailBlob(id)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = sourceFilename(email?.subject, id)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (error) {
+      toast.error("Download failed", {
+        description: error instanceof Error ? error.message : "Could not download source",
+      })
+    }
+  }
 
   const detail = (
     <EmailDetail
@@ -228,6 +248,7 @@ function MessageDetailPane({
       onToggleStar={actions.handleToggleStar}
       onToggleRead={actions.handleToggleRead}
       onReply={() => actions.handleReply(email)}
+      onDownloadSource={handleDownloadSource}
     />
   )
 
@@ -249,4 +270,14 @@ function MessageDetailPane({
       </AnimatePresence>
     </>
   )
+}
+
+function sourceFilename(subject: string | null | undefined, fallback: string) {
+  const base = (subject || fallback)
+    .replace(/[\r\n"]/g, "")
+    .replace(/[\\/:*?<>|]+/g, "-")
+    .trim()
+    .slice(0, 80)
+
+  return `${base || fallback}.eml`
 }
