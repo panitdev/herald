@@ -127,29 +127,6 @@
   }
 }
 
-/* Panit grain overlay — paper texture on every full-bleed shell */
-.grain::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  pointer-events: none;
-  background-image: radial-gradient(
-    oklch(0.75 0.02 85 / 0.35) 1px,
-    transparent 1px
-  );
-  background-size: 3px 3px;
-  mix-blend-mode: multiply;
-}
-
-.dark .grain::before {
-  background-image: radial-gradient(
-    oklch(0.95 0.02 264 / 0.02) 1px,
-    transparent 1px
-  );
-  mix-blend-mode: overlay;
-}
-
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;

@@ -113,7 +113,7 @@ function RootDocument({ children }: { children: ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="grain min-h-dvh font-sans antialiased">
+      <body className="min-h-dvh font-sans antialiased">
         {children}
         <Scripts />
       </body>
