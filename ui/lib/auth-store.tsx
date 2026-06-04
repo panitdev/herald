@@ -8,8 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { initiateLogout } from "./kratos"
-import { API_URL } from "./env"
+import { getWhoami, initiateLogout, type KratosSession } from "./kratos"
+import { API_URL, MAIL_DOMAIN } from "./env"
 
 export type AuthUser = {
   id: string
@@ -29,13 +29,38 @@ type AuthCtx = AuthState & {
 
 const AuthContext = createContext<AuthCtx | null>(null)
 
+function traitString(
+  traits: Record<string, unknown> | undefined,
+  key: string
+): string | null {
+  const value = traits?.[key]
+  return typeof value === "string" && value.trim() ? value.trim() : null
+}
+
+function usernameFromSession(session: KratosSession | null): string | null {
+  const username = traitString(session?.identity?.traits, "username")?.toLowerCase()
+  if (!username || !/^[a-z0-9._-]{1,64}$/.test(username)) return null
+  return username
+}
+
+function userFromSession(session: KratosSession | null): AuthUser | null {
+  const identity = session?.identity
+  const username = usernameFromSession(session)
+  if (!username) return null
+
+  return {
+    id: identity?.id ?? session?.id ?? `${username}@${MAIL_DOMAIN}`,
+    address: `${username}@${MAIL_DOMAIN}`,
+    username,
+  }
+}
 
 async function fetchMe(): Promise<AuthUser | null> {
   try {
     const res = await fetch(`${API_URL}/api/me`, { credentials: "include" })
     if (!res.ok) return null
-    const data = (await res.json()) as { id: string; address: string; username: string }
-    return { id: data.id, address: data.address, username: data.username }
+    const data = (await res.json()) as AuthUser
+    return data
   } catch {
     return null
   }
@@ -45,7 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, initialized: false })
 
   const refresh = useCallback(async () => {
-    const user = await fetchMe()
+    const { status, session } = await getWhoami()
+    const user =
+      status === "authed" ? (await fetchMe()) ?? userFromSession(session) : null
     setState({ user, initialized: true })
   }, [])
 

@@ -2,17 +2,39 @@ import { KRATOS_URL } from "./env"
 
 export type AuthStatus = "loading" | "authed" | "unauthed"
 
-export async function checkWhoami(): Promise<AuthStatus> {
-  if (!KRATOS_URL) return "authed"
+export type KratosSession = {
+  id?: string
+  identity?: {
+    id?: string
+    traits?: Record<string, unknown>
+  }
+}
+
+export type WhoamiResult = {
+  status: AuthStatus
+  session: KratosSession | null
+}
+
+export async function getWhoami(): Promise<WhoamiResult> {
+  if (!KRATOS_URL) return { status: "authed", session: null }
   try {
     const res = await fetch(`${KRATOS_URL}/sessions/whoami`, {
       credentials: "include",
       headers: { Accept: "application/json" },
     })
-    return res.ok ? "authed" : "unauthed"
+    if (!res.ok) return { status: "unauthed", session: null }
+    return {
+      status: "authed",
+      session: (await res.json()) as KratosSession,
+    }
   } catch {
-    return "authed"
+    return { status: "authed", session: null }
   }
+}
+
+export async function checkWhoami(): Promise<AuthStatus> {
+  const { status } = await getWhoami()
+  return status
 }
 
 export function initiateLogin(): void {

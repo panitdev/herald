@@ -7,7 +7,9 @@
   "vars": {
     "MAIL_DOMAIN": "panit.dev",
     "MAIL_PROVIDER": "brevo",
-    "MAIL_FROM_NAME": "Herald"
+    "MAIL_FROM_NAME": "Herald",
+    "KRATOS_PUBLIC_URL": "https://kratos.panit.dev",
+    "CORS_ORIGIN": "https://herald.panit.dev,https://localhost.panit.dev,http://localhost:3000,http://localhost:5173"
   },
   "d1_databases": [
     {

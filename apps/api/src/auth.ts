@@ -31,11 +31,32 @@ export interface AuthContext {
   }
 }
 
+type AuthEnv = {
+  DB: D1Database
+  MAIL_DOMAIN?: string
+  KRATOS_PUBLIC_URL?: string
+}
+
+type KratosSession = {
+  identity?: {
+    id?: string
+    traits?: Record<string, unknown>
+  }
+}
+
+type UserRow = {
+  id: string
+  address: string
+  kratos_id: string | null
+}
+
 // ============================================
 // Constants
 // ============================================
 
-const JWT_SECRET = process.env.JWT_SECRET || "herald-jwt-secret-change-in-production"
+const JWT_SECRET =
+  (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process?.env?.JWT_SECRET ?? "herald-jwt-secret-change-in-production"
 
 // ============================================
 // Base64 helpers (for password/token hashing)
@@ -129,21 +150,142 @@ export async function hashToken(token: string): Promise<string> {
 // Auth middleware
 // ============================================
 
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/$/, "")
+}
+
+function traitString(
+  traits: Record<string, unknown> | undefined,
+  key: string
+): string | null {
+  const value = traits?.[key]
+  return typeof value === "string" && value.trim() ? value.trim() : null
+}
+
+function usernameFromSession(session: KratosSession): string | null {
+  const username = traitString(session.identity?.traits, "username")?.toLowerCase()
+  if (!username || !/^[a-z0-9._-]{1,64}$/.test(username)) return null
+  return username
+}
+
+function addressFromUsername(username: string, mailDomain: string): string {
+  return `${username}@${mailDomain.toLowerCase()}`
+}
+
+function kratosIdFromSession(session: KratosSession): string | null {
+  const kratosId = session.identity?.id
+  return typeof kratosId === "string" && kratosId.trim() ? kratosId : null
+}
+
+async function fetchKratosSession(c: Context): Promise<KratosSession | null> {
+  const env = c.env as AuthEnv
+  const kratosUrl = env.KRATOS_PUBLIC_URL
+  const cookie = c.req.header("Cookie")
+  if (!kratosUrl || !cookie) return null
+
+  const res = await fetch(`${trimTrailingSlash(kratosUrl)}/sessions/whoami`, {
+    headers: {
+      Accept: "application/json",
+      Cookie: cookie,
+    },
+  })
+  if (!res.ok) return null
+
+  return (await res.json()) as KratosSession
+}
+
+async function ensureLocalUser(
+  c: Context,
+  session: KratosSession
+): Promise<UserRow | null> {
+  const env = c.env as AuthEnv
+  const mailDomain = env.MAIL_DOMAIN ?? "panit.dev"
+  const kratosId = kratosIdFromSession(session)
+  const username = usernameFromSession(session)
+  if (!kratosId || !username) return null
+
+  const byKratosId = await env.DB.prepare(
+    `SELECT id, address, kratos_id FROM users WHERE kratos_id = ?`
+  ).bind(kratosId).first<UserRow>()
+  if (byKratosId) return byKratosId
+
+  const address = addressFromUsername(username, mailDomain)
+
+  const existing = await env.DB.prepare(
+    `SELECT id, address, kratos_id FROM users WHERE address = ?`
+  ).bind(address).first<UserRow>()
+
+  if (existing) {
+    if (existing.kratos_id && existing.kratos_id !== kratosId) return null
+
+    await env.DB.prepare(
+      `UPDATE users SET kratos_id = ? WHERE id = ? AND kratos_id IS NULL`
+    ).bind(kratosId, existing.id).run()
+
+    return { ...existing, kratos_id: kratosId }
+  }
+
+  const id = crypto.randomUUID()
+
+  try {
+    await env.DB.prepare(
+      `INSERT INTO users (id, address, password_hash, salt, kratos_id) VALUES (?, ?, ?, ?, ?)`
+    ).bind(id, address, "kratos-managed", kratosId, kratosId).run()
+
+    await env.DB.prepare(
+      `INSERT INTO mailboxes (id, user_id, name, is_system) VALUES (?, ?, 'inbox', 1), (?, ?, 'sent', 1), (?, ?, 'archive', 1), (?, ?, 'trash', 1), (?, ?, 'spam', 1)`
+    ).bind(
+      crypto.randomUUID(), id,
+      crypto.randomUUID(), id,
+      crypto.randomUUID(), id,
+      crypto.randomUUID(), id,
+      crypto.randomUUID(), id,
+    ).run()
+
+    return { id, address, kratos_id: kratosId }
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("UNIQUE constraint")) {
+      const linked = await env.DB.prepare(
+        `SELECT id, address, kratos_id FROM users WHERE kratos_id = ?`
+      ).bind(kratosId).first<UserRow>()
+      if (linked) return linked
+
+      const addressMatch = await env.DB.prepare(
+        `SELECT id, address, kratos_id FROM users WHERE address = ?`
+      ).bind(address).first<UserRow>()
+      if (!addressMatch || addressMatch.kratos_id) return null
+
+      await env.DB.prepare(
+        `UPDATE users SET kratos_id = ? WHERE id = ? AND kratos_id IS NULL`
+      ).bind(kratosId, addressMatch.id).run()
+
+      return { ...addressMatch, kratos_id: kratosId }
+    }
+    throw e
+  }
+}
+
 export async function authMiddleware(c: Context, next: Next) {
   const authHeader = c.req.header("Authorization")
-  
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Missing authorization" })
+
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7)
+    const payload = await verifyAccessToken(token)
+
+    if (payload) {
+      c.set("user", { id: payload.sub, address: payload.address })
+      await next()
+      return
+    }
   }
-  
-  const token = authHeader.slice(7)
-  const payload = await verifyAccessToken(token)
-  
-  if (!payload) {
-    throw new HTTPException(401, { message: "Invalid or expired token" })
+
+  const session = await fetchKratosSession(c)
+  const user = session ? await ensureLocalUser(c, session) : null
+  if (!user) {
+    throw new HTTPException(401, { message: "Missing or invalid session" })
   }
-  
-  c.set("user", { id: payload.sub, address: payload.address })
+
+  c.set("user", user)
   await next()
 }
 

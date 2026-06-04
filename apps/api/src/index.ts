@@ -27,17 +27,36 @@ type Env = {
   MAIL_FROM_NAME?: string
   BREVO_API_KEY?: string
   RESEND_API_KEY?: string
+  KRATOS_PUBLIC_URL?: string
+  CORS_ORIGIN?: string
 }
 
 const app = new Hono<{ Bindings: Env }>()
+
+const DEFAULT_CORS_ORIGINS = [
+  "https://herald.panit.dev",
+  "https://localhost.panit.dev",
+  "http://localhost:3000",
+  "http://localhost:5173",
+]
 
 // CORS for frontend
 app.use(
   "/*",
   cors({
-    origin: "*",
+    origin: (origin, c) => {
+      if (!origin) return origin
+      const configured = c.env.CORS_ORIGIN?.split(",")
+        .map((value: string) => value.trim())
+        .filter(Boolean)
+      const allowedOrigins = configured?.length
+        ? configured
+        : DEFAULT_CORS_ORIGINS
+      return allowedOrigins.includes(origin) ? origin : null
+    },
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 )
 
@@ -201,6 +220,16 @@ async function createTokens(c: Context, userId: string, address: string): Promis
 // ============================================
 // Protected routes (require auth)
 // ============================================
+
+app.get("/api/me", authMiddleware, async (c) => {
+  const user = getUser(c)
+  const username = user.address.split("@")[0] ?? user.address
+  return c.json({
+    id: user.id,
+    address: user.address,
+    username,
+  })
+})
 
 // List messages for a mailbox (protected)
 app.get("/api/messages", authMiddleware, async (c) => {
