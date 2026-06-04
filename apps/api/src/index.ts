@@ -4,6 +4,7 @@
 import { Hono } from "hono"
 import type { Context } from "hono"
 import { cors } from "hono/cors"
+import PostalMime from "postal-mime"
 import { MailboxRealtime } from "./realtime"
 import { createMailSender, createRawEmail, normalizeAddress } from "./mail"
 import {
@@ -395,6 +396,42 @@ app.post("/api/messages/send", authMiddleware, async (c) => {
     },
     delivery: sendResult,
   }, 201)
+})
+
+// Get parsed message body from R2 (protected)
+app.get("/api/messages/:id/body", authMiddleware, async (c) => {
+  const user = getUser(c)
+  const messageId = c.req.param("id")
+
+  const { results: msgResults } = await c.env.DB.prepare(
+    `SELECT m.r2_raw_key FROM messages m
+     JOIN mailboxes mb ON m.mailbox_id = mb.id
+     WHERE m.id = ? AND mb.user_id = ?`
+  ).bind(messageId, user.id).all() as { results: { r2_raw_key: string }[] }
+
+  if (!msgResults.length) {
+    return c.json({ error: "message not found or access denied" }, 404)
+  }
+
+  const r2Key = msgResults[0].r2_raw_key
+  const rawEmail = await c.env.MAIL_BUCKET.get(r2Key)
+  if (!rawEmail) {
+    console.error("R2 object not found for key:", r2Key)
+    return c.json({ error: "raw email not found" }, 404)
+  }
+
+  try {
+    const parsed = await PostalMime.parse(await rawEmail.arrayBuffer())
+    const hasHtml =
+      typeof parsed.html === "string" && parsed.html.trim().length > 0
+    return c.json({
+      format: hasHtml ? "html" : "text",
+      body: (hasHtml ? parsed.html : parsed.text) || "",
+    })
+  } catch (error) {
+    console.error("Failed to parse raw email:", error)
+    return c.json({ error: "message body could not be parsed" }, 422)
+  }
 })
 
 // Get raw email content from R2 (protected)

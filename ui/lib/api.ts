@@ -29,6 +29,11 @@ export interface SendMailInput {
   fromName?: string
 }
 
+export interface MessageBody {
+  format: "html" | "text"
+  body: string
+}
+
 // ============================================
 // Custom error
 // ============================================
@@ -127,6 +132,10 @@ export async function sendMail(
       body: JSON.stringify(input),
     }
   )
+}
+
+export async function getMessageBody(messageId: string): Promise<MessageBody> {
+  return apiFetch<MessageBody>(`/api/messages/${messageId}/body`)
 }
 
 export async function getRawEmail(messageId: string): Promise<string> {

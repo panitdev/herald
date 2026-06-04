@@ -1,18 +1,19 @@
-import { createContext, useContext, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import {
-  Outlet,
   createFileRoute,
   useNavigate,
   useParams,
 } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { Menu, Loader2 } from "lucide-react"
+import { AnimatePresence, motion } from "framer-motion"
 
 import { EmailSidebar } from "@/components/email/sidebar"
 import { EmailList } from "@/components/email/email-list"
+import { EmailDetail } from "@/components/email/email-detail"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { mailboxesQuery, messagesQuery } from "@/lib/queries"
+import { mailboxesQuery, messageBodyQuery, messagesQuery } from "@/lib/queries"
 import { transformMessage } from "@/lib/email-transform"
 import { useMergedEmails } from "@/lib/local-overrides-store"
 import { useEmailActions } from "@/lib/use-email-actions"
@@ -30,10 +31,7 @@ const VALID_FOLDERS: Folder[] = [
 
 export const Route = createFileRoute("/_app/$mailbox")({
   // ssr: false because this route uses useAppChrome() (provided by _app's
-  // AppLayout) which is itself ssr: false. Without this flag TanStack Start
-  // would try to render MailboxRoute on the server without AppChromeContext,
-  // throwing an error that corrupts the hydration tree and causes child routes
-  // to render without MailboxContext.
+  // AppLayout) which is itself ssr: false.
   ssr: false,
   loader: async ({ context: { queryClient }, params: { mailbox } }) => {
     const mailboxes = await queryClient.ensureQueryData(mailboxesQuery())
@@ -46,20 +44,7 @@ export const Route = createFileRoute("/_app/$mailbox")({
   component: MailboxRoute,
 })
 
-type MailboxCtx = {
-  mailbox: Folder
-  combined: Email[]
-  selectedId: string | null
-  actions: ReturnType<typeof useEmailActions>
-}
-
-const MailboxContext = createContext<MailboxCtx | null>(null)
-
-export function useMailboxCtx() {
-  const ctx = useContext(MailboxContext)
-  if (!ctx) throw new Error("useMailboxCtx must be used within $mailbox route")
-  return ctx
-}
+const noop = () => {}
 
 function MailboxRoute() {
   const { mailbox: rawMailbox } = Route.useParams()
@@ -98,8 +83,6 @@ function MailboxRoute() {
     ? combined.find((e) => e.id === selectedId) ?? null
     : null
 
-  const ctx: MailboxCtx = { mailbox, combined, selectedId, actions }
-
   const loading =
     activeMailboxId !== null && (messagesQ.isLoading || mailboxesQ.isLoading)
   const error = messagesQ.error || mailboxesQ.error
@@ -115,83 +98,155 @@ function MailboxRoute() {
   )
 
   return (
-    <MailboxContext.Provider value={ctx}>
-      <div className="flex h-dvh w-full overflow-hidden bg-background">
-        {/* Desktop sidebar */}
-        <div className="hidden w-64 shrink-0 border-r border-border md:block lg:w-72">
-          {sidebarNode}
-        </div>
+    <div className="flex h-dvh w-full overflow-hidden bg-background">
+      {/* Desktop sidebar */}
+      <div className="hidden w-64 shrink-0 border-r border-border md:block lg:w-72">
+        {sidebarNode}
+      </div>
 
-        {/* Main area */}
-        <div className="relative flex min-w-0 flex-1">
-          {/* Email list pane */}
-          <div
-            className={`flex min-w-0 flex-col border-r border-border md:w-[340px] lg:w-[380px] xl:w-[420px] ${
-              selected ? "hidden md:flex" : "flex w-full"
-            }`}
-          >
-            {/* Mobile top bar */}
-            <div className="flex items-center gap-1 border-b border-border px-2 py-2 md:hidden">
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Open menu">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-72 p-0">
-                  <SheetTitle className="sr-only">Folders</SheetTitle>
-                  {sidebarNode}
-                </SheetContent>
-              </Sheet>
-              <span className="text-sm font-medium">Mail</span>
-            </div>
-
-            <div className="min-h-0 flex-1">
-              {loading ? (
-                <div className="flex h-full items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : error ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-                  <p className="text-sm text-destructive">
-                    {error instanceof Error ? error.message : "Failed to load"}
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      mailboxesQ.refetch()
-                      messagesQ.refetch()
-                    }}
-                  >
-                    Retry
-                  </Button>
-                </div>
-              ) : (
-                <EmailList
-                  folder={mailbox}
-                  emails={filtered}
-                  selectedId={selectedId}
-                  onSelect={actions.handleSelect}
-                  onToggleStar={actions.handleToggleStar}
-                  onToggleRead={actions.handleToggleRead}
-                  onArchive={(id) => actions.handleArchive(id, selectedId)}
-                  onDelete={(id) => actions.handleDelete(id, selectedId)}
-                  onReply={(id) =>
-                    actions.handleReply(combined.find((e) => e.id === id) ?? null)
-                  }
-                  search={search}
-                  onSearchChange={setSearch}
-                  unreadCount={unreadCount}
-                />
-              )}
-            </div>
+      {/* Main area */}
+      <div className="relative flex min-w-0 flex-1">
+        {/* Email list pane */}
+        <div
+          className={`flex min-w-0 flex-col border-r border-border md:w-[340px] lg:w-[380px] xl:w-[420px] ${
+            selected ? "hidden md:flex" : "flex w-full"
+          }`}
+        >
+          {/* Mobile top bar */}
+          <div className="flex items-center gap-1 border-b border-border px-2 py-2 md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Open menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-72 p-0">
+                <SheetTitle className="sr-only">Folders</SheetTitle>
+                {sidebarNode}
+              </SheetContent>
+            </Sheet>
+            <span className="text-sm font-medium">Mail</span>
           </div>
 
-          {/* Detail pane / mobile overlay — rendered by child routes */}
-          <Outlet />
+          <div className="min-h-0 flex-1">
+            {loading ? (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : error ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
+                <p className="text-sm text-destructive">
+                  {error instanceof Error ? error.message : "Failed to load"}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    mailboxesQ.refetch()
+                    messagesQ.refetch()
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <EmailList
+                folder={mailbox}
+                emails={filtered}
+                selectedId={selectedId}
+                onSelect={actions.handleSelect}
+                onToggleStar={actions.handleToggleStar}
+                onToggleRead={actions.handleToggleRead}
+                onArchive={(id) => actions.handleArchive(id, selectedId)}
+                onDelete={(id) => actions.handleDelete(id, selectedId)}
+                onReply={(id) =>
+                  actions.handleReply(combined.find((e) => e.id === id) ?? null)
+                }
+                search={search}
+                onSearchChange={setSearch}
+                unreadCount={unreadCount}
+              />
+            )}
+          </div>
         </div>
+
+        {selectedId ? (
+          <MessageDetailPane
+            actions={actions}
+            email={selected}
+            messageId={selectedId}
+          />
+        ) : (
+          <EmptyDetailPane />
+        )}
       </div>
-    </MailboxContext.Provider>
+    </div>
+  )
+}
+
+function EmptyDetailPane() {
+  return (
+    <div className="hidden min-w-0 flex-1 md:block">
+      <EmailDetail
+        email={null}
+        emailBody=""
+        emailBodyFormat="text"
+        onBack={noop}
+        onArchive={noop}
+        onDelete={noop}
+        onToggleStar={noop}
+        onToggleRead={noop}
+        onReply={noop}
+      />
+    </div>
+  )
+}
+
+function MessageDetailPane({
+  actions,
+  email,
+  messageId,
+}: {
+  actions: ReturnType<typeof useEmailActions>
+  email: Email | null
+  messageId: string
+}) {
+  const bodyQ = useQuery(messageBodyQuery(messageId))
+  const emailBody = bodyQ.isSuccess
+    ? bodyQ.data.body || "(No content available)"
+    : email?.preview || "Loading message..."
+  const emailBodyFormat = bodyQ.isSuccess ? bodyQ.data.format : "text"
+
+  const detail = (
+    <EmailDetail
+      email={email}
+      emailBody={emailBody}
+      emailBodyFormat={emailBodyFormat}
+      onBack={actions.backToList}
+      onArchive={(id) => actions.handleArchive(id, messageId)}
+      onDelete={(id) => actions.handleDelete(id, messageId)}
+      onToggleStar={actions.handleToggleStar}
+      onToggleRead={actions.handleToggleRead}
+      onReply={() => actions.handleReply(email)}
+    />
+  )
+
+  return (
+    <>
+      <div className="hidden min-w-0 flex-1 md:block">{detail}</div>
+
+      <AnimatePresence>
+        <motion.div
+          key="mobile-detail"
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={{ type: "spring", stiffness: 320, damping: 34 }}
+          className="absolute inset-0 z-30 bg-background md:hidden"
+        >
+          {detail}
+        </motion.div>
+      </AnimatePresence>
+    </>
   )
 }
