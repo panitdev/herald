@@ -23,6 +23,6 @@
   "vars": {
     "VITE_API_URL": "https://api.herald.panit.dev",
     "VITE_MAIL_DOMAIN": "panit.dev",
-    "VITE_KRATOS_PUBLIC_URL": "https://auth.panit.dev"
+    "VITE_KRATOS_PUBLIC_URL": "https://kratos.panit.dev"
   }
 }
