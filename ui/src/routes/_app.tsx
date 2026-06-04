@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -17,6 +15,11 @@ import { useLocalOverrides } from "@/lib/local-overrides-store"
 import { sendMail } from "@/lib/api"
 import type { Email } from "@/lib/types"
 import { mailboxesQuery } from "@/lib/queries"
+import {
+  AppChromeContext,
+  type AppChromeCtx,
+  type ComposePrefill,
+} from "@/lib/app-chrome"
 
 export const Route = createFileRoute("/_app")({
   // The authenticated tree is client-only (cookie auth + Kratos redirects need
@@ -26,21 +29,6 @@ export const Route = createFileRoute("/_app")({
     queryClient.ensureQueryData(mailboxesQuery()),
   component: AppLayout,
 })
-
-type ComposePrefill = { to: string; subject: string }
-
-type AppChromeCtx = {
-  openCompose: (prefill?: ComposePrefill) => void
-  openSettings: () => void
-}
-
-const AppChromeContext = createContext<AppChromeCtx | null>(null)
-
-export function useAppChrome() {
-  const ctx = useContext(AppChromeContext)
-  if (!ctx) throw new Error("useAppChrome must be used within _app layout")
-  return ctx
-}
 
 function AppLayout() {
   const { settings } = useSettings()

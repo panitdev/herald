@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import type { Email, Folder } from "@/lib/types"
 import { markAsRead } from "@/lib/api"
 import { useLocalOverrides } from "@/lib/local-overrides-store"
-import { useAppChrome } from "@/src/routes/_app"
+import { useAppChrome } from "@/lib/app-chrome"
 
 /**
  * Email action handlers shared by the list and detail panes. Mirrors the

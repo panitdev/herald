@@ -16,7 +16,7 @@ import { mailboxesQuery, messagesQuery } from "@/lib/queries"
 import { transformMessage } from "@/lib/email-transform"
 import { useMergedEmails } from "@/lib/local-overrides-store"
 import { useEmailActions } from "@/lib/use-email-actions"
-import { useAppChrome } from "@/src/routes/_app"
+import { useAppChrome } from "@/lib/app-chrome"
 import type { Email, Folder } from "@/lib/types"
 
 const VALID_FOLDERS: Folder[] = [
