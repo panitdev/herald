@@ -1,4 +1,6 @@
+import { useEffect, useRef } from "react"
 import { createFileRoute } from "@tanstack/react-router"
+import type { ErrorComponentProps } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 
@@ -6,10 +8,37 @@ import { EmailDetail } from "@/components/email/email-detail"
 import { messageBodyQuery } from "@/lib/queries"
 import { useMailboxCtx } from "./$mailbox"
 
+function ContextMissRetry({ reset }: { reset: () => void }) {
+  const retried = useRef(false)
+  useEffect(() => {
+    if (!retried.current) {
+      retried.current = true
+      reset()
+    }
+  }, [reset])
+  return null
+}
+
+function MessageDetailError({ error, reset }: ErrorComponentProps) {
+  if (error.message.includes("within $mailbox route")) {
+    return <ContextMissRetry reset={reset} />
+  }
+  return (
+    <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
+      <p className="text-sm text-destructive">{error.message}</p>
+      <button className="text-sm underline" onClick={reset}>
+        Try again
+      </button>
+    </div>
+  )
+}
+
 export const Route = createFileRoute("/_app/$mailbox/$messageId")({
+  ssr: false,
   loader: ({ context: { queryClient }, params: { messageId } }) =>
     queryClient.ensureQueryData(messageBodyQuery(messageId)),
   component: MessageDetail,
+  errorComponent: MessageDetailError,
 })
 
 function MessageDetail() {

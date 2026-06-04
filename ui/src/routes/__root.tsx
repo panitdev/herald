@@ -13,6 +13,7 @@ import { LocalOverridesProvider } from "@/lib/local-overrides-store"
 import { AuthScreen } from "@/components/auth/auth-screen"
 import { AuthGuardDialog } from "@/components/auth/auth-guard-dialog"
 import { Toaster } from "@/components/ui/sonner"
+import { ErrorBoundary } from "@/components/error-boundary"
 import appCss from "../globals.css?url"
 
 export interface RouterContext {
@@ -80,9 +81,11 @@ function RootComponent() {
         <AuthProvider>
           <SettingsProvider>
             <LocalOverridesProvider>
-              <AuthGate>
-                <Outlet />
-              </AuthGate>
+              <ErrorBoundary>
+                <AuthGate>
+                  <Outlet />
+                </AuthGate>
+              </ErrorBoundary>
               <Toaster position="bottom-right" richColors closeButton />
               <AuthGuardDialog />
             </LocalOverridesProvider>

@@ -29,6 +29,12 @@ const VALID_FOLDERS: Folder[] = [
 ]
 
 export const Route = createFileRoute("/_app/$mailbox")({
+  // ssr: false because this route uses useAppChrome() (provided by _app's
+  // AppLayout) which is itself ssr: false. Without this flag TanStack Start
+  // would try to render MailboxRoute on the server without AppChromeContext,
+  // throwing an error that corrupts the hydration tree and causes child routes
+  // to render without MailboxContext.
+  ssr: false,
   loader: async ({ context: { queryClient }, params: { mailbox } }) => {
     const mailboxes = await queryClient.ensureQueryData(mailboxesQuery())
     const id =
