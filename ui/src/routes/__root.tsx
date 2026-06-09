@@ -55,19 +55,24 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap",
       },
-      // Icons
+      // Favicon — Herald brand from ui.registry.panit.dev
       {
         rel: "icon",
-        href: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
+        href: "/favicon-32x32.png",
+        sizes: "32x32",
+        type: "image/png",
       },
       {
         rel: "icon",
-        href: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
+        href: "/favicon-16x16.png",
+        sizes: "16x16",
+        type: "image/png",
       },
-      { rel: "icon", href: "/icon.svg", type: "image/svg+xml" },
-      { rel: "apple-touch-icon", href: "/apple-icon.png" },
+      {
+        rel: "apple-touch-icon",
+        sizes: "180x180",
+        href: "/apple-touch-icon.png",
+      },
     ],
   }),
   component: RootComponent,
