@@ -21,7 +21,22 @@ export interface RouterContext {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-  head: () => ({
+  loader: async (): Promise<{ kratosUrl: string }> => {
+    let kratosUrl = ""
+    try {
+      // Available in the Cloudflare Worker runtime (production + wrangler dev).
+      // Falls back to the Vite build-time value in other environments (e.g. CI Node test runners).
+      const { env } = await import("cloudflare:workers" as string)
+      kratosUrl = String((env as Record<string, unknown>).VITE_KRATOS_PUBLIC_URL ?? "")
+    } catch {
+      kratosUrl = import.meta.env.VITE_KRATOS_PUBLIC_URL ?? ""
+    }
+    return { kratosUrl: kratosUrl.replace(/\/$/, "") }
+  },
+  head: ({ loaderData }) => ({
+    scripts: loaderData
+      ? [{ children: `window.__ENV__=${JSON.stringify({ kratosUrl: loaderData.kratosUrl })}` }]
+      : [],
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
