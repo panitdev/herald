@@ -1,0 +1,23 @@
+// packages/workers-receiver/wrangler.jsonc
+{
+  "name": "herald-receiver",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-25",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "herald-inbound"
+    }
+  ],
+
+  "vars": {
+    // Set via wrangler secret put HERALD_API_URL or .dev.vars for local dev
+    "HERALD_API_URL": ""
+  }
+
+  // HERALD_INTERNAL_SECRET must be set as a Wrangler secret:
+  //   wrangler secret put HERALD_INTERNAL_SECRET -c packages/workers-receiver/wrangler.jsonc
+  // Do NOT put it in vars — it would be committed to source control.
+}
