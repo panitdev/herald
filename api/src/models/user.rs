@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use crate::schema::users;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Queryable, Selectable)]
 #[diesel(table_name = users)]
 #[diesel(check_for_backend(diesel::pg::Pg))]

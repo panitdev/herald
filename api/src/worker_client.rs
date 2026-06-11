@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::sync::Mutex;
+#[cfg(test)]
+use std::{collections::HashMap, sync::Mutex};
 
 use crate::error::AppError;
 
@@ -64,10 +64,7 @@ impl InboundWorkerClient for HttpWorkerClient {
 
     async fn delete_unprocessed(&self, key: &str) -> Result<(), AppError> {
         self.http
-            .delete(format!(
-                "{}/internal/unprocessed/{}",
-                self.worker_url, key
-            ))
+            .delete(format!("{}/internal/unprocessed/{}", self.worker_url, key))
             .bearer_auth(&self.internal_secret)
             .send()
             .await?
@@ -77,10 +74,12 @@ impl InboundWorkerClient for HttpWorkerClient {
 }
 
 /// In-memory mock for use in tests.
+#[cfg(test)]
 pub struct MockWorkerClient {
     items: Mutex<HashMap<String, Bytes>>,
 }
 
+#[cfg(test)]
 impl MockWorkerClient {
     pub fn new() -> Self {
         Self {
@@ -91,12 +90,9 @@ impl MockWorkerClient {
     pub fn seed(&self, key: impl Into<String>, raw: impl Into<Bytes>) {
         self.items.lock().unwrap().insert(key.into(), raw.into());
     }
-
-    pub fn keys(&self) -> Vec<String> {
-        self.items.lock().unwrap().keys().cloned().collect()
-    }
 }
 
+#[cfg(test)]
 #[async_trait]
 impl InboundWorkerClient for MockWorkerClient {
     async fn list_unprocessed(&self) -> Result<Vec<UnprocessedItem>, AppError> {
@@ -141,7 +137,10 @@ mod tests {
         let raw = client.get_unprocessed("inbound/test-1.eml").await.unwrap();
         assert_eq!(raw.as_ref(), b"raw mime 1");
 
-        client.delete_unprocessed("inbound/test-1.eml").await.unwrap();
+        client
+            .delete_unprocessed("inbound/test-1.eml")
+            .await
+            .unwrap();
         let listed = client.list_unprocessed().await.unwrap();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].key, "inbound/test-2.eml");

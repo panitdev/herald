@@ -10,24 +10,20 @@ use uuid::Uuid;
 
 use crate::{
     error::AppError,
-    models::{
-        mailbox::NewMailbox,
-        user::{NewUser, User},
-    },
+    mailboxes::ensure_system_mailboxes,
+    models::user::{NewUser, User},
     state::AppState,
 };
 
 /// Verified Kratos session from the incoming request.
 #[derive(Debug, Clone)]
 pub struct KratosIdentity {
-    pub session_id: String,
     pub kratos_user_id: Uuid,
     pub username: String,
 }
 
 #[derive(Deserialize)]
 struct WhoAmIResponse {
-    id: String,
     identity: KratosIdentityPayload,
 }
 
@@ -45,7 +41,10 @@ struct KratosTraits {
 impl FromRequestParts<AppState> for KratosIdentity {
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let started_at = Instant::now();
 
         let cookie_header = parts
@@ -123,7 +122,6 @@ impl FromRequestParts<AppState> for KratosIdentity {
         );
 
         Ok(KratosIdentity {
-            session_id: payload.id,
             kratos_user_id: payload.identity.id,
             username: payload.identity.traits.username,
         })
@@ -134,7 +132,7 @@ impl KratosIdentity {
     /// Returns the local `User` row, provisioning it (with default mailboxes) on first login.
     /// Safe to call concurrently — uses ON CONFLICT DO NOTHING for idempotent inserts.
     pub async fn resolve_user(&self, state: &AppState) -> Result<User, AppError> {
-        use crate::schema::{mailboxes, users::dsl::*};
+        use crate::schema::users::dsl::*;
 
         let mut conn = state.db.get().await?;
 
@@ -178,22 +176,7 @@ impl KratosIdentity {
                 .map_err(AppError::Db)?,
         };
 
-        let default_mailboxes: Vec<NewMailbox<'_>> = ["inbox", "sent", "archive", "trash", "spam"]
-            .iter()
-            .map(|&name| NewMailbox {
-                id: state.next_id(),
-                user_id: user.id,
-                name,
-                is_system: true,
-            })
-            .collect();
-
-        diesel::insert_into(mailboxes::table)
-            .values(&default_mailboxes)
-            .on_conflict_do_nothing()
-            .execute(&mut conn)
-            .await
-            .map_err(AppError::Db)?;
+        ensure_system_mailboxes(&mut conn, &state.ids, user.id).await?;
 
         Ok(user)
     }
@@ -205,7 +188,10 @@ pub struct AuthUser(pub User);
 impl FromRequestParts<AppState> for AuthUser {
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let identity = KratosIdentity::from_request_parts(parts, state).await?;
         let user = identity.resolve_user(state).await?;
         Ok(AuthUser(user))

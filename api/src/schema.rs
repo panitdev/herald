@@ -1,9 +1,26 @@
 // @generated — keep in sync with migrations
 
 diesel::table! {
+    attachments (id) {
+        id           -> Int8,
+        message_id   -> Int8,
+        filename     -> Nullable<Text>,
+        content_type -> Nullable<Text>,
+        size         -> Nullable<Int8>,
+        content_id   -> Nullable<Text>,
+        inline       -> Bool,
+        blob_key     -> Nullable<Text>,
+        created_at   -> Timestamptz,
+    }
+}
+
+diesel::table! {
     raw_inbound_mails (id) {
         id           -> Int8,
-        raw_mime     -> Bytea,
+        raw_mime     -> Nullable<Bytea>,
+        blob_key     -> Nullable<Text>,
+        raw_sha256   -> Nullable<Text>,
+        raw_size     -> Nullable<Int8>,
         r2_key       -> Nullable<Text>,
         received_at  -> Timestamptz,
         processed_at -> Nullable<Timestamptz>,
@@ -28,8 +45,78 @@ diesel::table! {
         user_id    -> Int8,
         name       -> Varchar,
         is_system  -> Bool,
+        system_role -> Nullable<Text>,
+        sort_order -> Int4,
         created_at -> Timestamptz,
     }
 }
 
+diesel::table! {
+    message_mailboxes (message_id, mailbox_id) {
+        message_id -> Int8,
+        mailbox_id -> Int8,
+        relation   -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    message_recipients (id) {
+        id           -> Int8,
+        message_id   -> Int8,
+        kind         -> Text,
+        address      -> Text,
+        display_name -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
+    messages (id) {
+        id                  -> Int8,
+        user_id             -> Int8,
+        raw_inbound_mail_id -> Nullable<Int8>,
+        raw_key             -> Text,
+        raw_sha256          -> Text,
+        raw_size            -> Int8,
+        message_id_header   -> Nullable<Text>,
+        thread_id           -> Nullable<Text>,
+        from_addr           -> Nullable<Text>,
+        from_name           -> Nullable<Text>,
+        subject             -> Nullable<Text>,
+        preview             -> Nullable<Text>,
+        received_at         -> Timestamptz,
+        created_at          -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    sync_events (id) {
+        id          -> Int8,
+        user_id     -> Int8,
+        object_type -> Text,
+        object_id   -> Int8,
+        op          -> Text,
+        data_json   -> Nullable<Jsonb>,
+        created_at  -> Timestamptz,
+    }
+}
+
+diesel::joinable!(attachments -> messages (message_id));
 diesel::joinable!(mailboxes -> users (user_id));
+diesel::joinable!(message_mailboxes -> mailboxes (mailbox_id));
+diesel::joinable!(message_mailboxes -> messages (message_id));
+diesel::joinable!(message_recipients -> messages (message_id));
+diesel::joinable!(messages -> raw_inbound_mails (raw_inbound_mail_id));
+diesel::joinable!(messages -> users (user_id));
+diesel::joinable!(sync_events -> users (user_id));
+
+diesel::allow_tables_to_appear_in_same_query!(
+    attachments,
+    mailboxes,
+    message_mailboxes,
+    message_recipients,
+    messages,
+    raw_inbound_mails,
+    sync_events,
+    users,
+);

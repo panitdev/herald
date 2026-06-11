@@ -4,18 +4,24 @@ use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 mod auth;
+mod blob_store;
 mod config;
 mod db;
 mod error;
 mod ids;
 mod mail;
+mod mail_parser;
+mod mailboxes;
 mod models;
 mod routes;
 mod schema;
 mod state;
 mod worker_client;
 
-use mail::process_inbound_mail;
+use blob_store::{DynBlobStore, FsBlobStore};
+use mail::{
+    backfill_raw_inbound_blobs, ingest_raw_mail, process_inbound_mail, requeue_pending_inbound_mail,
+};
 use state::AppState;
 use worker_client::{HttpWorkerClient, InboundWorkerClient};
 
@@ -46,6 +52,7 @@ async fn main() {
 
     let db = db::init_pool(&config.database_url).await;
     let ids = ids::IdGen::new(config.snowflake_machine_id, config.snowflake_node_id);
+    let blob_store: DynBlobStore = Arc::new(FsBlobStore::new(config.blob_store_root.clone()));
 
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -63,14 +70,20 @@ async fn main() {
         config: config.clone(),
         ids,
         http,
+        blob_store,
         worker,
     };
+
+    backfill_raw_inbound_blobs(&state)
+        .await
+        .expect("failed to backfill raw inbound blob pointers");
+
+    tokio::spawn(requeue_pending_inbound_mail(state.clone()));
 
     // Run recovery pipeline on startup
     tokio::spawn(recover_from_r2(state.clone()));
 
-    let app = routes::router()
-        .with_state(state);
+    let app = routes::router().with_state(state);
 
     let addr = format!("0.0.0.0:{}", config.api_port);
     let listener = tokio::net::TcpListener::bind(&addr)
@@ -157,18 +170,5 @@ async fn insert_recovered(
     raw: &[u8],
     r2_key: &str,
 ) -> Result<i64, error::AppError> {
-    use diesel_async::RunQueryDsl;
-
-    let mut conn = state.db.get().await?;
-    let new_mail = models::raw_inbound_mail::NewRawInboundMail {
-        id: state.next_id(),
-        raw_mime: raw,
-        r2_key: Some(r2_key),
-    };
-    let id = diesel::insert_into(schema::raw_inbound_mails::table)
-        .values(&new_mail)
-        .returning(schema::raw_inbound_mails::id)
-        .get_result::<i64>(&mut conn)
-        .await?;
-    Ok(id)
+    ingest_raw_mail(state, bytes::Bytes::copy_from_slice(raw), Some(r2_key)).await
 }
