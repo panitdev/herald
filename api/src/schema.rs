@@ -10,3 +10,26 @@ diesel::table! {
         error        -> Nullable<Text>,
     }
 }
+
+diesel::table! {
+    users (id) {
+        id         -> Int8,
+        kratos_id  -> Uuid,
+        username   -> Varchar,
+        address    -> Varchar,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    mailboxes (id) {
+        id         -> Int8,
+        user_id    -> Int8,
+        name       -> Varchar,
+        is_system  -> Bool,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::joinable!(mailboxes -> users (user_id));

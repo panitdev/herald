@@ -8,6 +8,7 @@ pub struct AppState {
     pub db: DbPool,
     pub config: Config,
     pub ids: IdGen,
+    pub http: reqwest::Client,
     pub worker: Arc<dyn InboundWorkerClient>,
 }
 

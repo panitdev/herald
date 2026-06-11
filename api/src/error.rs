@@ -8,8 +8,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
-    #[error("unauthorized")]
-    Unauthorized,
+    #[error("unauthorized: {0}")]
+    Unauthorized(String),
 
     #[error("not found")]
     NotFound,
@@ -30,7 +30,7 @@ pub enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, msg): (StatusCode, String) = match &self {
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized".to_owned()),
+            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized".to_owned()),
             AppError::NotFound => (StatusCode::NOT_FOUND, "not found".to_owned()),
             AppError::Db(e) => {
                 use diesel::result::Error as De;

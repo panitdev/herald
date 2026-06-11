@@ -51,7 +51,7 @@ fn verify_bearer(headers: &HeaderMap, expected: &str) -> Result<(), AppError> {
         .and_then(|v| v.strip_prefix("Bearer "));
 
     if token != Some(expected) {
-        return Err(AppError::Unauthorized);
+        return Err(AppError::Unauthorized("invalid token".into()));
     }
     Ok(())
 }

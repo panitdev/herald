@@ -3,6 +3,7 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+mod auth;
 mod config;
 mod db;
 mod error;
@@ -52,7 +53,7 @@ async fn main() {
         .expect("failed to build HTTP client");
 
     let worker: Arc<dyn InboundWorkerClient> = Arc::new(HttpWorkerClient::new(
-        http,
+        http.clone(),
         config.worker_url.clone(),
         config.internal_secret.clone(),
     ));
@@ -61,6 +62,7 @@ async fn main() {
         db,
         config: config.clone(),
         ids,
+        http,
         worker,
     };
 
