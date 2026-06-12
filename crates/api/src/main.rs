@@ -19,9 +19,7 @@ mod state;
 mod worker_client;
 
 use blob_store::{DynBlobStore, FsBlobStore};
-use mail::{
-    backfill_raw_inbound_blobs, ingest_raw_mail, process_inbound_mail, requeue_pending_inbound_mail,
-};
+use mail::{ingest_raw_mail, process_inbound_mail, requeue_pending_inbound_mail};
 use state::AppState;
 use worker_client::{HttpWorkerClient, InboundWorkerClient};
 
@@ -74,10 +72,6 @@ async fn main() {
         worker,
     };
 
-    backfill_raw_inbound_blobs(&state)
-        .await
-        .expect("failed to backfill raw inbound blob pointers");
-
     tokio::spawn(requeue_pending_inbound_mail(state.clone()));
 
     // Run recovery pipeline on startup
@@ -93,7 +87,8 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-/// On startup: fetch all R2 objects that Axum may have missed during downtime and replay them.
+/// On startup: fetch any fallback-staged R2 objects that Axum may have missed
+/// during downtime and replay them.
 async fn recover_from_r2(state: AppState) {
     tracing::info!("starting R2 recovery scan");
 
@@ -111,8 +106,8 @@ async fn recover_from_r2(state: AppState) {
         let exists = exists_by_r2_key(&state, &item.key).await;
 
         if exists {
-            // Already persisted (POST to Axum succeeded) but R2 object was never deleted.
-            // This is the "processed_at set, r2_key still non-null" case — retry the delete.
+            // Mail is already persisted locally, so the fallback R2 object can be removed.
+            // This covers both delete retries and restart races after recovery inserted the row.
             if let Err(e) = state.worker.delete_unprocessed(&item.key).await {
                 tracing::warn!(
                     key = %item.key,

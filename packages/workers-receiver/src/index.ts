@@ -73,9 +73,32 @@ export default {
   async email(message: ForwardableEmailMessage, env: Env, _ctx: ExecutionContext) {
     // message.raw is a ReadableStream — wrap in Response to get arrayBuffer
     const raw = await new Response(message.raw).arrayBuffer()
+    let failure = 'Axum inbound failed'
+
+    try {
+      const res = await fetch(`${env.HERALD_API_URL}/internal/mail/inbound`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'message/rfc822',
+          Authorization: `Bearer ${env.HERALD_INTERNAL_SECRET}`,
+        },
+        body: raw,
+      })
+
+      if (res.ok) {
+        return
+      }
+
+      failure = `Axum rejected inbound mail (${res.status})`
+    } catch (error) {
+      failure = error instanceof Error
+        ? `Axum inbound request failed: ${error.message}`
+        : 'Axum inbound request failed'
+    }
+
     const key = `inbound/${Date.now()}-${message.headers.get('message-id') ?? crypto.randomUUID()}.eml`
 
-    // R2 write is unconditional — mail is durable even if Axum is down
+    // Fallback to R2 only when the Axum ingest request fails.
     await env.R2.put(key, raw, {
       httpMetadata: { contentType: 'message/rfc822' },
       customMetadata: {
@@ -85,21 +108,8 @@ export default {
       },
     })
 
-    const res = await fetch(`${env.HERALD_API_URL}/internal/mail/inbound`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'message/rfc822',
-        Authorization: `Bearer ${env.HERALD_INTERNAL_SECRET}`,
-        'X-R2-Key': key,
-      },
-      body: raw,
-    })
-
-    // Throw on non-2xx so Workers Email bounces the message back to sender.
-    // Mail is already in R2 and can be reprocessed after Axum recovers.
-    if (!res.ok) {
-      throw new Error(`Axum rejected inbound mail (${res.status}): ${key}`)
-    }
+    // Throw so Workers Email can retry/bounce, while Axum recovery can replay from R2.
+    throw new Error(`${failure}; staged in R2 as ${key}`)
   },
 
   fetch: app.fetch,

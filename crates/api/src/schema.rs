@@ -17,10 +17,9 @@ diesel::table! {
 diesel::table! {
     raw_inbound_mails (id) {
         id           -> Int8,
-        raw_mime     -> Nullable<Bytea>,
-        blob_key     -> Nullable<Text>,
-        raw_sha256   -> Nullable<Text>,
-        raw_size     -> Nullable<Int8>,
+        blob_key     -> Text,
+        raw_sha256   -> Text,
+        raw_size     -> Int8,
         r2_key       -> Nullable<Text>,
         received_at  -> Timestamptz,
         processed_at -> Nullable<Timestamptz>,

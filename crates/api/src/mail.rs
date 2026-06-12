@@ -87,49 +87,6 @@ pub async fn ingest_raw_mail(
     Ok(saved.id)
 }
 
-pub async fn backfill_raw_inbound_blobs(state: &AppState) -> Result<(), AppError> {
-    let rows: Vec<RawInboundMail> = {
-        let mut conn = state.db.get().await?;
-        raw_inbound_mails::table
-            .filter(raw_inbound_mails::raw_mime.is_not_null())
-            .select(RawInboundMail::as_select())
-            .load(&mut conn)
-            .await?
-    };
-
-    for row in rows {
-        let Some(raw_mime) = row.raw_mime.as_deref() else {
-            continue;
-        };
-
-        let raw_sha256 = sha256_hex(raw_mime);
-        let blob_key = canonical_blob_key(&raw_sha256);
-        let raw_size = raw_mime.len() as i64;
-
-        state
-            .blob_store
-            .put(
-                &blob_key,
-                Bytes::copy_from_slice(raw_mime),
-                RAW_MIME_CONTENT_TYPE,
-            )
-            .await?;
-
-        let mut conn = state.db.get().await?;
-        diesel::update(raw_inbound_mails::table.find(row.id))
-            .set((
-                raw_inbound_mails::blob_key.eq(&blob_key),
-                raw_inbound_mails::raw_sha256.eq(&raw_sha256),
-                raw_inbound_mails::raw_size.eq(raw_size),
-                raw_inbound_mails::raw_mime.eq(None::<Vec<u8>>),
-            ))
-            .execute(&mut conn)
-            .await?;
-    }
-
-    Ok(())
-}
-
 pub async fn requeue_pending_inbound_mail(state: AppState) {
     let rows: Result<Vec<i64>, AppError> = async {
         let mut conn = state.db.get().await?;
@@ -212,17 +169,9 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
         return Ok(());
     }
 
-    let raw_sha256 = mail
-        .raw_sha256
-        .clone()
-        .ok_or_else(|| AppError::BadRequest("missing raw_sha256".into()))?;
-    let raw_key = mail
-        .blob_key
-        .clone()
-        .ok_or_else(|| AppError::BadRequest("missing blob_key".into()))?;
-    let raw_size = mail
-        .raw_size
-        .ok_or_else(|| AppError::BadRequest("missing raw_size".into()))?;
+    let raw_sha256 = mail.raw_sha256.clone();
+    let raw_key = mail.blob_key.clone();
+    let raw_size = mail.raw_size;
 
     let raw = state.blob_store.get(&raw_key).await?.bytes;
     let parsed = parse_message(&raw)?;
@@ -346,7 +295,6 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
                 .set((
                     raw_inbound_mails::processed_at.eq(Utc::now()),
                     raw_inbound_mails::error.eq(None::<String>),
-                    raw_inbound_mails::raw_mime.eq(None::<Vec<u8>>),
                 ))
                 .execute(conn)
                 .await?;
