@@ -23,7 +23,7 @@ use crate::{
         user::User,
     },
     schema::{
-        attachments, message_mailboxes, message_recipients, messages, raw_inbound_mails,
+        attachments, mailboxes, message_mailboxes, message_recipients, messages, raw_inbound_mails,
         sync_events, users,
     },
     state::AppState,
@@ -119,36 +119,33 @@ pub async fn process_inbound_mail(state: AppState, mail_id: i64) {
     }
 }
 
-pub async fn load_message_raw(
-    state: &AppState,
-    user_id: i64,
-    message_id: i64,
-) -> Result<(Message, Bytes), AppError> {
-    let message = find_owned_message(state, user_id, message_id).await?;
-    let blob = state.blob_store.get(&message.raw_key).await?;
-    Ok((message, blob.bytes))
-}
-
 pub async fn render_message_body(
     state: &AppState,
     user_id: i64,
     message_id: i64,
-) -> Result<(Message, String, String), AppError> {
-    let (message, raw) = load_message_raw(state, user_id, message_id).await?;
+) -> Result<(Message, RawInboundMail, String, String), AppError> {
+    let (message, raw_mail) = find_owned_message(state, user_id, message_id).await?;
+    let raw = state.blob_store.get(&raw_mail.blob_key).await?.bytes;
     let (html, text) = render_body(&raw)?;
-    Ok((message, html, text))
+    Ok((message, raw_mail, html, text))
 }
 
 pub async fn find_owned_message(
     state: &AppState,
     user_id: i64,
     message_id: i64,
-) -> Result<Message, AppError> {
+) -> Result<(Message, RawInboundMail), AppError> {
     let mut conn = state.db.get().await?;
+    let accessible_message_ids = message_mailboxes::table
+        .inner_join(mailboxes::table)
+        .filter(mailboxes::user_id.eq(user_id))
+        .select(message_mailboxes::message_id);
+
     let message = messages::table
+        .inner_join(raw_inbound_mails::table)
         .filter(messages::id.eq(message_id))
-        .filter(messages::user_id.eq(user_id))
-        .select(Message::as_select())
+        .filter(messages::id.eq_any(accessible_message_ids))
+        .select((Message::as_select(), RawInboundMail::as_select()))
         .first(&mut conn)
         .await?;
     Ok(message)
@@ -169,9 +166,7 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
         return Ok(());
     }
 
-    let raw_sha256 = mail.raw_sha256.clone();
     let raw_key = mail.blob_key.clone();
-    let raw_size = mail.raw_size;
 
     let raw = state.blob_store.get(&raw_key).await?.bytes;
     let parsed = parse_message(&raw)?;
@@ -187,8 +182,6 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
     conn.transaction::<(), AppError, _>(|conn| {
         let parsed = parsed.clone();
         let recipient_addresses = recipient_addresses.clone();
-        let raw_key = raw_key.clone();
-        let raw_sha256 = raw_sha256.clone();
         Box::pin(async move {
             let target_users: Vec<User> = users::table
                 .filter(users::address.eq_any(&recipient_addresses))
@@ -202,6 +195,44 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
                 ));
             }
 
+            let message_insert = NewMessage {
+                id: state.next_id(),
+                raw_inbound_mail_id: mail.id,
+                message_id_header: parsed.message_id_header.as_deref(),
+                thread_id: parsed.thread_id.as_deref(),
+                from_addr: parsed.from_addr.as_deref(),
+                from_name: parsed.from_name.as_deref(),
+                subject: parsed.subject.as_deref(),
+                preview: parsed.preview.as_deref(),
+                received_at: mail.received_at,
+            };
+
+            let inserted_message = diesel::insert_into(messages::table)
+                .values(&message_insert)
+                .on_conflict(messages::raw_inbound_mail_id)
+                .do_nothing()
+                .returning(Message::as_returning())
+                .get_result(conn)
+                .await
+                .optional()?;
+
+            let (message, recipients, attachments) = if let Some(message) = inserted_message {
+                let recipients =
+                    insert_message_recipients(conn, state, &message, &parsed.recipients).await?;
+                let attachments =
+                    insert_attachments(conn, state, &message, &parsed.attachments).await?;
+                (message, recipients, attachments)
+            } else {
+                let message = messages::table
+                    .filter(messages::raw_inbound_mail_id.eq(mail.id))
+                    .select(Message::as_select())
+                    .first(conn)
+                    .await?;
+                let recipients = load_message_recipients(conn, &message).await?;
+                let attachments = load_attachments(conn, &message).await?;
+                (message, recipients, attachments)
+            };
+
             for user in target_users {
                 let ensured = ensure_system_mailboxes(conn, &state.ids, user.id).await?;
                 let inbox = ensured
@@ -212,46 +243,17 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
                     .ok_or_else(|| AppError::BadRequest("missing inbox mailbox".into()))?;
 
                 let mut new_events = mailbox_sync_events(state, user.id, &ensured.created);
-
-                let message_insert = NewMessage {
-                    id: state.next_id(),
-                    user_id: user.id,
-                    raw_inbound_mail_id: Some(mail.id),
-                    raw_key: &raw_key,
-                    raw_sha256: &raw_sha256,
-                    raw_size,
-                    message_id_header: parsed.message_id_header.as_deref(),
-                    thread_id: parsed.thread_id.as_deref(),
-                    from_addr: parsed.from_addr.as_deref(),
-                    from_name: parsed.from_name.as_deref(),
-                    subject: parsed.subject.as_deref(),
-                    preview: parsed.preview.as_deref(),
-                    received_at: mail.received_at,
-                };
-
-                let inserted_message = diesel::insert_into(messages::table)
-                    .values(&message_insert)
-                    .on_conflict((messages::user_id, messages::raw_sha256))
-                    .do_nothing()
-                    .returning(Message::as_returning())
-                    .get_result(conn)
-                    .await
-                    .optional()?;
-
-                let Some(message) = inserted_message else {
+                let Some(message_mailbox) = insert_message_mailbox(conn, &message, &inbox).await? else {
+                    if !new_events.is_empty() {
+                        diesel::insert_into(sync_events::table)
+                            .values(&new_events)
+                            .execute(conn)
+                            .await?;
+                    }
                     continue;
                 };
 
-                new_events.push(sync_event(
-                    state,
-                    user.id,
-                    "message",
-                    message.id,
-                    json!(message),
-                ));
-
-                let recipients =
-                    insert_message_recipients(conn, state, &message, &parsed.recipients).await?;
+                new_events.push(sync_event(state, user.id, "message", message.id, json!(message)));
                 new_events.extend(recipients.iter().map(|recipient| {
                     sync_event(
                         state,
@@ -261,9 +263,6 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
                         json!(recipient),
                     )
                 }));
-
-                let attachments =
-                    insert_attachments(conn, state, &message, &parsed.attachments).await?;
                 new_events.extend(attachments.iter().map(|attachment| {
                     sync_event(
                         state,
@@ -273,8 +272,6 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
                         json!(attachment),
                     )
                 }));
-
-                let message_mailbox = insert_message_mailbox(conn, &message, &inbox).await?;
                 new_events.push(sync_event(
                     state,
                     user.id,
@@ -345,6 +342,18 @@ async fn insert_message_recipients(
     Ok(inserted)
 }
 
+async fn load_message_recipients(
+    conn: &mut diesel_async::AsyncPgConnection,
+    message: &Message,
+) -> Result<Vec<MessageRecipient>, AppError> {
+    let recipients = message_recipients::table
+        .filter(message_recipients::message_id.eq(message.id))
+        .select(MessageRecipient::as_select())
+        .load(conn)
+        .await?;
+    Ok(recipients)
+}
+
 async fn insert_attachments(
     conn: &mut diesel_async::AsyncPgConnection,
     state: &AppState,
@@ -384,21 +393,38 @@ async fn insert_attachments(
     Ok(inserted)
 }
 
+async fn load_attachments(
+    conn: &mut diesel_async::AsyncPgConnection,
+    message: &Message,
+) -> Result<Vec<Attachment>, AppError> {
+    let attachments = attachments::table
+        .filter(attachments::message_id.eq(message.id))
+        .select(Attachment::as_select())
+        .load(conn)
+        .await?;
+    Ok(attachments)
+}
+
 async fn insert_message_mailbox(
     conn: &mut diesel_async::AsyncPgConnection,
     message: &Message,
     inbox: &Mailbox,
-) -> Result<MessageMailbox, AppError> {
+) -> Result<Option<MessageMailbox>, AppError> {
     let relation = NewMessageMailbox {
         message_id: message.id,
         mailbox_id: inbox.id,
         relation: "location",
     };
 
-    diesel::insert_into(message_mailboxes::table)
+    let inserted = diesel::insert_into(message_mailboxes::table)
         .values(&relation)
+        .on_conflict_do_nothing()
         .execute(conn)
         .await?;
+
+    if inserted == 0 {
+        return Ok(None);
+    }
 
     let inserted = message_mailboxes::table
         .filter(message_mailboxes::message_id.eq(message.id))
@@ -407,7 +433,7 @@ async fn insert_message_mailbox(
         .first(conn)
         .await?;
 
-    Ok(inserted)
+    Ok(Some(inserted))
 }
 
 fn mailbox_sync_events(state: &AppState, user_id: i64, mailboxes: &[Mailbox]) -> Vec<NewSyncEvent> {

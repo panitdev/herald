@@ -72,11 +72,7 @@ diesel::table! {
 diesel::table! {
     messages (id) {
         id                  -> Int8,
-        user_id             -> Int8,
-        raw_inbound_mail_id -> Nullable<Int8>,
-        raw_key             -> Text,
-        raw_sha256          -> Text,
-        raw_size            -> Int8,
+        raw_inbound_mail_id -> Int8,
         message_id_header   -> Nullable<Text>,
         thread_id           -> Nullable<Text>,
         from_addr           -> Nullable<Text>,
@@ -106,7 +102,6 @@ diesel::joinable!(message_mailboxes -> mailboxes (mailbox_id));
 diesel::joinable!(message_mailboxes -> messages (message_id));
 diesel::joinable!(message_recipients -> messages (message_id));
 diesel::joinable!(messages -> raw_inbound_mails (raw_inbound_mail_id));
-diesel::joinable!(messages -> users (user_id));
 diesel::joinable!(sync_events -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(

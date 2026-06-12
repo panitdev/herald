@@ -9,7 +9,7 @@ use serde::Serialize;
 use crate::{
     auth::AuthUser,
     error::{ApiResult, AppError},
-    mail::{load_message_raw, render_message_body},
+    mail::{find_owned_message, render_message_body},
     state::AppState,
 };
 
@@ -27,12 +27,13 @@ pub async fn raw_message(
     AuthUser(user): AuthUser,
     Path(message_id): Path<i64>,
 ) -> ApiResult<Response<Body>> {
-    let (message, raw) = load_message_raw(&state, user.id, message_id).await?;
+    let (_, raw_mail) = find_owned_message(&state, user.id, message_id).await?;
+    let raw = state.blob_store.get(&raw_mail.blob_key).await?.bytes;
 
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "message/rfc822")
-        .header(header::ETAG, format!("\"{}\"", message.raw_sha256))
+        .header(header::ETAG, format!("\"{}\"", raw_mail.raw_sha256))
         .body(Body::from(raw))
         .map_err(|_| AppError::Internal)
 }
@@ -42,12 +43,12 @@ pub async fn message_body(
     AuthUser(user): AuthUser,
     Path(message_id): Path<i64>,
 ) -> ApiResult<Json<MessageBodyResponse>> {
-    let (message, html, text) = render_message_body(&state, user.id, message_id).await?;
+    let (message, raw_mail, html, text) = render_message_body(&state, user.id, message_id).await?;
 
     Ok(Json(MessageBodyResponse {
         message_id: message.id,
         html,
         text,
-        generated_from_raw_sha256: message.raw_sha256,
+        generated_from_raw_sha256: raw_mail.raw_sha256,
     }))
 }

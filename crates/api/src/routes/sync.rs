@@ -79,7 +79,14 @@ pub async fn bootstrap(
         .await?;
 
     let messages = messages::table
-        .filter(messages::user_id.eq(user.id))
+        .filter(
+            messages::id.eq_any(
+                message_mailboxes::table
+                    .inner_join(mailboxes::table)
+                    .filter(mailboxes::user_id.eq(user.id))
+                    .select(message_mailboxes::message_id),
+            ),
+        )
         .order(messages::received_at.desc())
         .select(Message::as_select())
         .load(&mut conn)
@@ -102,6 +109,13 @@ pub async fn bootstrap(
     } else {
         message_mailboxes::table
             .filter(message_mailboxes::message_id.eq_any(&message_ids))
+            .filter(
+                message_mailboxes::mailbox_id.eq_any(
+                    mailboxes::table
+                        .filter(mailboxes::user_id.eq(user.id))
+                        .select(mailboxes::id),
+                ),
+            )
             .select(MessageMailbox::as_select())
             .load(&mut conn)
             .await?

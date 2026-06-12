@@ -52,11 +52,7 @@ CREATE UNIQUE INDEX idx_mailboxes_user_system_role
 
 CREATE TABLE messages (
     id                   BIGINT PRIMARY KEY,
-    user_id              BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    raw_inbound_mail_id  BIGINT REFERENCES raw_inbound_mails(id) ON DELETE SET NULL,
-    raw_key              TEXT NOT NULL,
-    raw_sha256           TEXT NOT NULL,
-    raw_size             BIGINT NOT NULL,
+    raw_inbound_mail_id  BIGINT NOT NULL UNIQUE REFERENCES raw_inbound_mails(id) ON DELETE CASCADE,
     message_id_header    TEXT,
     thread_id            TEXT,
     from_addr            TEXT,
@@ -64,12 +60,11 @@ CREATE TABLE messages (
     subject              TEXT,
     preview              TEXT,
     received_at          TIMESTAMPTZ NOT NULL,
-    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, raw_sha256)
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_messages_user_received
-    ON messages(user_id, received_at DESC);
+CREATE INDEX idx_messages_received
+    ON messages(received_at DESC);
 
 CREATE TABLE message_recipients (
     id           BIGINT PRIMARY KEY,
