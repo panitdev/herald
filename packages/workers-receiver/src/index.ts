@@ -9,6 +9,12 @@ type Env = {
 
 const app = new Hono<{ Bindings: Env }>()
 
+app.get('/health', async (c) => {
+  return c.json({
+    status: "ok"
+  })
+})
+
 // All /internal/* endpoints require the internal bearer secret
 app.use('/internal/*', async (c, next) => {
   const middleware = bearerAuth({ token: c.env.HERALD_INTERNAL_SECRET })
