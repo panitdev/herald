@@ -10,6 +10,7 @@ pub struct Config {
     pub mail_domain: String,
     pub blob_store_root: PathBuf,
     pub api_port: u16,
+    pub cors_origins: Vec<String>,
     pub snowflake_machine_id: i32,
     pub snowflake_node_id: i32,
 }
@@ -31,6 +32,17 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(3001),
+            cors_origins: env::var("CORS_ORIGIN")
+                .ok()
+                .map(|value| {
+                    value
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default(),
             snowflake_machine_id: env::var("SNOWFLAKE_MACHINE_ID")
                 .ok()
                 .and_then(|v| v.parse().ok())

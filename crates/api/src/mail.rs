@@ -243,7 +243,8 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
                     .ok_or_else(|| AppError::BadRequest("missing inbox mailbox".into()))?;
 
                 let mut new_events = mailbox_sync_events(state, user.id, &ensured.created);
-                let Some(message_mailbox) = insert_message_mailbox(conn, &message, &inbox).await? else {
+                let Some(message_mailbox) = insert_message_mailbox(conn, &message, &inbox).await?
+                else {
                     if !new_events.is_empty() {
                         diesel::insert_into(sync_events::table)
                             .values(&new_events)
@@ -253,7 +254,13 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
                     continue;
                 };
 
-                new_events.push(sync_event(state, user.id, "message", message.id, json!(message)));
+                new_events.push(sync_event(
+                    state,
+                    user.id,
+                    "message",
+                    message.id,
+                    json!(message),
+                ));
                 new_events.extend(recipients.iter().map(|recipient| {
                     sync_event(
                         state,

@@ -1,6 +1,8 @@
 use diesel::Connection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use std::sync::Arc;
+use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 mod auth;
@@ -77,7 +79,30 @@ async fn main() {
     // Run recovery pipeline on startup
     tokio::spawn(recover_from_r2(state.clone()));
 
-    let app = routes::router().with_state(state);
+    let cors_origins = config
+        .cors_origins
+        .iter()
+        .map(|origin| origin.parse().expect("invalid CORS origin"))
+        .collect::<Vec<_>>();
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list(cors_origins))
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::AUTHORIZATION,
+        ])
+        .allow_credentials(true);
+
+    let app = routes::router()
+        .layer(TraceLayer::new_for_http())
+        .layer(cors)
+        .with_state(state);
 
     let addr = format!("0.0.0.0:{}", config.api_port);
     let listener = tokio::net::TcpListener::bind(&addr)
