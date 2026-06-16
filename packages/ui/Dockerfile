@@ -14,7 +14,6 @@ RUN bun install --frozen-lockfile
 WORKDIR /app/packages/ui
 
 COPY packages/ui/.env.production ./
-COPY packages/ui/.tanstack ./.tanstack
 COPY packages/ui/components ./components
 COPY packages/ui/hooks ./hooks
 COPY packages/ui/lib ./lib
