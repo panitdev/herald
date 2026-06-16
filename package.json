@@ -4,14 +4,14 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev:ui": "bun --cwd ui dev",
+    "dev:ui": "bun --cwd packages/ui dev",
     "dev:api": "wrangler dev -c apps/api/wrangler.jsonc --persist-to=.persist",
     "dev:email": "wrangler dev -c apps/email/wrangler.jsonc --persist-to=.persist",
     "dev:receiver": "bun --cwd packages/workers-receiver dev",
     "deploy:email": "wrangler deploy -c apps/email/wrangler.jsonc",
     "deploy:receiver": "bun --cwd packages/workers-receiver deploy",
     "deploy:queue": "wrangler deploy -c apps/queue/wrangler.jsonc",
-    "deploy:ui": "bun run --cwd ui deploy",
+    "deploy:ui": "bun run --cwd packages/ui deploy",
     "deploy": "bun deploy:api && bun deploy:email && bun deploy:queue && bun deploy:ui",
     "deploy:api": "wrangler deploy -c apps/api/wrangler.jsonc",
     "db:migrate:local": "wrangler d1 migrations apply herald-database --local -c apps/api/wrangler.jsonc --persist-to=.persist",
@@ -33,6 +33,6 @@
     "typescript": "^5"
   },
   "workspaces": [
-    "ui"
+    "packages/ui"
   ]
 }

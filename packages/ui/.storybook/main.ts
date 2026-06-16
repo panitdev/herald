@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { PluginOption } from 'vite'
 import { mergeConfig } from 'vite'
 
-const appOnlyPluginPrefixes = ['tanstack', 'vite-plugin-cloudflare']
+const appOnlyPluginPrefixes = ['tanstack']
 
 function withoutAppOnlyPlugins(plugins: PluginOption[] = []): PluginOption[] {
   return plugins
