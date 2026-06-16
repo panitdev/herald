@@ -39,7 +39,7 @@ const runtimeEnv = readRuntimeEnv()
 export const API_URL = trimTrailingSlash(
   runtimeEnv.apiUrl ??
     import.meta.env.VITE_API_URL ??
-    "https://api.herald.panit.dev"
+    "https://herald-api.panit.dev"
 )
 
 export const MAIL_DOMAIN =

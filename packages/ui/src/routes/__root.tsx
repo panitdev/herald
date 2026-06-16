@@ -38,7 +38,7 @@ function getPublicEnv(): PublicEnv {
       env.VITE_API_URL ??
         env.API_URL ??
         import.meta.env.VITE_API_URL ??
-        "https://api.herald.panit.dev"
+        "https://herald-api.panit.dev"
     ),
     mailDomain:
       env.VITE_MAIL_DOMAIN ??
