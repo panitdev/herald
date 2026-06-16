@@ -16,15 +16,25 @@ const POLL_INTERVAL_MS = 60_000
 const COUNTDOWN_MS = 5_000
 const TICK_MS = 50
 
-export function AuthGuardDialog() {
-  const [status, setStatus] = useState<AuthStatus>("loading")
+type Props = {
+  checkSession?: () => Promise<AuthStatus>
+  login?: () => void
+  initialStatus?: AuthStatus
+}
+
+export function AuthGuardDialog({
+  checkSession = checkWhoami,
+  login = initiateLogin,
+  initialStatus = "loading",
+}: Props) {
+  const [status, setStatus] = useState<AuthStatus>(initialStatus)
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
-    checkWhoami().then(setStatus)
-    const id = setInterval(() => checkWhoami().then(setStatus), POLL_INTERVAL_MS)
+    checkSession().then(setStatus)
+    const id = setInterval(() => checkSession().then(setStatus), POLL_INTERVAL_MS)
     return () => clearInterval(id)
-  }, [])
+  }, [checkSession])
 
   useEffect(() => {
     if (status !== "unauthed") return
@@ -36,12 +46,12 @@ export function AuthGuardDialog() {
       setProgress(pct)
       if (elapsed >= COUNTDOWN_MS) {
         clearInterval(id)
-        initiateLogin()
+        login()
       }
     }, TICK_MS)
 
     return () => clearInterval(id)
-  }, [status])
+  }, [login, status])
 
   return (
     <Dialog open={status === "unauthed"}>

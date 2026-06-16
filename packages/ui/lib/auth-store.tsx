@@ -64,8 +64,21 @@ async function fetchMe(): Promise<AuthUser | null> {
   }
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ user: null, initialized: false })
+type AuthProviderProps = {
+  children: ReactNode
+  initialUser?: AuthUser | null
+  autoRefresh?: boolean
+}
+
+export function AuthProvider({
+  children,
+  initialUser = null,
+  autoRefresh = true,
+}: AuthProviderProps) {
+  const [state, setState] = useState<AuthState>({
+    user: initialUser,
+    initialized: !autoRefresh,
+  })
 
   const refresh = useCallback(async () => {
     const { status, session } = await getWhoami()
@@ -75,8 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (!autoRefresh) return
     refresh()
-  }, [refresh])
+  }, [autoRefresh, refresh])
 
   const logout = useCallback(() => {
     initiateLogout()

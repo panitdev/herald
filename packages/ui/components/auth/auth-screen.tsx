@@ -5,10 +5,14 @@ import { motion } from "framer-motion"
 import { Mail } from "lucide-react"
 import { initiateLogin } from "@/lib/kratos"
 
-export function AuthScreen() {
+type Props = {
+  login?: () => void
+}
+
+export function AuthScreen({ login = initiateLogin }: Props) {
   useEffect(() => {
-    initiateLogin()
-  }, [])
+    login()
+  }, [login])
 
   return (
     <div className="relative flex h-dvh w-full items-center justify-center overflow-hidden bg-background">
