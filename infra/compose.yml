@@ -1,0 +1,40 @@
+name: herald
+
+services:
+  api:
+    image: ${HERALD_API_IMAGE:-herald-api:latest}
+    build:
+      context: ../crates/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      API_PORT: 3001
+      BLOB_STORE_ROOT: /data/blobs
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+      HERALD_INTERNAL_SECRET: ${HERALD_INTERNAL_SECRET:?HERALD_INTERNAL_SECRET must be set}
+      HERALD_WORKER_URL: ${HERALD_WORKER_URL:?HERALD_WORKER_URL must be set}
+      KRATOS_PUBLIC_URL: ${KRATOS_PUBLIC_URL:-http://localhost:4433}
+      MAIL_DOMAIN: ${MAIL_DOMAIN:-panit.dev}
+      SNOWFLAKE_MACHINE_ID: ${SNOWFLAKE_MACHINE_ID:-1}
+      SNOWFLAKE_NODE_ID: ${SNOWFLAKE_NODE_ID:-1}
+    ports:
+      - "${API_HOST_PORT:-3001}:3001"
+    volumes:
+      - api-blobs:/data/blobs
+
+  ui:
+    image: ${HERALD_UI_IMAGE:-herald-ui:latest}
+    build:
+      context: ..
+      dockerfile: packages/ui/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "${UI_HOST_PORT:-3000}:3000"
+
+volumes:
+  api-blobs:
