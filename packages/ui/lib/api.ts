@@ -1,4 +1,13 @@
 import { API_URL as API_BASE } from "@/lib/env"
+import {
+  OFFLINE_CACHE_VERSION,
+  clearUserOfflineData,
+  loadPersistedMessageBody,
+  loadPersistedSyncState,
+  persistMessageBody,
+  persistSyncState,
+  type PersistedSyncState,
+} from "@/lib/offline-cache"
 
 // ============================================
 // Types
@@ -41,7 +50,7 @@ export interface MessageBody {
   body: string
 }
 
-interface SyncMailbox {
+export interface SyncMailbox {
   id: ApiId
   user_id: ApiId
   name: string
@@ -51,7 +60,7 @@ interface SyncMailbox {
   created_at: string
 }
 
-interface SyncMessage {
+export interface SyncMessage {
   id: ApiId
   raw_inbound_mail_id: ApiId
   message_id_header: string | null
@@ -64,7 +73,7 @@ interface SyncMessage {
   created_at: string
 }
 
-interface SyncMessageRecipient {
+export interface SyncMessageRecipient {
   id: ApiId
   message_id: ApiId
   kind: "to" | "cc" | "bcc" | string
@@ -72,14 +81,14 @@ interface SyncMessageRecipient {
   display_name: string | null
 }
 
-interface SyncMessageMailbox {
+export interface SyncMessageMailbox {
   message_id: ApiId
   mailbox_id: ApiId
   relation: string
   created_at: string
 }
 
-interface SyncAttachment {
+export interface SyncAttachment {
   id: ApiId
   message_id: ApiId
   filename: string | null
@@ -150,6 +159,52 @@ export class APIError extends Error {
   }
 }
 
+let activeUserId: string | null = null
+let cachedSyncUserId: string | null = null
+let refreshQueued = false
+let unauthorizedHandler: (() => void | Promise<void>) | null = null
+
+export function setOfflineSyncUser(userId: string | null) {
+  activeUserId = userId
+  syncState = null
+  syncPromise = null
+  cachedSyncUserId = null
+}
+
+export function setUnauthorizedHandler(handler: (() => void | Promise<void>) | null) {
+  unauthorizedHandler = handler
+}
+
+export async function hydrateSyncStateFromCache(userId: string): Promise<boolean> {
+  const persisted = await loadPersistedSyncState(userId)
+  if (!persisted) {
+    syncState = null
+    cachedSyncUserId = null
+    return false
+  }
+
+  syncState = syncStateFromPersisted(persisted)
+  cachedSyncUserId = userId
+  return true
+}
+
+export async function clearOfflineMailCache(userId: string | null) {
+  syncState = null
+  syncPromise = null
+  cachedSyncUserId = null
+  if (userId) {
+    await clearUserOfflineData(userId)
+  }
+}
+
+export async function refreshSyncStateNow(): Promise<void> {
+  if (!activeUserId || !syncState || typeof window === "undefined" || !window.navigator.onLine) {
+    return
+  }
+
+  syncState = await pullSyncState(syncState)
+}
+
 // ============================================
 // API fetch — session cookie is sent automatically via credentials: 'include'
 // ============================================
@@ -168,6 +223,7 @@ export async function apiFetch<T>(
   })
 
   if (response.status === 401) {
+    void unauthorizedHandler?.()
     throw new APIError(401, "Session expired")
   }
 
@@ -186,6 +242,7 @@ async function apiText(path: string, options: RequestInit = {}): Promise<string>
   })
 
   if (response.status === 401) {
+    void unauthorizedHandler?.()
     throw new APIError(401, "Session expired")
   }
 
@@ -207,6 +264,7 @@ async function apiBlob(path: string, options: RequestInit = {}): Promise<Blob> {
   })
 
   if (response.status === 401) {
+    void unauthorizedHandler?.()
     throw new APIError(401, "Session expired")
   }
 
@@ -229,7 +287,21 @@ let syncState: SyncState | null = null
 let syncPromise: Promise<SyncState> | null = null
 
 async function getSyncedState(): Promise<SyncState> {
-  syncPromise ??= syncState ? pullSyncState(syncState) : bootstrapSyncState()
+  if (syncState) {
+    queueBackgroundRefresh()
+    return syncState
+  }
+
+  if (activeUserId && cachedSyncUserId !== activeUserId) {
+    await hydrateSyncStateFromCache(activeUserId)
+  }
+
+  if (syncState) {
+    queueBackgroundRefresh()
+    return syncState
+  }
+
+  syncPromise ??= bootstrapSyncState()
 
   try {
     syncState = await syncPromise
@@ -270,6 +342,7 @@ async function bootstrapSyncState(): Promise<SyncState> {
     state.attachments.set(idToString(attachment.id), attachment)
   }
 
+  await persistCurrentSyncState(state)
   return state
 }
 
@@ -289,7 +362,33 @@ async function pullSyncState(state: SyncState): Promise<SyncState> {
     hasMore = response.hasMore
   }
 
+  await persistCurrentSyncState(state)
   return state
+}
+
+function queueBackgroundRefresh() {
+  if (
+    refreshQueued ||
+    !syncState ||
+    typeof window === "undefined" ||
+    !window.navigator.onLine
+  ) {
+    return
+  }
+
+  refreshQueued = true
+  queueMicrotask(async () => {
+    refreshQueued = false
+    const previousCursor = syncState?.cursor
+    try {
+      await refreshSyncStateNow()
+      if (previousCursor !== syncState?.cursor) {
+        window.dispatchEvent(new CustomEvent("herald-sync-updated"))
+      }
+    } catch {
+      // Keep cached state visible when background refresh fails.
+    }
+  })
 }
 
 function applySyncChange(state: SyncState, change: PullChange) {
@@ -526,18 +625,41 @@ export async function sendMail(
 }
 
 export async function getMessageBody(messageId: string): Promise<MessageBody> {
-  const response = await apiFetch<{
-    messageId: ApiId
-    html: string
-    text: string
-    generatedFromRawSha256: string
-  }>(`/objects/messages/${messageId}/body`)
+  try {
+    const response = await apiFetch<{
+      messageId: ApiId
+      html: string
+      text: string
+      generatedFromRawSha256: string
+    }>(`/objects/messages/${messageId}/body`)
 
-  if (response.html.trim()) {
-    return { format: "html", body: response.html }
+    const body = response.html.trim()
+      ? { format: "html" as const, body: response.html }
+      : { format: "text" as const, body: response.text }
+
+    if (activeUserId) {
+      await persistMessageBody({
+        cacheVersion: OFFLINE_CACHE_VERSION,
+        userId: activeUserId,
+        messageId,
+        ...body,
+        updatedAt: new Date().toISOString(),
+      })
+    }
+
+    return body
+  } catch (error) {
+    if (activeUserId && isNetworkError(error)) {
+      const cached = await loadPersistedMessageBody(activeUserId, messageId)
+      if (cached) {
+        return { format: cached.format, body: cached.body }
+      }
+
+      throw new APIError(503, "Message body is unavailable offline until opened once online")
+    }
+
+    throw error
   }
-
-  return { format: "text", body: response.text }
 }
 
 export async function getRawEmail(messageId: string): Promise<string> {
@@ -546,4 +668,53 @@ export async function getRawEmail(messageId: string): Promise<string> {
 
 export async function getRawEmailBlob(messageId: string): Promise<Blob> {
   return apiBlob(`/objects/messages/${messageId}/raw`)
+}
+
+function syncStateFromPersisted(persisted: PersistedSyncState): SyncState {
+  return {
+    schemaVersion: persisted.schemaVersion,
+    cursor: persisted.cursor,
+    mailboxes: new Map(
+      persisted.mailboxes.map((mailbox) => [idToString((mailbox as SyncMailbox).id), mailbox as SyncMailbox]),
+    ),
+    messages: new Map(
+      persisted.messages.map((message) => [idToString((message as SyncMessage).id), message as SyncMessage]),
+    ),
+    messageRecipients: new Map(
+      persisted.messageRecipients.map((recipient) => [
+        idToString((recipient as SyncMessageRecipient).id),
+        recipient as SyncMessageRecipient,
+      ]),
+    ),
+    messageMailboxes: new Map(
+      persisted.messageMailboxes.map((entry) => {
+        const messageMailbox = entry as SyncMessageMailbox
+        return [messageMailboxKey(messageMailbox), messageMailbox]
+      }),
+    ),
+    attachments: new Map(
+      persisted.attachments.map((attachment) => [idToString((attachment as SyncAttachment).id), attachment as SyncAttachment]),
+    ),
+  }
+}
+
+async function persistCurrentSyncState(state: SyncState): Promise<void> {
+  if (!activeUserId) return
+
+  await persistSyncState({
+    cacheVersion: OFFLINE_CACHE_VERSION,
+    userId: activeUserId,
+    schemaVersion: state.schemaVersion,
+    cursor: state.cursor,
+    mailboxes: [...state.mailboxes.values()],
+    messages: [...state.messages.values()],
+    messageRecipients: [...state.messageRecipients.values()],
+    messageMailboxes: [...state.messageMailboxes.values()],
+    attachments: [...state.attachments.values()],
+    updatedAt: new Date().toISOString(),
+  })
+}
+
+function isNetworkError(error: unknown): boolean {
+  return !(error instanceof APIError)
 }

@@ -2,10 +2,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react"
+import { loadPersistedLocalOverrides, persistLocalOverrides, OFFLINE_CACHE_VERSION } from "@/lib/offline-cache"
+import { useAuth } from "@/lib/auth-store"
 import type { Email, Folder } from "@/lib/types"
 
 // Local-only, non-persisted UI state layered over server data (TanStack Query).
@@ -19,6 +22,7 @@ type Override = {
 }
 
 type Ctx = {
+  initialized: boolean
   overrides: Record<string, Override>
   deletedIds: Record<string, true>
   localEmails: Email[]
@@ -33,9 +37,54 @@ type Ctx = {
 const LocalOverridesContext = createContext<Ctx | null>(null)
 
 export function LocalOverridesProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
+  const [initialized, setInitialized] = useState(false)
   const [overrides, setOverrides] = useState<Record<string, Override>>({})
   const [deletedIds, setDeletedIds] = useState<Record<string, true>>({})
   const [localEmails, setLocalEmails] = useState<Email[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function restore() {
+      if (!user) {
+        if (!cancelled) {
+          setOverrides({})
+          setDeletedIds({})
+          setLocalEmails([])
+          setInitialized(true)
+        }
+        return
+      }
+
+      setInitialized(false)
+      const persisted = await loadPersistedLocalOverrides(user.id)
+      if (cancelled) return
+      setOverrides(persisted?.overrides ?? {})
+      setDeletedIds(
+        Object.fromEntries((persisted?.deletedIds ?? []).map((id) => [id, true])),
+      )
+      setLocalEmails(persisted?.localEmails ?? [])
+      setInitialized(true)
+    }
+
+    void restore()
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!user || !initialized) return
+    void persistLocalOverrides({
+      cacheVersion: OFFLINE_CACHE_VERSION,
+      userId: user.id,
+      overrides,
+      deletedIds: Object.keys(deletedIds),
+      localEmails,
+      updatedAt: new Date().toISOString(),
+    })
+  }, [deletedIds, initialized, localEmails, overrides, user])
 
   const patch = useCallback((id: string, p: Override) => {
     setOverrides((prev) => ({ ...prev, [id]: { ...prev[id], ...p } }))
@@ -81,6 +130,7 @@ export function LocalOverridesProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Ctx>(
     () => ({
+      initialized,
       overrides,
       deletedIds,
       localEmails,
@@ -92,6 +142,7 @@ export function LocalOverridesProvider({ children }: { children: ReactNode }) {
       addLocalEmail,
     }),
     [
+      initialized,
       overrides,
       deletedIds,
       localEmails,

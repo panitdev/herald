@@ -13,6 +13,7 @@ type Props = {
   onSend: (data: { to: string; subject: string; body: string }) => Promise<void> | void
   initialTo?: string
   initialSubject?: string
+  offline?: boolean
 }
 
 export function ComposePanel({
@@ -21,6 +22,7 @@ export function ComposePanel({
   onSend,
   initialTo = "",
   initialSubject = "",
+  offline = false,
 }: Props) {
   const [minimized, setMinimized] = useState(false)
   const [to, setTo] = useState(initialTo)
@@ -67,7 +69,7 @@ export function ComposePanel({
     }
   }
 
-  const canSend = to.trim().length > 0 && subject.trim().length > 0 && !sending
+  const canSend = to.trim().length > 0 && subject.trim().length > 0 && !sending && !offline
 
   return (
     <AnimatePresence>
@@ -157,6 +159,11 @@ export function ComposePanel({
                   rows={8}
                   className="min-h-[180px] w-full resize-none bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none placeholder:text-muted-foreground/60"
                 />
+                {offline ? (
+                  <div className="border-t border-border bg-amber-100/60 px-4 py-2 text-sm text-amber-950">
+                    You're offline. Sending is disabled until the connection returns.
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
                   <div className="flex items-center gap-1">
                     <Button

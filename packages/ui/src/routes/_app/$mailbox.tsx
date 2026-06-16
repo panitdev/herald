@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   createFileRoute,
   useNavigate,
   useParams,
 } from "@tanstack/react-router"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Menu, Loader2 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
@@ -15,12 +15,13 @@ import { EmailDetail } from "@/components/email/email-detail"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { mailboxesQuery, messageBodyQuery, messagesQuery } from "@/lib/queries"
-import { getRawEmailBlob } from "@/lib/api"
+import { getRawEmailBlob, refreshSyncStateNow } from "@/lib/api"
 import { transformMessage } from "@/lib/email-transform"
 import { useMergedEmails } from "@/lib/local-overrides-store"
 import { useEmailActions } from "@/lib/use-email-actions"
 import { useAppChrome } from "@/lib/app-chrome"
 import type { Email, Folder } from "@/lib/types"
+import { useOnlineStatus } from "@/lib/network-store"
 
 const VALID_FOLDERS: Folder[] = [
   "inbox",
@@ -35,14 +36,6 @@ export const Route = createFileRoute("/_app/$mailbox")({
   // ssr: false because this route uses useAppChrome() (provided by _app's
   // AppLayout) which is itself ssr: false.
   ssr: false,
-  loader: async ({ context: { queryClient }, params: { mailbox } }) => {
-    const mailboxes = await queryClient.ensureQueryData(mailboxesQuery())
-    const id =
-      mailbox === "starred" || mailbox === "drafts"
-        ? null
-        : (mailboxes.find((m) => m.name === mailbox)?.id ?? null)
-    if (id) await queryClient.ensureQueryData(messagesQuery(id))
-  },
   component: MailboxRoute,
 })
 
@@ -55,6 +48,8 @@ function MailboxRoute() {
   ) as Folder
   const navigate = useNavigate()
   const { openCompose, openSettings } = useAppChrome()
+  const queryClient = useQueryClient()
+  const online = useOnlineStatus()
 
   // selectedId comes from the optional $messageId child route.
   const childParams = useParams({ strict: false }) as { messageId?: string }
@@ -98,6 +93,29 @@ function MailboxRoute() {
       onOpenSettings={openSettings}
     />
   )
+
+  useEffect(() => {
+    const onSyncUpdated = () => {
+      void queryClient.invalidateQueries({ queryKey: ["mailboxes"] })
+      void queryClient.invalidateQueries({ queryKey: ["messages"] })
+      void queryClient.invalidateQueries({ queryKey: ["messageBody"] })
+    }
+
+    window.addEventListener("herald-sync-updated", onSyncUpdated)
+    return () => window.removeEventListener("herald-sync-updated", onSyncUpdated)
+  }, [queryClient])
+
+  useEffect(() => {
+    if (!online) return
+    void refreshSyncStateNow()
+      .then(() => {
+        void queryClient.invalidateQueries({ queryKey: ["mailboxes"] })
+        void queryClient.invalidateQueries({ queryKey: ["messages"] })
+      })
+      .catch(() => {
+        // Cached data stays visible if reconnect refresh fails.
+      })
+  }, [online, queryClient])
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-background">
@@ -218,7 +236,9 @@ function MessageDetailPane({
   const bodyQ = useQuery(messageBodyQuery(messageId))
   const emailBody = bodyQ.isSuccess
     ? bodyQ.data.body || "(No content available)"
-    : email?.preview || "Loading message..."
+    : bodyQ.isError && bodyQ.error instanceof Error
+      ? bodyQ.error.message
+      : email?.preview || "Loading message..."
   const emailBodyFormat = bodyQ.isSuccess ? bodyQ.data.format : "text"
   const handleDownloadSource = async (id: string) => {
     try {

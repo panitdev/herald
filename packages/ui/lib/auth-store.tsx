@@ -3,11 +3,23 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
+import {
+  clearOfflineMailCache,
+  hydrateSyncStateFromCache,
+  setOfflineSyncUser,
+  setUnauthorizedHandler,
+} from "@/lib/api"
+import { API_URL, MAIL_DOMAIN } from "@/lib/env"
+import {
+  clearOfflineSession,
+  loadPersistedAuthUser,
+  persistAuthUser,
+} from "@/lib/offline-cache"
 import { getWhoami, initiateLogout, type KratosSession } from "./kratos"
-import { API_URL, MAIL_DOMAIN } from "./env"
 
 export type AuthUser = {
   id: string
@@ -18,6 +30,7 @@ export type AuthUser = {
 type AuthState = {
   user: AuthUser | null
   initialized: boolean
+  restoringCachedMail: boolean
 }
 
 type AuthCtx = AuthState & {
@@ -29,7 +42,7 @@ const AuthContext = createContext<AuthCtx | null>(null)
 
 function traitString(
   traits: Record<string, unknown> | undefined,
-  key: string
+  key: string,
 ): string | null {
   const value = traits?.[key]
   return typeof value === "string" && value.trim() ? value.trim() : null
@@ -53,14 +66,14 @@ function userFromSession(session: KratosSession | null): AuthUser | null {
   }
 }
 
-async function fetchMe(): Promise<AuthUser | null> {
+async function fetchMe(): Promise<{ user: AuthUser | null; offline: boolean }> {
   try {
     const res = await fetch(`${API_URL}/api/me`, { credentials: "include" })
-    if (!res.ok) return null
+    if (!res.ok) return { user: null, offline: false }
     const data = (await res.json()) as AuthUser
-    return data
+    return { user: data, offline: false }
   } catch {
-    return null
+    return { user: null, offline: true }
   }
 }
 
@@ -78,23 +91,92 @@ export function AuthProvider({
   const [state, setState] = useState<AuthState>({
     user: initialUser,
     initialized: !autoRefresh,
+    restoringCachedMail: autoRefresh,
   })
+  const currentUserIdRef = useRef<string | null>(initialUser?.id ?? null)
+
+  const clearForUser = useCallback(async (userId: string | null) => {
+    setOfflineSyncUser(null)
+    await clearOfflineMailCache(null)
+    await clearOfflineSession(userId)
+  }, [])
+
+  const restoreOfflineData = useCallback(async (user: AuthUser | null) => {
+    currentUserIdRef.current = user?.id ?? null
+    setOfflineSyncUser(user?.id ?? null)
+
+    if (!user) {
+      setState({ user: null, initialized: true, restoringCachedMail: false })
+      return
+    }
+
+    setState({ user, initialized: false, restoringCachedMail: true })
+    await hydrateSyncStateFromCache(user.id)
+    setState({ user, initialized: true, restoringCachedMail: false })
+  }, [])
 
   const refresh = useCallback(async () => {
     const { status, session } = await getWhoami()
-    const user =
-      status === "authed" ? (await fetchMe()) ?? userFromSession(session) : null
-    setState({ user, initialized: true })
-  }, [])
+
+    if (status === "unauthed") {
+      await clearForUser(currentUserIdRef.current)
+      setState({ user: null, initialized: true, restoringCachedMail: false })
+      return
+    }
+
+    if (status === "offline") {
+      const persisted = await loadPersistedAuthUser()
+      await restoreOfflineData(persisted?.user ?? null)
+      return
+    }
+
+    const sessionUser = userFromSession(session)
+    const me = await fetchMe()
+    if (me.offline) {
+      const persisted = await loadPersistedAuthUser()
+      await restoreOfflineData(persisted?.user ?? sessionUser ?? null)
+      return
+    }
+
+    const user = me.user ?? sessionUser
+    const previousUserId = currentUserIdRef.current
+    if (previousUserId && user?.id !== previousUserId) {
+      setOfflineSyncUser(null)
+    }
+
+    currentUserIdRef.current = user?.id ?? null
+    setOfflineSyncUser(user?.id ?? null)
+
+    if (user) {
+      await persistAuthUser(user)
+      await hydrateSyncStateFromCache(user.id)
+    }
+
+    setState({ user, initialized: true, restoringCachedMail: false })
+  }, [clearForUser, restoreOfflineData])
+
+  useEffect(() => {
+    setUnauthorizedHandler(async () => {
+      const userId = currentUserIdRef.current
+      await clearForUser(userId)
+      currentUserIdRef.current = null
+      setState({ user: null, initialized: true, restoringCachedMail: false })
+    })
+
+    return () => setUnauthorizedHandler(null)
+  }, [clearForUser])
 
   useEffect(() => {
     if (!autoRefresh) return
-    refresh()
+    void refresh()
   }, [autoRefresh, refresh])
 
   const logout = useCallback(() => {
-    initiateLogout()
-  }, [])
+    void clearForUser(currentUserIdRef.current)
+    currentUserIdRef.current = null
+    setState({ user: null, initialized: true, restoringCachedMail: false })
+    void initiateLogout()
+  }, [clearForUser])
 
   return (
     <AuthContext.Provider value={{ ...state, logout, refresh }}>

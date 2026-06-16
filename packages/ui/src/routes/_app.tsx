@@ -14,26 +14,25 @@ import { useAuth } from "@/lib/auth-store"
 import { useLocalOverrides } from "@/lib/local-overrides-store"
 import { sendMail } from "@/lib/api"
 import type { Email } from "@/lib/types"
-import { mailboxesQuery } from "@/lib/queries"
 import {
   AppChromeContext,
   type AppChromeCtx,
   type ComposePrefill,
 } from "@/lib/app-chrome"
+import { useOnlineStatus } from "@/lib/network-store"
 
 export const Route = createFileRoute("/_app")({
   // The authenticated tree is client-only (cookie auth + Kratos redirects need
   // the browser); the static shell in __root still SSRs.
   ssr: false,
-  loader: ({ context: { queryClient } }) =>
-    queryClient.ensureQueryData(mailboxesQuery()),
   component: AppLayout,
 })
 
 function AppLayout() {
   const { settings } = useSettings()
   const { user } = useAuth()
-  const { addLocalEmail } = useLocalOverrides()
+  const { addLocalEmail, initialized: overridesInitialized } = useLocalOverrides()
+  const online = useOnlineStatus()
 
   const [composeOpen, setComposeOpen] = useState(false)
   const [composePrefill, setComposePrefill] = useState<ComposePrefill>({
@@ -55,6 +54,13 @@ function AppLayout() {
   )
 
   async function handleSend(data: { to: string; subject: string; body: string }) {
+    if (!online) {
+      toast.error("You're offline", {
+        description: "Compose is available, but sending requires a network connection.",
+      })
+      return
+    }
+
     let result
     try {
       result = await sendMail({ ...data, fromName: settings.displayName })
@@ -116,13 +122,30 @@ function AppLayout() {
 
   return (
     <AppChromeContext.Provider value={chrome}>
-      <Outlet />
+      {!online ? (
+        <div className="border-b border-border bg-amber-100/70 px-4 py-2 text-sm text-amber-950">
+          Offline. Cached mail is available, but sending and refresh require a connection.
+        </div>
+      ) : null}
+      {!overridesInitialized ? (
+        <div className="flex h-dvh items-center justify-center bg-background px-6 text-center">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">Restoring cached mail</p>
+            <p className="text-sm text-muted-foreground">
+              Reloading your local mailbox state before background refresh.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <Outlet />
+      )}
       <ComposePanel
         open={composeOpen}
         onClose={() => setComposeOpen(false)}
         onSend={handleSend}
         initialTo={composePrefill.to}
         initialSubject={composePrefill.subject}
+        offline={!online}
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </AppChromeContext.Provider>

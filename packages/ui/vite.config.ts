@@ -1,3 +1,4 @@
+import { serwist } from '@serwist/vite'
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
@@ -21,5 +22,15 @@ export default defineConfig({
       },
     },
   },
-  plugins: [tailwindcss(), tanstackStart(), react()],
+  plugins: [
+    tailwindcss(),
+    tanstackStart(),
+    react(),
+    ...serwist({
+      type: 'module',
+      swSrc: 'src/sw.ts',
+      swDest: 'client/sw.js',
+      globDirectory: 'dist/client',
+    }),
+  ],
 })

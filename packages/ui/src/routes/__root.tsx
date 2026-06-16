@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import {
   HeadContent,
   Outlet,
@@ -75,9 +75,14 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         content:
           "A minimal, fast email client with smooth animations and a distraction-free interface.",
       },
+      { name: "theme-color", content: "#ece6dc" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "apple-mobile-web-app-title", content: "Herald" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.webmanifest" },
       // Pretendard — primary sans-serif
       {
         rel: "stylesheet",
@@ -124,6 +129,23 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext()
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return
+
+    void import("virtual:serwist").then(({ swScope, swType, swUrl }) => {
+      void navigator.serviceWorker
+        .register(swUrl, { scope: swScope, type: swType })
+        .then((registration) => {
+          window.dispatchEvent(
+            new CustomEvent("herald-sw-registered", {
+              detail: { registration, swUrl },
+            }),
+          )
+        })
+    })
+  }, [])
+
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
@@ -150,8 +172,23 @@ function RootComponent() {
  * AuthScreen (which redirects to Kratos) when signed out, app otherwise.
  */
 function AuthGate({ children }: { children: ReactNode }) {
-  const { user, initialized } = useAuth()
-  if (!initialized) return <div className="h-dvh w-full bg-background" />
+  const { user, initialized, restoringCachedMail } = useAuth()
+  if (!initialized) {
+    return (
+      <div className="flex h-dvh w-full items-center justify-center bg-background px-6 text-center">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            {restoringCachedMail ? "Restoring cached mail" : "Loading Herald"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {restoringCachedMail
+              ? "Reopening your last synced mailbox snapshot."
+              : "Checking your session."}
+          </p>
+        </div>
+      </div>
+    )
+  }
   if (!user) return <AuthScreen />
   return <>{children}</>
 }

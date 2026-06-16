@@ -1,6 +1,6 @@
 import { KRATOS_URL } from "./env"
 
-export type AuthStatus = "loading" | "authed" | "unauthed"
+export type AuthStatus = "loading" | "authed" | "unauthed" | "offline"
 
 export type KratosSession = {
   id?: string
@@ -28,7 +28,7 @@ export async function getWhoami(): Promise<WhoamiResult> {
       session: (await res.json()) as KratosSession,
     }
   } catch {
-    return { status: "authed", session: null }
+    return { status: "offline", session: null }
   }
 }
 
