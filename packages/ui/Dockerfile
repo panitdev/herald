@@ -13,17 +13,7 @@ RUN bun install --frozen-lockfile
 
 WORKDIR /app/packages/ui
 
-COPY packages/ui/.env.production ./
-COPY packages/ui/components ./components
-COPY packages/ui/hooks ./hooks
-COPY packages/ui/lib ./lib
-COPY packages/ui/public ./public
-COPY packages/ui/src ./src
-COPY packages/ui/styles ./styles
-COPY packages/ui/components.json ./
-COPY packages/ui/server.ts ./
-COPY packages/ui/tsconfig.json ./
-COPY packages/ui/vite.config.ts ./
+COPY packages/ui/ ./
 
 ENV NODE_ENV=production
 
