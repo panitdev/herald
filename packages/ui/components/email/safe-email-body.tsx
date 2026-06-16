@@ -20,7 +20,7 @@ export function SafeEmailBody({ body, format, messageId }: SafeEmailBodyProps) {
       title="Email content"
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       referrerPolicy="no-referrer"
-      src={`/api/messages/${encodeURIComponent(messageId)}/render`}
+      srcDoc={body}
       className="h-[70vh] w-full rounded-xl border border-border bg-white"
     />
   )

@@ -4,15 +4,18 @@ import type { Message as ApiMessage } from "@/lib/api"
 import type { Email, Folder } from "@/lib/types"
 
 export function transformMessage(msg: ApiMessage, folder: Folder): Email {
+  const fromAddress = msg.from_addr || "unknown"
+  const fromName = msg.from_name || extractName(fromAddress)
+
   return {
     id: msg.id,
     from: {
-      name: extractName(msg.from_addr),
-      email: msg.from_addr,
-      initials: extractInitials(msg.from_addr),
-      color: pickColor(msg.from_addr),
+      name: fromName,
+      email: fromAddress,
+      initials: extractInitials(fromName),
+      color: pickColor(fromAddress),
     },
-    to: "",
+    to: msg.to,
     subject: msg.subject || "(No subject)",
     preview: msg.preview || "",
     body: "", // Loaded separately on the detail view
@@ -21,7 +24,7 @@ export function transformMessage(msg: ApiMessage, folder: Folder): Email {
     starred: false,
     folder,
     labels: [],
-    hasAttachment: false,
+    hasAttachment: msg.has_attachments,
   }
 }
 
