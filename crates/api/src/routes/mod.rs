@@ -17,8 +17,8 @@ pub fn router() -> Router<AppState> {
         .route("/internal/mail/inbound", post(internal::inbound_mail))
         .route("/sync/bootstrap", post(sync::bootstrap))
         .route("/sync/pull", get(sync::pull))
-        .route("/objects/messages/:id/raw", get(objects::raw_message))
-        .route("/objects/messages/:id/body", get(objects::message_body))
+        .route("/objects/messages/{id}/raw", get(objects::raw_message))
+        .route("/objects/messages/{id}/body", get(objects::message_body))
 }
 
 async fn me(AuthUser(user): AuthUser) -> Json<serde_json::Value> {
