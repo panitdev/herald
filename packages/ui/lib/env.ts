@@ -1,20 +1,52 @@
-// Centralized public env config. Vite inlines `import.meta.env.VITE_*` at build time.
-// KRATOS_URL is additionally read from `window.__ENV__` injected by the UI Worker at
-// request time, so CI builds without VITE_KRATOS_PUBLIC_URL still redirect correctly.
+// Centralized public env config. Vite inlines `import.meta.env.VITE_*` at
+// build time, while the server injects `window.__ENV__` at request time for
+// Docker/runtime configuration.
 
 declare global {
   interface Window {
-    __ENV__?: { kratosUrl?: string }
+    __ENV__?: PublicEnv
   }
 }
 
-export const API_URL =
-  import.meta.env.VITE_API_URL ?? "https://api.herald.panit.dev"
+export type PublicEnv = {
+  apiUrl?: string
+  mailDomain?: string
+  kratosUrl?: string
+}
 
-export const MAIL_DOMAIN = import.meta.env.VITE_MAIL_DOMAIN ?? "panit.dev"
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/$/, "")
+}
+
+function readRuntimeEnv(): PublicEnv {
+  if (typeof window !== "undefined") {
+    return window.__ENV__ ?? {}
+  }
+
+  const env = (
+    globalThis as { process?: { env?: Record<string, string | undefined> } }
+  ).process?.env
+
+  return {
+    apiUrl: env?.VITE_API_URL ?? env?.API_URL,
+    mailDomain: env?.VITE_MAIL_DOMAIN ?? env?.MAIL_DOMAIN,
+    kratosUrl: env?.VITE_KRATOS_PUBLIC_URL ?? env?.KRATOS_PUBLIC_URL,
+  }
+}
+
+const runtimeEnv = readRuntimeEnv()
+
+export const API_URL = trimTrailingSlash(
+  runtimeEnv.apiUrl ??
+    import.meta.env.VITE_API_URL ??
+    "https://api.herald.panit.dev"
+)
+
+export const MAIL_DOMAIN =
+  runtimeEnv.mailDomain ?? import.meta.env.VITE_MAIL_DOMAIN ?? "panit.dev"
 
 export const KRATOS_URL = (
-  (typeof window !== "undefined" ? window.__ENV__?.kratosUrl : undefined) ??
+  runtimeEnv.kratosUrl ??
   import.meta.env.VITE_KRATOS_PUBLIC_URL ??
   ""
 ).replace(/\/$/, "")

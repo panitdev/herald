@@ -14,20 +14,57 @@ import { AuthScreen } from "@/components/auth/auth-screen"
 import { AuthGuardDialog } from "@/components/auth/auth-guard-dialog"
 import { Toaster } from "@/components/ui/sonner"
 import { ErrorBoundary } from "@/components/error-boundary"
+import type { PublicEnv } from "@/lib/env"
 import appCss from "../globals.css?url"
 
 export interface RouterContext {
   queryClient: QueryClient
 }
 
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/$/, "")
+}
+
+function getRuntimeEnv(): Record<string, string | undefined> {
+  return (
+    globalThis as { process?: { env?: Record<string, string | undefined> } }
+  ).process?.env ?? {}
+}
+
+function getPublicEnv(): PublicEnv {
+  const env = getRuntimeEnv()
+  return {
+    apiUrl: trimTrailingSlash(
+      env.VITE_API_URL ??
+        env.API_URL ??
+        import.meta.env.VITE_API_URL ??
+        "https://api.herald.panit.dev"
+    ),
+    mailDomain:
+      env.VITE_MAIL_DOMAIN ??
+      env.MAIL_DOMAIN ??
+      import.meta.env.VITE_MAIL_DOMAIN ??
+      "panit.dev",
+    kratosUrl: trimTrailingSlash(
+      env.VITE_KRATOS_PUBLIC_URL ??
+        env.KRATOS_PUBLIC_URL ??
+        import.meta.env.VITE_KRATOS_PUBLIC_URL ??
+        ""
+    ),
+  }
+}
+
+function serializePublicEnv(env: PublicEnv): string {
+  return JSON.stringify(env).replace(/</g, "\\u003c")
+}
+
 export const Route = createRootRouteWithContext<RouterContext>()({
-  loader: async (): Promise<{ kratosUrl: string }> => {
-    const kratosUrl = import.meta.env.VITE_KRATOS_PUBLIC_URL ?? ""
-    return { kratosUrl: kratosUrl.replace(/\/$/, "") }
+  loader: async (): Promise<PublicEnv> => {
+    return getPublicEnv()
   },
   head: ({ loaderData }) => ({
     scripts: loaderData
-      ? [{ children: `window.__ENV__=${JSON.stringify({ kratosUrl: loaderData.kratosUrl })}` }]
+      ? [{ children: `window.__ENV__=${serializePublicEnv(loaderData)}` }]
       : [],
     meta: [
       { charSet: "utf-8" },
