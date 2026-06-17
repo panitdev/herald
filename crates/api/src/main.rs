@@ -10,6 +10,7 @@ mod auth;
 mod blob_store;
 mod config;
 mod db;
+mod email;
 mod error;
 mod ids;
 mod mail;
@@ -23,7 +24,10 @@ mod state;
 mod worker_client;
 
 use blob_store::{DynBlobStore, FsBlobStore};
+use config::{Config, SystemEmailConfig};
+use email::{build_sender, DynEmailSender, EmailProvider};
 use mail::{ingest_raw_mail, process_inbound_mail, requeue_pending_inbound_mail};
+use serde_json::json;
 use state::AppState;
 use worker_client::{HttpWorkerClient, InboundWorkerClient};
 
@@ -67,6 +71,8 @@ async fn main() {
         config.internal_secret.clone(),
     ));
 
+    let system_email = build_system_email_sender(&config, &http);
+
     let state = AppState {
         db,
         config: config.clone(),
@@ -75,6 +81,7 @@ async fn main() {
         blob_store,
         worker,
         realtime: realtime::RealtimeHub::default(),
+        system_email,
     };
 
     tokio::spawn(requeue_pending_inbound_mail(state.clone()));
@@ -114,6 +121,41 @@ async fn main() {
         .expect("failed to bind");
     tracing::info!("listening on {addr}");
     axum::serve(listener, app).await.unwrap();
+}
+
+/// Build the optional shared email sender from environment configuration.
+fn build_system_email_sender(config: &Config, http: &reqwest::Client) -> Option<DynEmailSender> {
+    let system = config.system_email.as_ref()?;
+    let (provider, sender_config, secret) = match system {
+        SystemEmailConfig::Resend { api_key } => (
+            EmailProvider::Resend,
+            json!({}),
+            json!({ "api_key": api_key }),
+        ),
+        SystemEmailConfig::Ses {
+            region,
+            access_key_id,
+            secret_access_key,
+        } => (
+            EmailProvider::Ses,
+            json!({ "region": region }),
+            json!({
+                "access_key_id": access_key_id,
+                "secret_access_key": secret_access_key,
+            }),
+        ),
+    };
+
+    match build_sender(http.clone(), provider, &sender_config, Some(&secret)) {
+        Ok(sender) => {
+            tracing::info!(provider = provider.as_str(), "system email sender configured");
+            Some(sender)
+        }
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to build system email sender");
+            None
+        }
+    }
 }
 
 /// On startup: fetch any fallback-staged R2 objects that Axum may have missed

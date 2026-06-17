@@ -27,6 +27,7 @@ use crate::{
 };
 
 pub mod chat;
+pub mod email_senders;
 pub mod internal;
 pub mod objects;
 pub mod sync;
@@ -37,6 +38,18 @@ pub fn router() -> Router<AppState> {
         .route("/api/me", get(me).patch(update_me))
         .route("/api/me/addresses", post(create_address))
         .route("/api/me/avatar", get(me_avatar))
+        .route(
+            "/api/me/email-senders",
+            get(email_senders::list_email_senders).post(email_senders::create_email_sender),
+        )
+        .route(
+            "/api/me/email-senders/{id}",
+            axum::routing::delete(email_senders::delete_email_sender),
+        )
+        .route(
+            "/api/me/email-senders/test",
+            post(email_senders::send_test_email),
+        )
         .route(
             "/chat/conversations",
             get(chat::list_conversations).post(chat::create_conversation),

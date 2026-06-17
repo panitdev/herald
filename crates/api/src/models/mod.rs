@@ -3,6 +3,7 @@ pub mod attachment;
 pub mod chat_message;
 pub mod conversation;
 pub mod conversation_participant;
+pub mod email_sender;
 pub mod mailbox;
 pub mod message;
 pub mod message_mailbox;
