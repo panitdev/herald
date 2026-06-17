@@ -2,8 +2,8 @@ use axum::extract::FromRef;
 use std::sync::Arc;
 
 use crate::{
-    blob_store::BlobStore, config::Config, db::DbPool, ids::IdGen, realtime::RealtimeHub,
-    worker_client::InboundWorkerClient,
+    blob_store::BlobStore, config::Config, db::DbPool, email::DynEmailSender, ids::IdGen,
+    realtime::RealtimeHub, worker_client::InboundWorkerClient,
 };
 
 #[derive(Clone)]
@@ -15,6 +15,9 @@ pub struct AppState {
     pub blob_store: Arc<dyn BlobStore>,
     pub worker: Arc<dyn InboundWorkerClient>,
     pub realtime: RealtimeHub,
+    /// Shared email sender built from the environment, if configured. Used as a
+    /// fallback when a user has no sender of their own.
+    pub system_email: Option<DynEmailSender>,
 }
 
 impl AppState {

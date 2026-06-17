@@ -13,6 +13,56 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     pub snowflake_machine_id: i32,
     pub snowflake_node_id: i32,
+    /// Optional shared outbound email provider, configured from the environment.
+    /// When unset, herald-api ships with no provider key and relies entirely on
+    /// senders that end users register themselves.
+    pub system_email: Option<SystemEmailConfig>,
+}
+
+/// Environment-provided system email sender. Resend takes precedence when both
+/// a Resend key and SES credentials are present.
+#[derive(Clone, Debug)]
+pub enum SystemEmailConfig {
+    Resend {
+        api_key: String,
+    },
+    Ses {
+        region: String,
+        access_key_id: String,
+        secret_access_key: String,
+    },
+}
+
+impl SystemEmailConfig {
+    fn from_env() -> Option<Self> {
+        if let Ok(api_key) = env::var("RESEND_API_KEY") {
+            if !api_key.trim().is_empty() {
+                return Some(Self::Resend { api_key });
+            }
+        }
+
+        let region = env::var("AWS_SES_REGION")
+            .or_else(|_| env::var("AWS_REGION"))
+            .ok();
+        let access_key_id = env::var("AWS_ACCESS_KEY_ID").ok();
+        let secret_access_key = env::var("AWS_SECRET_ACCESS_KEY").ok();
+        if let (Some(region), Some(access_key_id), Some(secret_access_key)) =
+            (region, access_key_id, secret_access_key)
+        {
+            if ![&region, &access_key_id, &secret_access_key]
+                .iter()
+                .any(|value| value.trim().is_empty())
+            {
+                return Some(Self::Ses {
+                    region,
+                    access_key_id,
+                    secret_access_key,
+                });
+            }
+        }
+
+        None
+    }
 }
 
 impl Config {
@@ -51,6 +101,7 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(1),
+            system_email: SystemEmailConfig::from_env(),
         }
     }
 }
