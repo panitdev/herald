@@ -18,6 +18,7 @@ use crate::{
     },
     schema::{
         attachments, mailboxes, message_mailboxes, message_recipients, messages, sync_events,
+        user_addresses,
     },
     state::AppState,
 };
@@ -70,20 +71,24 @@ pub async fn bootstrap(
     AuthUser(user): AuthUser,
 ) -> ApiResult<Json<BootstrapResponse>> {
     let mut conn = state.db.get().await?;
+    let accessible_address_ids = user_addresses::table
+        .filter(user_addresses::user_id.eq(user.id))
+        .select(user_addresses::address_id);
 
     let mailboxes = mailboxes::table
-        .filter(mailboxes::user_id.eq(user.id))
+        .filter(mailboxes::address_id.eq_any(accessible_address_ids))
         .order((mailboxes::sort_order.asc(), mailboxes::created_at.asc()))
         .select(Mailbox::as_select())
         .load(&mut conn)
         .await?;
 
+    let mailbox_ids: Vec<i64> = mailboxes.iter().map(|mailbox| mailbox.id).collect();
+
     let messages = messages::table
         .filter(
             messages::id.eq_any(
                 message_mailboxes::table
-                    .inner_join(mailboxes::table)
-                    .filter(mailboxes::user_id.eq(user.id))
+                    .filter(message_mailboxes::mailbox_id.eq_any(&mailbox_ids))
                     .select(message_mailboxes::message_id),
             ),
         )
@@ -109,13 +114,7 @@ pub async fn bootstrap(
     } else {
         message_mailboxes::table
             .filter(message_mailboxes::message_id.eq_any(&message_ids))
-            .filter(
-                message_mailboxes::mailbox_id.eq_any(
-                    mailboxes::table
-                        .filter(mailboxes::user_id.eq(user.id))
-                        .select(mailboxes::id),
-                ),
-            )
+            .filter(message_mailboxes::mailbox_id.eq_any(&mailbox_ids))
             .select(MessageMailbox::as_select())
             .load(&mut conn)
             .await?
@@ -134,7 +133,7 @@ pub async fn bootstrap(
     let cursor = current_sync_cursor(&state, user.id).await?;
 
     Ok(Json(BootstrapResponse {
-        schema_version: 1,
+        schema_version: 2,
         cursor,
         objects: BootstrapObjects {
             mailboxes,

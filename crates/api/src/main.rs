@@ -6,6 +6,7 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 mod auth;
+mod addresses;
 mod blob_store;
 mod config;
 mod db;

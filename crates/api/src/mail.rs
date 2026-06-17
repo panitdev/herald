@@ -13,6 +13,7 @@ use crate::{
     mail_parser::{parse_message, render_body, ParsedAttachment, ParsedRecipient},
     mailboxes::ensure_system_mailboxes,
     models::{
+        address::Address,
         attachment::{Attachment, NewAttachment},
         mailbox::Mailbox,
         message::{Message, NewMessage},
@@ -20,11 +21,10 @@ use crate::{
         message_recipient::{MessageRecipient, NewMessageRecipient},
         raw_inbound_mail::{NewRawInboundMail, RawInboundMail},
         sync_event::NewSyncEvent,
-        user::User,
     },
     schema::{
-        attachments, mailboxes, message_mailboxes, message_recipients, messages, raw_inbound_mails,
-        sync_events, users,
+        addresses, attachments, mailboxes, message_mailboxes, message_recipients, messages,
+        raw_inbound_mails, sync_events, user_addresses,
     },
     state::AppState,
 };
@@ -136,9 +136,14 @@ pub async fn find_owned_message(
     message_id: i64,
 ) -> Result<(Message, RawInboundMail), AppError> {
     let mut conn = state.db.get().await?;
+    let accessible_address_ids = user_addresses::table
+        .filter(user_addresses::user_id.eq(user_id))
+        .select(user_addresses::address_id);
+    let accessible_mailbox_ids = mailboxes::table
+        .filter(mailboxes::address_id.eq_any(accessible_address_ids))
+        .select(mailboxes::id);
     let accessible_message_ids = message_mailboxes::table
-        .inner_join(mailboxes::table)
-        .filter(mailboxes::user_id.eq(user_id))
+        .filter(message_mailboxes::mailbox_id.eq_any(accessible_mailbox_ids))
         .select(message_mailboxes::message_id);
 
     let message = messages::table
@@ -183,15 +188,15 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
         let parsed = parsed.clone();
         let recipient_addresses = recipient_addresses.clone();
         Box::pin(async move {
-            let target_users: Vec<User> = users::table
-                .filter(users::address.eq_any(&recipient_addresses))
-                .select(User::as_select())
+            let target_addresses: Vec<Address> = addresses::table
+                .filter(addresses::address.eq_any(&recipient_addresses))
+                .select(Address::as_select())
                 .load(conn)
                 .await?;
 
-            if target_users.is_empty() {
+            if target_addresses.is_empty() {
                 return Err(AppError::BadRequest(
-                    "no local users matched recipients".into(),
+                    "no local addresses matched recipients".into(),
                 ));
             }
 
@@ -233,65 +238,75 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
                 (message, recipients, attachments)
             };
 
-            for user in target_users {
-                let ensured = ensure_system_mailboxes(conn, &state.ids, user.id).await?;
+            for address in target_addresses {
+                let ensured = ensure_system_mailboxes(conn, &state.ids, address.id).await?;
                 let inbox = ensured
                     .all
                     .iter()
                     .find(|mailbox| mailbox.system_role.as_deref() == Some("inbox"))
                     .cloned()
                     .ok_or_else(|| AppError::BadRequest("missing inbox mailbox".into()))?;
+                let target_user_ids: Vec<i64> = user_addresses::table
+                    .filter(user_addresses::address_id.eq(address.id))
+                    .select(user_addresses::user_id)
+                    .load(conn)
+                    .await?;
 
-                let mut new_events = mailbox_sync_events(state, user.id, &ensured.created);
                 let Some(message_mailbox) = insert_message_mailbox(conn, &message, &inbox).await?
                 else {
+                    for user_id in target_user_ids {
+                        let new_events = mailbox_sync_events(state, user_id, &ensured.created);
+                        if !new_events.is_empty() {
+                            diesel::insert_into(sync_events::table)
+                                .values(&new_events)
+                                .execute(conn)
+                                .await?;
+                        }
+                    }
+                    continue;
+                };
+
+                for user_id in target_user_ids {
+                    let mut new_events = mailbox_sync_events(state, user_id, &ensured.created);
+                    new_events.push(sync_event(
+                        state,
+                        user_id,
+                        "message",
+                        message.id,
+                        json!(message),
+                    ));
+                    new_events.extend(recipients.iter().map(|recipient| {
+                        sync_event(
+                            state,
+                            user_id,
+                            "messageRecipient",
+                            recipient.id,
+                            json!(recipient),
+                        )
+                    }));
+                    new_events.extend(attachments.iter().map(|attachment| {
+                        sync_event(
+                            state,
+                            user_id,
+                            "attachment",
+                            attachment.id,
+                            json!(attachment),
+                        )
+                    }));
+                    new_events.push(sync_event(
+                        state,
+                        user_id,
+                        "messageMailbox",
+                        message_mailbox.message_id,
+                        json!(message_mailbox),
+                    ));
+
                     if !new_events.is_empty() {
                         diesel::insert_into(sync_events::table)
                             .values(&new_events)
                             .execute(conn)
                             .await?;
                     }
-                    continue;
-                };
-
-                new_events.push(sync_event(
-                    state,
-                    user.id,
-                    "message",
-                    message.id,
-                    json!(message),
-                ));
-                new_events.extend(recipients.iter().map(|recipient| {
-                    sync_event(
-                        state,
-                        user.id,
-                        "messageRecipient",
-                        recipient.id,
-                        json!(recipient),
-                    )
-                }));
-                new_events.extend(attachments.iter().map(|attachment| {
-                    sync_event(
-                        state,
-                        user.id,
-                        "attachment",
-                        attachment.id,
-                        json!(attachment),
-                    )
-                }));
-                new_events.push(sync_event(
-                    state,
-                    user.id,
-                    "messageMailbox",
-                    message_mailbox.message_id,
-                    json!(message_mailbox),
-                ));
-
-                if !new_events.is_empty() {
-                    diesel::insert_into(sync_events::table)
-                        .values(&new_events)
-                        .execute(conn)
-                        .await?;
                 }
             }
 
@@ -528,8 +543,9 @@ fn recipient_addresses_for_delivery(recipients: &[ParsedRecipient]) -> Vec<Strin
         .iter()
         .filter(|recipient| matches!(recipient.kind, "to" | "cc" | "bcc"))
         .filter_map(|recipient| {
-            if seen.insert(recipient.address.clone()) {
-                Some(recipient.address.clone())
+            let address = recipient.address.to_lowercase();
+            if seen.insert(address.clone()) {
+                Some(address)
             } else {
                 None
             }

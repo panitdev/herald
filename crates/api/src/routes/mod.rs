@@ -8,15 +8,20 @@ use axum::{
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bytes::Bytes;
 use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
-use diesel_async::RunQueryDsl;
+use diesel_async::{AsyncConnection, RunQueryDsl};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
+    addresses::{ensure_user_address, find_address, user_has_address},
     auth::AuthUser,
     error::{ApiResult, AppError},
-    models::user::{UpdateUserProfile, User},
-    schema::users::dsl::users,
+    models::{
+        address::Address,
+        sync_event::NewSyncEvent,
+        user::{UpdateUserProfile, User},
+    },
+    schema::{addresses, sync_events, user_addresses, users::dsl::users},
     state::AppState,
 };
 
@@ -28,6 +33,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(|| async { Json(json!({ "ok": true })) }))
         .route("/api/me", get(me).patch(update_me))
+        .route("/api/me/addresses", post(create_address))
         .route("/api/me/avatar", get(me_avatar))
         .route("/internal/mail/inbound", post(internal::inbound_mail))
         .route("/sync/bootstrap", post(sync::bootstrap))
@@ -41,8 +47,22 @@ struct MeResponse {
     id: String,
     username: String,
     address: String,
+    addresses: Vec<AddressResponse>,
     display_name: String,
     avatar_url: Option<String>,
+}
+
+#[derive(Serialize)]
+struct AddressResponse {
+    id: String,
+    address: String,
+    created_at: String,
+}
+
+#[derive(Serialize)]
+struct CreateAddressResponse {
+    address: AddressResponse,
+    addresses: Vec<AddressResponse>,
 }
 
 #[derive(Deserialize)]
@@ -51,8 +71,17 @@ struct UpdateMeRequest {
     avatar_url: Option<Option<String>>,
 }
 
-async fn me(AuthUser(user): AuthUser) -> Json<MeResponse> {
-    Json(me_response(&user))
+#[derive(Deserialize)]
+struct CreateAddressRequest {
+    address: String,
+}
+
+async fn me(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+) -> ApiResult<Json<MeResponse>> {
+    let addresses = load_user_addresses(&state, user.id).await?;
+    Ok(Json(me_response(&user, addresses)))
 }
 
 async fn me_avatar(
@@ -83,8 +112,8 @@ async fn me_avatar(
 }
 
 async fn update_me(
-    AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    AuthUser(user): AuthUser,
     Json(input): Json<UpdateMeRequest>,
 ) -> ApiResult<Json<MeResponse>> {
     let mut conn = state.db.get().await?;
@@ -135,14 +164,76 @@ async fn update_me(
         .await
         .map_err(AppError::Db)?;
 
-    Ok(Json(me_response(&updated)))
+    let addresses = load_user_addresses(&state, updated.id).await?;
+
+    Ok(Json(me_response(&updated, addresses)))
 }
 
-fn me_response(user: &User) -> MeResponse {
+async fn create_address(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Json(input): Json<CreateAddressRequest>,
+) -> ApiResult<Json<CreateAddressResponse>> {
+    let normalized = normalize_address_input(&input.address, &state.config.mail_domain)?;
+    let mut conn = state.db.get().await?;
+
+    let (created, addresses) = conn
+        .transaction::<_, AppError, _>(|conn| {
+            let state = state.clone();
+            let normalized = normalized.clone();
+            Box::pin(async move {
+                if let Some(existing) = find_address(conn, &normalized).await? {
+                    if !user_has_address(conn, user.id, existing.id).await? {
+                        return Err(AppError::BadRequest("address is already registered".into()));
+                    }
+                }
+
+                let ensured = ensure_user_address(conn, &state.ids, user.id, &normalized).await?;
+                let event_mailboxes = if ensured.granted {
+                    &ensured.mailboxes.all
+                } else {
+                    &ensured.mailboxes.created
+                };
+                let events: Vec<NewSyncEvent> = event_mailboxes
+                    .iter()
+                    .map(|mailbox| NewSyncEvent {
+                        id: state.next_id(),
+                        user_id: user.id,
+                        object_type: "mailbox".to_owned(),
+                        object_id: mailbox.id,
+                        op: "upsert".to_owned(),
+                        data_json: Some(json!(mailbox)),
+                    })
+                    .collect();
+
+                if !events.is_empty() {
+                    diesel::insert_into(sync_events::table)
+                        .values(&events)
+                        .execute(conn)
+                        .await?;
+                }
+
+                let addresses = load_user_addresses_with_conn(conn, user.id).await?;
+                Ok((ensured.address, addresses))
+            })
+        })
+        .await?;
+
+    Ok(Json(CreateAddressResponse {
+        address: address_response(&created),
+        addresses: addresses.into_iter().map(|address| address_response(&address)).collect(),
+    }))
+}
+
+fn me_response(user: &User, addresses: Vec<Address>) -> MeResponse {
     MeResponse {
         id: user.id.to_string(),
         username: user.username.clone(),
         address: user.address.clone(),
+        addresses: addresses
+            .into_iter()
+            .map(|address| address_response(&address))
+            .collect(),
         display_name: if user.display_name.trim().is_empty() {
             user.username.clone()
         } else {
@@ -150,6 +241,75 @@ fn me_response(user: &User) -> MeResponse {
         },
         avatar_url: avatar_public_url(user),
     }
+}
+
+async fn load_user_addresses(
+    state: &AppState,
+    user_id: i64,
+) -> Result<Vec<Address>, AppError> {
+    let mut conn = state.db.get().await?;
+    load_user_addresses_with_conn(&mut conn, user_id).await
+}
+
+async fn load_user_addresses_with_conn(
+    conn: &mut diesel_async::AsyncPgConnection,
+    user_id: i64,
+) -> Result<Vec<Address>, AppError> {
+    let address_ids = user_addresses::table
+        .filter(user_addresses::user_id.eq(user_id))
+        .select(user_addresses::address_id);
+
+    let rows = addresses::table
+        .filter(addresses::id.eq_any(address_ids))
+        .order(addresses::created_at.asc())
+        .select(Address::as_select())
+        .load(conn)
+        .await?;
+
+    Ok(rows)
+}
+
+fn address_response(address: &Address) -> AddressResponse {
+    AddressResponse {
+        id: address.id.to_string(),
+        address: address.address.clone(),
+        created_at: address.created_at.to_rfc3339(),
+    }
+}
+
+fn normalize_address_input(value: &str, mail_domain: &str) -> Result<String, AppError> {
+    let trimmed = value.trim().to_lowercase();
+    if trimmed.is_empty() {
+        return Err(AppError::BadRequest("address is required".into()));
+    }
+
+    let normalized = if trimmed.contains('@') {
+        trimmed
+    } else {
+        format!("{trimmed}@{}", mail_domain.to_lowercase())
+    };
+
+    let Some((local, domain)) = normalized.split_once('@') else {
+        return Err(AppError::BadRequest("address must be a valid email address".into()));
+    };
+
+    if local.is_empty() || local.len() > 64 || domain != mail_domain.to_lowercase() {
+        return Err(AppError::BadRequest(format!(
+            "address must be under {}",
+            mail_domain
+        )));
+    }
+
+    if !local
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-'))
+    {
+        return Err(AppError::BadRequest(
+            "address can only contain letters, numbers, dots, underscores, and hyphens".into(),
+        ));
+    }
+
+    Ok(normalized)
 }
 
 fn validate_display_name(value: &str) -> Result<(), AppError> {

@@ -8,12 +8,12 @@ export const mailboxesQuery = () =>
     queryFn: () => api.getMailboxes().then((r) => r.mailboxes),
   })
 
-export const messagesQuery = (mailboxId: string | null) =>
+export const messagesQuery = (mailbox: string | null) =>
   queryOptions({
-    queryKey: ["messages", mailboxId] as const,
+    queryKey: ["messages", mailbox] as const,
     queryFn: () =>
-      mailboxId
-        ? api.getMessages(mailboxId).then((r) => r.messages)
+      mailbox
+        ? api.getMessages(mailbox).then((r) => r.messages)
         : Promise.resolve([]),
   })
 

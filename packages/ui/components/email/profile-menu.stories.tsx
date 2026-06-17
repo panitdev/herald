@@ -19,6 +19,7 @@ const meta = {
           initialUser={{
             id: "user-story",
             address: "you@panit.dev",
+            addresses: ["you@panit.dev"],
             username: "you",
             displayName: "You",
             avatarUrl: null,

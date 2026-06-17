@@ -9,7 +9,7 @@ use crate::schema::mailboxes;
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Mailbox {
     pub id: i64,
-    pub user_id: i64,
+    pub address_id: i64,
     pub name: String,
     pub is_system: bool,
     pub system_role: Option<String>,
@@ -21,7 +21,7 @@ pub struct Mailbox {
 #[diesel(table_name = mailboxes)]
 pub struct NewMailbox<'a> {
     pub id: i64,
-    pub user_id: i64,
+    pub address_id: i64,
     pub name: &'a str,
     pub is_system: bool,
     pub system_role: Option<&'a str>,

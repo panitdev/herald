@@ -57,10 +57,10 @@ pub struct EnsuredSystemMailboxes {
 pub async fn ensure_system_mailboxes(
     conn: &mut AsyncPgConnection,
     ids: &IdGen,
-    user_id: i64,
+    address_id: i64,
 ) -> Result<EnsuredSystemMailboxes, AppError> {
     let existing: Vec<Mailbox> = mailboxes::table
-        .filter(mailboxes::user_id.eq(user_id))
+        .filter(mailboxes::address_id.eq(address_id))
         .filter(mailboxes::system_role.is_not_null())
         .select(Mailbox::as_select())
         .load(conn)
@@ -75,7 +75,7 @@ pub async fn ensure_system_mailboxes(
         })
         .map(|spec| NewMailbox {
             id: ids.next(),
-            user_id,
+            address_id,
             name: spec.name,
             is_system: true,
             system_role: Some(spec.role),
@@ -94,7 +94,7 @@ pub async fn ensure_system_mailboxes(
     }
 
     let all = mailboxes::table
-        .filter(mailboxes::user_id.eq(user_id))
+        .filter(mailboxes::address_id.eq(address_id))
         .filter(mailboxes::system_role.is_not_null())
         .order((mailboxes::sort_order.asc(), mailboxes::created_at.asc()))
         .select(Mailbox::as_select())

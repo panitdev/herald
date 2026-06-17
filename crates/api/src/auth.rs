@@ -9,8 +9,8 @@ use std::time::Instant;
 use uuid::Uuid;
 
 use crate::{
+    addresses::ensure_user_address,
     error::AppError,
-    mailboxes::ensure_system_mailboxes,
     models::user::{NewUser, User},
     state::AppState,
 };
@@ -144,10 +144,16 @@ impl KratosIdentity {
             .optional()?;
 
         if let Some(u) = existing {
+            let default_address = u.address.to_lowercase();
+            ensure_user_address(&mut conn, &state.ids, u.id, &default_address).await?;
             return Ok(u);
         }
 
-        let email_address = format!("{}@{}", self.username, state.config.mail_domain);
+        let email_address = format!(
+            "{}@{}",
+            self.username.to_lowercase(),
+            state.config.mail_domain.to_lowercase()
+        );
 
         let new_user = NewUser {
             id: state.next_id(),
@@ -178,7 +184,7 @@ impl KratosIdentity {
                 .map_err(AppError::Db)?,
         };
 
-        ensure_system_mailboxes(&mut conn, &state.ids, user.id).await?;
+        ensure_user_address(&mut conn, &state.ids, user.id, &email_address).await?;
 
         Ok(user)
     }

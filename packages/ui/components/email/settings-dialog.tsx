@@ -1,6 +1,7 @@
 "use client"
 
-import { useRef, useState, type ChangeEvent } from "react"
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   User,
@@ -24,6 +25,7 @@ import { AnimatedField } from "@/components/ui/animated-field"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
@@ -35,6 +37,7 @@ import {
   type ThemeMode,
 } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
+import { addAddress, refreshSyncStateNow } from "@/lib/api"
 import { toast } from "sonner"
 
 type TabId = "account" | "appearance" | "notifications" | "signature"
@@ -198,8 +201,12 @@ function Row({
 
 function AccountPanel() {
   const { settings, updateSettings } = useSettings()
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
+  const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [addressInput, setAddressInput] = useState("")
+  const [addingAddress, setAddingAddress] = useState(false)
+  const addresses = user?.addresses?.length ? user.addresses : user?.address ? [user.address] : []
 
   async function fileToDataUrl(file: File): Promise<string> {
     const source = await new Promise<string>((resolve, reject) => {
@@ -257,6 +264,29 @@ function AccountPanel() {
       })
     } finally {
       event.target.value = ""
+    }
+  }
+
+  async function handleAddAddress(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const nextAddress = addressInput.trim()
+    if (!nextAddress || addingAddress) return
+
+    setAddingAddress(true)
+    try {
+      await addAddress({ address: nextAddress })
+      setAddressInput("")
+      await refresh()
+      await refreshSyncStateNow()
+      void queryClient.invalidateQueries({ queryKey: ["mailboxes"] })
+      void queryClient.invalidateQueries({ queryKey: ["messages"] })
+      toast.success("Address added")
+    } catch (error) {
+      toast.error("Could not add address", {
+        description: error instanceof Error ? error.message : "Try a different address.",
+      })
+    } finally {
+      setAddingAddress(false)
     }
   }
 
@@ -330,6 +360,44 @@ function AccountPanel() {
           autoComplete="email"
           disabled
         />
+      </div>
+
+      <Separator />
+
+      <div className="grid gap-3">
+        <div>
+          <Label className="text-sm font-medium">Available addresses</Label>
+          <p className="text-xs text-muted-foreground">
+            Inbox shows mail from all listed addresses.
+          </p>
+        </div>
+        <div className="grid gap-2">
+          {addresses.map((address) => (
+            <div
+              key={address}
+              className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm"
+            >
+              <span className="truncate">{address}</span>
+              {address === user?.address && (
+                <span className="ml-3 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  default
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+        <form className="flex gap-2" onSubmit={handleAddAddress}>
+          <Input
+            value={addressInput}
+            onChange={(event) => setAddressInput(event.target.value)}
+            placeholder="alias or alias@domain.com"
+            autoComplete="off"
+            disabled={addingAddress}
+          />
+          <Button type="submit" disabled={!addressInput.trim() || addingAddress}>
+            Add
+          </Button>
+        </form>
       </div>
     </div>
   )

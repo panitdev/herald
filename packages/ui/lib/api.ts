@@ -54,13 +54,20 @@ export interface MeResponse {
   id: string
   username: string
   address: string
+  addresses: AddressResponse[]
   display_name: string
   avatar_url: string | null
 }
 
+export interface AddressResponse {
+  id: string
+  address: string
+  created_at: string
+}
+
 export interface SyncMailbox {
   id: ApiId
-  user_id: ApiId
+  address_id: ApiId
   name: string
   is_system: boolean
   system_role: string | null
@@ -260,6 +267,18 @@ export function updateMe(input: {
     method: "PATCH",
     body: JSON.stringify(body),
   })
+}
+
+export function addAddress(input: {
+  address: string
+}): Promise<{ address: AddressResponse; addresses: AddressResponse[] }> {
+  return apiFetch<{ address: AddressResponse; addresses: AddressResponse[] }>(
+    "/api/me/addresses",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  )
 }
 
 async function apiText(path: string, options: RequestInit = {}): Promise<string> {
@@ -606,6 +625,38 @@ export async function deleteMailbox(id: string): Promise<{ ok: boolean }> {
 }
 
 export async function getMessages(
+  mailboxName: string
+): Promise<{ messages: Message[] }> {
+  const state = await getSyncedState()
+  const mailboxIds = new Set(
+    [...state.mailboxes.values()]
+      .filter((mailbox) => normalizeMailboxName(mailbox) === mailboxName)
+      .map((mailbox) => idToString(mailbox.id)),
+  )
+  const messagesById = new Map<string, Message>()
+
+  for (const messageMailbox of state.messageMailboxes.values()) {
+    const mailboxId = idToString(messageMailbox.mailbox_id)
+    if (!mailboxIds.has(mailboxId)) continue
+
+    const messageId = idToString(messageMailbox.message_id)
+    if (messagesById.has(messageId)) continue
+
+    const message = state.messages.get(messageId)
+    if (message) {
+      messagesById.set(messageId, toMessage(state, message, mailboxId))
+    }
+  }
+
+  const messages = [...messagesById.values()].sort(
+    (a, b) =>
+      new Date(b.received_at).getTime() - new Date(a.received_at).getTime(),
+  )
+
+  return { messages }
+}
+
+export async function getMessagesForMailbox(
   mailboxId: string
 ): Promise<{ messages: Message[] }> {
   const state = await getSyncedState()

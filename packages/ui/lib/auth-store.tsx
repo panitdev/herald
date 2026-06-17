@@ -27,6 +27,7 @@ import { getWhoami, initiateLogout, type KratosSession } from "./kratos"
 export type AuthUser = {
   id: string
   address: string
+  addresses: string[]
   username: string
   displayName: string
   avatarUrl: string | null
@@ -87,6 +88,7 @@ function userFromSession(session: KratosSession | null): AuthUser | null {
   return {
     id: identity?.id ?? session?.id ?? `${username}@${MAIL_DOMAIN}`,
     address: `${username}@${MAIL_DOMAIN}`,
+    addresses: [`${username}@${MAIL_DOMAIN}`],
     username,
     displayName: formatDisplayName(username) || `${username}@${MAIL_DOMAIN}`,
     avatarUrl: null,
@@ -100,6 +102,7 @@ async function fetchMe(): Promise<{ user: AuthUser | null; offline: boolean }> {
       user: {
         id: data.id,
         address: data.address,
+        addresses: data.addresses?.map((address) => address.address) ?? [data.address],
         username: data.username,
         displayName: data.display_name,
         avatarUrl: resolveAvatarUrl(data.avatar_url),
@@ -232,6 +235,7 @@ export function AuthProvider({
       const nextUser: AuthUser = {
         id: response.id,
         address: response.address,
+        addresses: response.addresses?.map((address) => address.address) ?? [response.address],
         username: response.username,
         displayName: response.display_name,
         avatarUrl: resolveAvatarUrl(response.avatar_url),

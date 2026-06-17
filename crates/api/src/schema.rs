@@ -1,6 +1,14 @@
 // @generated — keep in sync with migrations
 
 diesel::table! {
+    addresses (id) {
+        id         -> Int8,
+        address    -> Varchar,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     attachments (id) {
         id           -> Int8,
         message_id   -> Int8,
@@ -41,9 +49,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    user_addresses (user_id, address_id) {
+        user_id    -> Int8,
+        address_id -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     mailboxes (id) {
         id         -> Int8,
-        user_id    -> Int8,
+        address_id -> Int8,
         name       -> Varchar,
         is_system  -> Bool,
         system_role -> Nullable<Text>,
@@ -98,15 +114,18 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(mailboxes -> addresses (address_id));
 diesel::joinable!(attachments -> messages (message_id));
-diesel::joinable!(mailboxes -> users (user_id));
 diesel::joinable!(message_mailboxes -> mailboxes (mailbox_id));
 diesel::joinable!(message_mailboxes -> messages (message_id));
 diesel::joinable!(message_recipients -> messages (message_id));
 diesel::joinable!(messages -> raw_inbound_mails (raw_inbound_mail_id));
 diesel::joinable!(sync_events -> users (user_id));
+diesel::joinable!(user_addresses -> addresses (address_id));
+diesel::joinable!(user_addresses -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    addresses,
     attachments,
     mailboxes,
     message_mailboxes,
@@ -114,5 +133,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     messages,
     raw_inbound_mails,
     sync_events,
+    user_addresses,
     users,
 );

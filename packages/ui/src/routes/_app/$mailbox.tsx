@@ -58,12 +58,7 @@ function MailboxRoute() {
   const [search, setSearch] = useState("")
 
   const mailboxesQ = useQuery(mailboxesQuery())
-  const activeMailboxId = useMemo(() => {
-    if (mailbox === "starred" || mailbox === "drafts") return null
-    return mailboxesQ.data?.find((m) => m.name === mailbox)?.id ?? null
-  }, [mailbox, mailboxesQ.data])
-
-  const messagesQ = useQuery(messagesQuery(activeMailboxId))
+  const messagesQ = useQuery(messagesQuery(mailbox === "starred" ? null : mailbox))
   const apiEmails = useMemo<Email[]>(
     () => (messagesQ.data ?? []).map((m) => transformMessage(m, mailbox)),
     [messagesQ.data, mailbox],
@@ -81,7 +76,7 @@ function MailboxRoute() {
     : null
 
   const loading =
-    activeMailboxId !== null && (messagesQ.isLoading || mailboxesQ.isLoading)
+    mailbox !== "starred" && (messagesQ.isLoading || mailboxesQ.isLoading)
   const error = messagesQ.error || mailboxesQ.error
 
   const sidebarNode = (
