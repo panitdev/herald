@@ -14,7 +14,8 @@ export type ThemeMode = "light" | "dark" | "system"
 export type Density = "comfortable" | "cozy" | "compact"
 
 export const THEME_STORAGE_KEY = "herald-theme"
-const SETTINGS_STORAGE_PREFIX = "herald-settings"
+export const SETTINGS_STORAGE_PREFIX = "herald-settings"
+export const ACTIVE_SETTINGS_STORAGE_KEY = "herald-active-settings-key"
 
 export type Settings = {
   displayName: string
@@ -215,6 +216,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const key = settingsStorageKey(user?.id)
     setSettingsState(loadStoredSettings(user, theme))
     setLoadedUserKey(key)
+
+    try {
+      window.localStorage.setItem(ACTIVE_SETTINGS_STORAGE_KEY, key)
+    } catch {
+      // Ignore persistence failures in restricted browsing contexts.
+    }
   }, [user?.id, user?.username, user?.address, user?.displayName, user?.avatarUrl])
 
   const resolvedTheme: "light" | "dark" =

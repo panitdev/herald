@@ -8,7 +8,12 @@ import {
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query"
 
 import { AuthProvider, useAuth } from "@/lib/auth-store"
-import { SettingsProvider, THEME_STORAGE_KEY } from "@/lib/settings-store"
+import {
+  ACTIVE_SETTINGS_STORAGE_KEY,
+  SETTINGS_STORAGE_PREFIX,
+  SettingsProvider,
+  THEME_STORAGE_KEY,
+} from "@/lib/settings-store"
 import { LocalOverridesProvider } from "@/lib/local-overrides-store"
 import { AuthScreen } from "@/components/auth/auth-screen"
 import { AuthGuardDialog } from "@/components/auth/auth-guard-dialog"
@@ -62,17 +67,107 @@ function getThemeBootScript(): string {
   return `
     (() => {
       const storageKey = ${JSON.stringify(THEME_STORAGE_KEY)};
+      const activeSettingsKey = ${JSON.stringify(ACTIVE_SETTINGS_STORAGE_KEY)};
+      const settingsPrefix = ${JSON.stringify(`${SETTINGS_STORAGE_PREFIX}:`)};
       const root = document.documentElement;
-      const stored = window.localStorage.getItem(storageKey);
-      const theme = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+      const isTheme = (value) => value === "light" || value === "dark" || value === "system";
+      const readStoredTheme = (key) => {
+        if (!key) return null;
+        try {
+          const raw = window.localStorage.getItem(key);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          return isTheme(parsed?.theme) ? parsed.theme : null;
+        } catch {
+          return null;
+        }
+      };
+
+      let theme = null;
+
+      const preferredSettingsKey = window.localStorage.getItem(activeSettingsKey);
+      theme = readStoredTheme(preferredSettingsKey);
+
+      if (!theme) {
+        const stored = window.localStorage.getItem(storageKey);
+        theme = isTheme(stored) ? stored : null;
+      }
+
+      if (!theme) {
+        for (let index = 0; index < window.localStorage.length; index += 1) {
+          const key = window.localStorage.key(index);
+          if (!key || !key.startsWith(settingsPrefix)) continue;
+          theme = readStoredTheme(key);
+          if (theme) break;
+        }
+      }
+
+      theme = theme ?? "system";
       const resolved = theme === "system"
         ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
         : theme;
+      const palette = resolved === "dark"
+        ? { background: "oklch(0.16 0.06 264)", foreground: "oklch(0.96 0.01 85)" }
+        : { background: "oklch(0.985 0.012 85)", foreground: "oklch(0.18 0.06 264)" };
 
       root.dataset.theme = theme;
       root.classList.toggle("dark", resolved === "dark");
       root.style.colorScheme = resolved;
+      root.style.backgroundColor = palette.background;
+      root.style.color = palette.foreground;
+      root.style.setProperty("--boot-bg", palette.background);
+      root.style.setProperty("--boot-fg", palette.foreground);
     })();
+  `.trim()
+}
+
+function getCriticalBootStyles(): string {
+  return `
+    html {
+      background: var(--boot-bg, oklch(0.985 0.012 85));
+      color: var(--boot-fg, oklch(0.18 0.06 264));
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: inherit;
+      color: inherit;
+      font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    [data-auth-splash] {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      box-sizing: border-box;
+      text-align: center;
+      background: inherit;
+      color: inherit;
+    }
+
+    [data-auth-splash-copy] {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    [data-auth-splash-title],
+    [data-auth-splash-body] {
+      margin: 0;
+    }
+
+    [data-auth-splash-title] {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    [data-auth-splash-body] {
+      font-size: 0.875rem;
+      color: color-mix(in oklab, currentColor 65%, transparent);
+    }
   `.trim()
 }
 
@@ -83,7 +178,6 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   head: ({ loaderData }) => ({
     scripts: loaderData
       ? [
-          { children: getThemeBootScript() },
           { children: `window.__ENV__=${serializePublicEnv(loaderData)}` },
         ]
       : [],
@@ -196,12 +290,15 @@ function AuthGate({ children }: { children: ReactNode }) {
   const { user, initialized, restoringCachedMail } = useAuth()
   if (!initialized) {
     return (
-      <div className="flex h-dvh w-full items-center justify-center bg-background px-6 text-center">
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-foreground">
+      <div
+        data-auth-splash
+        className="flex h-dvh w-full items-center justify-center bg-background px-6 text-center"
+      >
+        <div data-auth-splash-copy className="space-y-2">
+          <p data-auth-splash-title className="text-sm font-medium text-foreground">
             {restoringCachedMail ? "Restoring cached mail" : "Loading Herald"}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p data-auth-splash-body className="text-sm text-muted-foreground">
             {restoringCachedMail
               ? "Reopening your last synced mailbox snapshot."
               : "Checking your session."}
@@ -216,8 +313,10 @@ function AuthGate({ children }: { children: ReactNode }) {
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="bg-background">
+    <html lang="en" className="bg-background" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: getThemeBootScript() }} />
+        <style dangerouslySetInnerHTML={{ __html: getCriticalBootStyles() }} />
         <HeadContent />
       </head>
       <body className="min-h-dvh font-sans antialiased">
