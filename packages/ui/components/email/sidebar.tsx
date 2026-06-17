@@ -9,11 +9,11 @@ import {
   Archive,
   Trash2,
   PenSquare,
-  Mail,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Folder } from "@/lib/types"
 import { Button } from "@/components/ui/button"
+import { HeraldLogo } from "@/components/ui/logos"
 import { ProfileMenu } from "./profile-menu"
 
 type FolderDef = {
@@ -49,10 +49,8 @@ export function EmailSidebar({
   return (
     <aside className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex items-center gap-2 px-5 pt-5 pb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-          <Mail className="h-4 w-4" aria-hidden />
-        </div>
-        <span className="text-[15px] font-semibold tracking-tight">Inbox</span>
+        <HeraldLogo size={32} aria-hidden />
+        <span className="text-[15px] font-semibold tracking-tight">Herald</span>
       </div>
 
       <div className="px-3 pb-3">
