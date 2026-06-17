@@ -1,7 +1,8 @@
 use axum::{
     body::Body,
-    extract::State,
+    extract::{ws::WebSocketUpgrade, State},
     http::{header, Response, StatusCode},
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
@@ -25,6 +26,7 @@ use crate::{
     state::AppState,
 };
 
+pub mod chat;
 pub mod internal;
 pub mod objects;
 pub mod sync;
@@ -35,11 +37,29 @@ pub fn router() -> Router<AppState> {
         .route("/api/me", get(me).patch(update_me))
         .route("/api/me/addresses", post(create_address))
         .route("/api/me/avatar", get(me_avatar))
+        .route(
+            "/chat/conversations",
+            get(chat::list_conversations).post(chat::create_conversation),
+        )
+        .route(
+            "/chat/conversations/{id}/messages",
+            get(chat::list_messages).post(chat::send_message),
+        )
+        .route("/realtime", get(realtime_socket))
         .route("/internal/mail/inbound", post(internal::inbound_mail))
         .route("/sync/bootstrap", post(sync::bootstrap))
         .route("/sync/pull", get(sync::pull))
         .route("/objects/messages/{id}/raw", get(objects::raw_message))
         .route("/objects/messages/{id}/body", get(objects::message_body))
+}
+
+async fn realtime_socket(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    ws: WebSocketUpgrade,
+) -> ApiResult<impl IntoResponse> {
+    let rx = state.realtime.subscribe(user.id);
+    Ok(ws.on_upgrade(move |socket| crate::realtime::serve_socket(socket, rx)))
 }
 
 #[derive(Serialize)]
@@ -130,10 +150,7 @@ async fn update_me(
             let (bytes, content_type) = decode_data_url(avatar_data_url)?;
             validate_avatar_bytes(&bytes)?;
             let key = format!("avatars/{}/profile", user.id);
-            state
-                .blob_store
-                .put(&key, bytes, &content_type)
-                .await?;
+            state.blob_store.put(&key, bytes, &content_type).await?;
             Some(Some(key))
         }
         Some(None) => {
@@ -149,9 +166,7 @@ async fn update_me(
 
     let patch = UpdateUserProfile {
         display_name: input.display_name.as_deref().map(str::trim),
-        avatar_url: next_avatar_key
-            .as_ref()
-            .map(|value| value.as_deref()),
+        avatar_url: next_avatar_key.as_ref().map(|value| value.as_deref()),
     };
 
     let updated = diesel::update(users.filter(crate::schema::users::id.eq(user.id)))
@@ -221,7 +236,10 @@ async fn create_address(
 
     Ok(Json(CreateAddressResponse {
         address: address_response(&created),
-        addresses: addresses.into_iter().map(|address| address_response(&address)).collect(),
+        addresses: addresses
+            .into_iter()
+            .map(|address| address_response(&address))
+            .collect(),
     }))
 }
 
@@ -243,10 +261,7 @@ fn me_response(user: &User, addresses: Vec<Address>) -> MeResponse {
     }
 }
 
-async fn load_user_addresses(
-    state: &AppState,
-    user_id: i64,
-) -> Result<Vec<Address>, AppError> {
+async fn load_user_addresses(state: &AppState, user_id: i64) -> Result<Vec<Address>, AppError> {
     let mut conn = state.db.get().await?;
     load_user_addresses_with_conn(&mut conn, user_id).await
 }
@@ -290,7 +305,9 @@ fn normalize_address_input(value: &str, mail_domain: &str) -> Result<String, App
     };
 
     let Some((local, domain)) = normalized.split_once('@') else {
-        return Err(AppError::BadRequest("address must be a valid email address".into()));
+        return Err(AppError::BadRequest(
+            "address must be a valid email address".into(),
+        ));
     };
 
     if local.is_empty() || local.len() > 64 || domain != mail_domain.to_lowercase() {
@@ -347,9 +364,7 @@ fn decode_data_url(value: &str) -> Result<(Bytes, String), AppError> {
         ));
     }
 
-    let content_type = meta
-        .trim_start_matches("data:")
-        .trim_end_matches(";base64");
+    let content_type = meta.trim_start_matches("data:").trim_end_matches(";base64");
 
     if !matches!(content_type, "image/png" | "image/jpeg" | "image/webp") {
         return Err(AppError::BadRequest(

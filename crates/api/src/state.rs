@@ -2,7 +2,7 @@ use axum::extract::FromRef;
 use std::sync::Arc;
 
 use crate::{
-    blob_store::BlobStore, config::Config, db::DbPool, ids::IdGen,
+    blob_store::BlobStore, config::Config, db::DbPool, ids::IdGen, realtime::RealtimeHub,
     worker_client::InboundWorkerClient,
 };
 
@@ -14,6 +14,7 @@ pub struct AppState {
     pub http: reqwest::Client,
     pub blob_store: Arc<dyn BlobStore>,
     pub worker: Arc<dyn InboundWorkerClient>,
+    pub realtime: RealtimeHub,
 }
 
 impl AppState {

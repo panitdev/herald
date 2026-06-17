@@ -1,6 +1,39 @@
 // @generated — keep in sync with migrations
 
 diesel::table! {
+    conversations (id) {
+        id                 -> Int8,
+        kind               -> Text,
+        title              -> Nullable<Text>,
+        direct_key         -> Nullable<Text>,
+        created_by_user_id -> Int8,
+        created_at         -> Timestamptz,
+        updated_at         -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    conversation_participants (conversation_id, user_id) {
+        conversation_id -> Int8,
+        user_id         -> Int8,
+        role            -> Text,
+        joined_at       -> Timestamptz,
+        left_at         -> Nullable<Timestamptz>,
+    }
+}
+
+diesel::table! {
+    chat_messages (id) {
+        id                 -> Int8,
+        conversation_id    -> Int8,
+        sender_user_id     -> Int8,
+        body               -> Text,
+        client_mutation_id -> Nullable<Text>,
+        created_at         -> Timestamptz,
+    }
+}
+
+diesel::table! {
     addresses (id) {
         id         -> Int8,
         address    -> Varchar,
@@ -116,6 +149,11 @@ diesel::table! {
 
 diesel::joinable!(mailboxes -> addresses (address_id));
 diesel::joinable!(attachments -> messages (message_id));
+diesel::joinable!(chat_messages -> conversations (conversation_id));
+diesel::joinable!(chat_messages -> users (sender_user_id));
+diesel::joinable!(conversation_participants -> conversations (conversation_id));
+diesel::joinable!(conversation_participants -> users (user_id));
+diesel::joinable!(conversations -> users (created_by_user_id));
 diesel::joinable!(message_mailboxes -> mailboxes (mailbox_id));
 diesel::joinable!(message_mailboxes -> messages (message_id));
 diesel::joinable!(message_recipients -> messages (message_id));
@@ -127,6 +165,9 @@ diesel::joinable!(user_addresses -> users (user_id));
 diesel::allow_tables_to_appear_in_same_query!(
     addresses,
     attachments,
+    chat_messages,
+    conversation_participants,
+    conversations,
     mailboxes,
     message_mailboxes,
     message_recipients,

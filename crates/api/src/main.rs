@@ -5,8 +5,8 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-mod auth;
 mod addresses;
+mod auth;
 mod blob_store;
 mod config;
 mod db;
@@ -16,6 +16,7 @@ mod mail;
 mod mail_parser;
 mod mailboxes;
 mod models;
+mod realtime;
 mod routes;
 mod schema;
 mod state;
@@ -73,6 +74,7 @@ async fn main() {
         http,
         blob_store,
         worker,
+        realtime: realtime::RealtimeHub::default(),
     };
 
     tokio::spawn(requeue_pending_inbound_mail(state.clone()));

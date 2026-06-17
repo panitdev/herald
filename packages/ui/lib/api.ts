@@ -115,6 +115,62 @@ export interface SyncAttachment {
   created_at: string
 }
 
+export interface SyncConversation {
+  id: ApiId
+  kind: "direct" | "group" | string
+  title: string | null
+  direct_key: string | null
+  created_by_user_id: ApiId
+  created_at: string
+  updated_at: string
+}
+
+export interface SyncConversationParticipant {
+  conversation_id: ApiId
+  user_id: ApiId
+  role: string
+  joined_at: string
+  left_at: string | null
+}
+
+export interface SyncChatMessage {
+  id: ApiId
+  conversation_id: ApiId
+  sender_user_id: ApiId
+  body: string
+  client_mutation_id: string | null
+  created_at: string
+}
+
+export interface ChatParticipant {
+  userId: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  role: string
+  joinedAt: string
+  leftAt: string | null
+}
+
+export interface ChatConversation {
+  id: string
+  kind: "direct" | "group" | string
+  title: string | null
+  participants: ChatParticipant[]
+  lastMessage: SyncChatMessage | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateChatConversationInput =
+  | { kind: "direct"; userId: string }
+  | { kind: "group"; participantUserIds: string[]; title?: string }
+
+export interface SendChatMessageInput {
+  body: string
+  clientMutationId?: string
+}
+
 interface BootstrapResponse {
   schemaVersion: number
   cursor: ApiId
@@ -124,6 +180,9 @@ interface BootstrapResponse {
     messageRecipients: SyncMessageRecipient[]
     messageMailboxes: SyncMessageMailbox[]
     attachments: SyncAttachment[]
+    conversations: SyncConversation[]
+    conversationParticipants: SyncConversationParticipant[]
+    chatMessages: SyncChatMessage[]
   }
 }
 
@@ -148,6 +207,9 @@ type SyncObjectType =
   | "messageRecipient"
   | "messageMailbox"
   | "attachment"
+  | "conversation"
+  | "conversationParticipant"
+  | "chatMessage"
   | string
 
 type SyncState = {
@@ -158,6 +220,9 @@ type SyncState = {
   messageRecipients: Map<string, SyncMessageRecipient>
   messageMailboxes: Map<string, SyncMessageMailbox>
   attachments: Map<string, SyncAttachment>
+  conversations: Map<string, SyncConversation>
+  conversationParticipants: Map<string, SyncConversationParticipant>
+  chatMessages: Map<string, SyncChatMessage>
 }
 
 // ============================================
@@ -370,6 +435,9 @@ async function bootstrapSyncState(): Promise<SyncState> {
     messageRecipients: new Map(),
     messageMailboxes: new Map(),
     attachments: new Map(),
+    conversations: new Map(),
+    conversationParticipants: new Map(),
+    chatMessages: new Map(),
   }
 
   for (const mailbox of response.objects.mailboxes) {
@@ -386,6 +454,15 @@ async function bootstrapSyncState(): Promise<SyncState> {
   }
   for (const attachment of response.objects.attachments) {
     state.attachments.set(idToString(attachment.id), attachment)
+  }
+  for (const conversation of response.objects.conversations) {
+    state.conversations.set(idToString(conversation.id), conversation)
+  }
+  for (const participant of response.objects.conversationParticipants) {
+    state.conversationParticipants.set(conversationParticipantKey(participant), participant)
+  }
+  for (const message of response.objects.chatMessages) {
+    state.chatMessages.set(idToString(message.id), message)
   }
 
   await persistCurrentSyncState(state)
@@ -469,6 +546,21 @@ function applySyncChange(state: SyncState, change: PullChange) {
     case "attachment": {
       const attachment = change.data as SyncAttachment
       state.attachments.set(idToString(attachment.id), attachment)
+      return
+    }
+    case "conversation": {
+      const conversation = change.data as SyncConversation
+      state.conversations.set(idToString(conversation.id), conversation)
+      return
+    }
+    case "conversationParticipant": {
+      const participant = change.data as SyncConversationParticipant
+      state.conversationParticipants.set(conversationParticipantKey(participant), participant)
+      return
+    }
+    case "chatMessage": {
+      const message = change.data as SyncChatMessage
+      state.chatMessages.set(idToString(message.id), message)
     }
   }
 }
@@ -514,6 +606,27 @@ function deleteSyncObject(state: SyncState, change: PullChange) {
       return
     case "attachment":
       state.attachments.delete(objectId)
+      return
+    case "conversation":
+      state.conversations.delete(objectId)
+      for (const [key, participant] of state.conversationParticipants) {
+        if (idToString(participant.conversation_id) === objectId) {
+          state.conversationParticipants.delete(key)
+        }
+      }
+      for (const [key, message] of state.chatMessages) {
+        if (idToString(message.conversation_id) === objectId) {
+          state.chatMessages.delete(key)
+        }
+      }
+      return
+    case "conversationParticipant":
+      if (isSyncConversationParticipant(change.data)) {
+        state.conversationParticipants.delete(conversationParticipantKey(change.data))
+      }
+      return
+    case "chatMessage":
+      state.chatMessages.delete(objectId)
   }
 }
 
@@ -530,6 +643,19 @@ function messageMailboxKey(messageMailbox: SyncMessageMailbox): string {
   return `${idToString(messageMailbox.message_id)}:${idToString(messageMailbox.mailbox_id)}`
 }
 
+function conversationParticipantKey(participant: SyncConversationParticipant): string {
+  return `${idToString(participant.conversation_id)}:${idToString(participant.user_id)}`
+}
+
+function isSyncConversationParticipant(value: unknown): value is SyncConversationParticipant {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "conversation_id" in value &&
+    "user_id" in value
+  )
+}
+
 function idToString(id: ApiId): string {
   return String(id)
 }
@@ -537,7 +663,7 @@ function idToString(id: ApiId): string {
 function parseJsonPreservingIds<T>(text: string): T {
   return JSON.parse(
     text.replace(
-      /("(?:(?:raw_inbound_mail_|message_|mailbox_|user_)?id|cursor|from|to|objectId|messageId|size)"\s*:\s*)(-?\d{16,})(?=[,}\]])/g,
+      /("(?:(?:[A-Za-z0-9_]+_)?id|[A-Za-z0-9]+Id|cursor|from|to|objectId|messageId|size)"\s*:\s*)(-?\d{16,})(?=[,}\]])/g,
       '$1"$2"',
     ),
   ) as T
@@ -702,6 +828,100 @@ export async function sendMail(
   throw new APIError(501, "Sending mail is not supported by this API yet")
 }
 
+export function getChatConversations(): Promise<{ conversations: ChatConversation[] }> {
+  return apiFetch<{ conversations: ChatConversation[] }>("/chat/conversations")
+}
+
+export function createChatConversation(
+  input: CreateChatConversationInput,
+): Promise<{ conversation: ChatConversation }> {
+  return apiFetch<{ conversation: ChatConversation }>("/chat/conversations", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function getChatMessages(
+  conversationId: string,
+  options: { before?: string; limit?: number } = {},
+): Promise<{ messages: SyncChatMessage[]; hasMore: boolean }> {
+  const search = new URLSearchParams()
+  if (options.before) search.set("before", options.before)
+  if (options.limit !== undefined) search.set("limit", String(options.limit))
+  const suffix = search.size > 0 ? `?${search}` : ""
+  return apiFetch<{ messages: SyncChatMessage[]; hasMore: boolean }>(
+    `/chat/conversations/${conversationId}/messages${suffix}`,
+  )
+}
+
+export function sendChatMessage(
+  conversationId: string,
+  input: SendChatMessageInput,
+): Promise<{ message: SyncChatMessage }> {
+  return apiFetch<{ message: SyncChatMessage }>(
+    `/chat/conversations/${conversationId}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  )
+}
+
+export function connectRealtimeSync(): () => void {
+  if (typeof window === "undefined") return () => {}
+
+  let closed = false
+  let retryTimer: number | null = null
+  let retryMs = 500
+  let socket: WebSocket | null = null
+
+  const connect = () => {
+    if (closed || !window.navigator.onLine) return
+
+    const url = `${API_BASE.replace(/^http:/, "ws:").replace(/^https:/, "wss:")}/realtime`
+    socket = new WebSocket(url)
+
+    socket.onopen = () => {
+      retryMs = 500
+    }
+
+    socket.onmessage = (event) => {
+      const payload = parseRealtimeEvent(event.data)
+      if (payload?.type !== "sync") return
+
+      void refreshSyncStateNow()
+        .then(() => {
+          window.dispatchEvent(new CustomEvent("herald-sync-updated"))
+        })
+        .catch(() => {
+          window.dispatchEvent(new CustomEvent("herald-sync-refresh-requested"))
+        })
+    }
+
+    socket.onclose = () => {
+      socket = null
+      if (closed) return
+      retryTimer = window.setTimeout(connect, retryMs)
+      retryMs = Math.min(retryMs * 2, 10000)
+    }
+
+    socket.onerror = () => {
+      socket?.close()
+    }
+  }
+
+  const onOnline = () => connect()
+  window.addEventListener("online", onOnline)
+  connect()
+
+  return () => {
+    closed = true
+    window.removeEventListener("online", onOnline)
+    if (retryTimer) window.clearTimeout(retryTimer)
+    socket?.close()
+  }
+}
+
 export async function getMessageBody(messageId: string): Promise<MessageBody> {
   try {
     const response = await apiFetch<{
@@ -773,6 +993,24 @@ function syncStateFromPersisted(persisted: PersistedSyncState): SyncState {
     attachments: new Map(
       persisted.attachments.map((attachment) => [idToString((attachment as SyncAttachment).id), attachment as SyncAttachment]),
     ),
+    conversations: new Map(
+      (persisted.conversations ?? []).map((conversation) => [
+        idToString((conversation as SyncConversation).id),
+        conversation as SyncConversation,
+      ]),
+    ),
+    conversationParticipants: new Map(
+      (persisted.conversationParticipants ?? []).map((entry) => {
+        const participant = entry as SyncConversationParticipant
+        return [conversationParticipantKey(participant), participant]
+      }),
+    ),
+    chatMessages: new Map(
+      (persisted.chatMessages ?? []).map((message) => [
+        idToString((message as SyncChatMessage).id),
+        message as SyncChatMessage,
+      ]),
+    ),
   }
 }
 
@@ -789,10 +1027,25 @@ async function persistCurrentSyncState(state: SyncState): Promise<void> {
     messageRecipients: [...state.messageRecipients.values()],
     messageMailboxes: [...state.messageMailboxes.values()],
     attachments: [...state.attachments.values()],
+    conversations: [...state.conversations.values()],
+    conversationParticipants: [...state.conversationParticipants.values()],
+    chatMessages: [...state.chatMessages.values()],
     updatedAt: new Date().toISOString(),
   })
 }
 
 function isNetworkError(error: unknown): boolean {
   return !(error instanceof APIError)
+}
+
+function parseRealtimeEvent(value: unknown): { type: string } | null {
+  if (typeof value !== "string") return null
+  try {
+    const parsed = JSON.parse(value)
+    return typeof parsed === "object" && parsed !== null && "type" in parsed
+      ? (parsed as { type: string })
+      : null
+  } catch {
+    return null
+  }
 }

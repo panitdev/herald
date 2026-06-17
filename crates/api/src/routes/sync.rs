@@ -12,13 +12,14 @@ use crate::{
     error::ApiResult,
     mail::current_sync_cursor,
     models::{
-        attachment::Attachment, mailbox::Mailbox, message::Message,
+        attachment::Attachment, chat_message::ChatMessage, conversation::Conversation,
+        conversation_participant::ConversationParticipant, mailbox::Mailbox, message::Message,
         message_mailbox::MessageMailbox, message_recipient::MessageRecipient,
         sync_event::SyncEvent,
     },
     schema::{
-        attachments, mailboxes, message_mailboxes, message_recipients, messages, sync_events,
-        user_addresses,
+        attachments, chat_messages, conversation_participants, conversations, mailboxes,
+        message_mailboxes, message_recipients, messages, sync_events, user_addresses,
     },
     state::AppState,
 };
@@ -39,6 +40,9 @@ pub struct BootstrapObjects {
     pub message_recipients: Vec<MessageRecipient>,
     pub message_mailboxes: Vec<MessageMailbox>,
     pub attachments: Vec<Attachment>,
+    pub conversations: Vec<Conversation>,
+    pub conversation_participants: Vec<ConversationParticipant>,
+    pub chat_messages: Vec<ChatMessage>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,10 +134,45 @@ pub async fn bootstrap(
             .await?
     };
 
+    let conversations = conversations::table
+        .inner_join(conversation_participants::table)
+        .filter(conversation_participants::user_id.eq(user.id))
+        .filter(conversation_participants::left_at.is_null())
+        .order(conversations::updated_at.desc())
+        .select(Conversation::as_select())
+        .load(&mut conn)
+        .await?;
+
+    let conversation_ids: Vec<i64> = conversations
+        .iter()
+        .map(|conversation| conversation.id)
+        .collect();
+
+    let conversation_participants = if conversation_ids.is_empty() {
+        Vec::new()
+    } else {
+        conversation_participants::table
+            .filter(conversation_participants::conversation_id.eq_any(&conversation_ids))
+            .select(ConversationParticipant::as_select())
+            .load(&mut conn)
+            .await?
+    };
+
+    let chat_messages = if conversation_ids.is_empty() {
+        Vec::new()
+    } else {
+        chat_messages::table
+            .filter(chat_messages::conversation_id.eq_any(&conversation_ids))
+            .order((chat_messages::created_at.asc(), chat_messages::id.asc()))
+            .select(ChatMessage::as_select())
+            .load(&mut conn)
+            .await?
+    };
+
     let cursor = current_sync_cursor(&state, user.id).await?;
 
     Ok(Json(BootstrapResponse {
-        schema_version: 2,
+        schema_version: 3,
         cursor,
         objects: BootstrapObjects {
             mailboxes,
@@ -141,6 +180,9 @@ pub async fn bootstrap(
             message_recipients,
             message_mailboxes,
             attachments,
+            conversations,
+            conversation_participants,
+            chat_messages,
         },
     }))
 }
