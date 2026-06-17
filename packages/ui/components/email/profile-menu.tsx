@@ -27,6 +27,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
 import { toast } from "sonner"
@@ -51,15 +52,18 @@ export function ProfileMenu({ onOpenSettings }: Props) {
           className="group flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-sidebar-foreground/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Open profile menu"
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground text-sm font-semibold">
-            {settings.initials}
-          </div>
+          <Avatar className="h-9 w-9 shrink-0">
+            <AvatarImage src={settings.avatarUrl ?? undefined} alt={settings.displayName} />
+            <AvatarFallback className="bg-accent text-accent-foreground text-sm font-semibold">
+              {settings.initials}
+            </AvatarFallback>
+          </Avatar>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium text-sidebar-foreground">
               {settings.displayName}
             </div>
             <div className="truncate text-xs text-muted-foreground">
-              {settings.email}
+              {user?.address ?? ""}
             </div>
           </div>
           <ChevronsUpDown
@@ -76,15 +80,18 @@ export function ProfileMenu({ onOpenSettings }: Props) {
         className="w-64"
       >
         <div className="flex items-center gap-3 px-2 py-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-foreground text-sm font-semibold">
-            {settings.initials}
-          </div>
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={settings.avatarUrl ?? undefined} alt={settings.displayName} />
+            <AvatarFallback className="bg-accent text-accent-foreground text-sm font-semibold">
+              {settings.initials}
+            </AvatarFallback>
+          </Avatar>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">
               {settings.displayName}
             </div>
             <div className="truncate text-xs text-muted-foreground">
-              {settings.email}
+              {user?.address ?? ""}
             </div>
           </div>
         </div>

@@ -617,6 +617,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "axum",
+ "base64",
  "bb8",
  "bytes",
  "chrono",

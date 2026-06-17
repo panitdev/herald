@@ -18,6 +18,7 @@ type AnimatedFieldProps = {
   autoFocus?: boolean
   validate?: (v: string) => string | null
   required?: boolean
+  disabled?: boolean
   icon?: React.ReactNode
   rightSlot?: React.ReactNode
 }
@@ -33,6 +34,7 @@ export function AnimatedField({
   autoFocus,
   validate,
   required,
+  disabled,
   icon,
   rightSlot,
 }: AnimatedFieldProps) {
@@ -56,7 +58,9 @@ export function AnimatedField({
       <div
         className={cn(
           "group relative flex items-center rounded-lg border bg-card transition-all duration-200",
-          focused
+          disabled
+            ? "border-border bg-muted/40 opacity-80"
+            : focused
             ? "border-primary ring-4 ring-primary/10"
             : showError
               ? "border-destructive/70 ring-4 ring-destructive/10"
@@ -73,6 +77,7 @@ export function AnimatedField({
           type={type}
           value={value}
           required={required}
+          disabled={disabled}
           aria-invalid={showError}
           aria-describedby={showError ? errorId : undefined}
           autoComplete={autoComplete}
@@ -84,7 +89,7 @@ export function AnimatedField({
             setFocused(false)
             setTouched(true)
           }}
-          className="w-full bg-transparent px-3 py-2.5 text-[15px] text-foreground outline-none placeholder:text-muted-foreground/70"
+          className="w-full bg-transparent px-3 py-2.5 text-[15px] text-foreground outline-none placeholder:text-muted-foreground/70 disabled:cursor-not-allowed"
         />
         <div className="flex h-full items-center pr-3 gap-1">
           {rightSlot}

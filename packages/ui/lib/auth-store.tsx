@@ -8,10 +8,13 @@ import {
   type ReactNode,
 } from "react"
 import {
+  APIError,
   clearOfflineMailCache,
+  getMe,
   hydrateSyncStateFromCache,
   setOfflineSyncUser,
   setUnauthorizedHandler,
+  updateMe,
 } from "@/lib/api"
 import { API_URL, MAIL_DOMAIN } from "@/lib/env"
 import {
@@ -25,6 +28,8 @@ export type AuthUser = {
   id: string
   address: string
   username: string
+  displayName: string
+  avatarUrl: string | null
 }
 
 type AuthState = {
@@ -36,6 +41,10 @@ type AuthState = {
 type AuthCtx = AuthState & {
   logout: () => void
   refresh: () => Promise<void>
+  updateProfile: (patch: {
+    displayName?: string
+    avatarUrl?: string | null
+  }) => Promise<void>
 }
 
 const AuthContext = createContext<AuthCtx | null>(null)
@@ -54,6 +63,22 @@ function usernameFromSession(session: KratosSession | null): string | null {
   return username
 }
 
+function formatDisplayName(username: string): string {
+  return username
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .map((part) => part[0]!.toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ")
+}
+
+function resolveAvatarUrl(value: string | null): string | null {
+  if (!value) return null
+  if (value.startsWith("data:")) return value
+  if (/^https?:\/\//.test(value)) return value
+  if (value.startsWith("/")) return `${API_URL}${value}`
+  return value
+}
+
 function userFromSession(session: KratosSession | null): AuthUser | null {
   const identity = session?.identity
   const username = usernameFromSession(session)
@@ -63,16 +88,28 @@ function userFromSession(session: KratosSession | null): AuthUser | null {
     id: identity?.id ?? session?.id ?? `${username}@${MAIL_DOMAIN}`,
     address: `${username}@${MAIL_DOMAIN}`,
     username,
+    displayName: formatDisplayName(username) || `${username}@${MAIL_DOMAIN}`,
+    avatarUrl: null,
   }
 }
 
 async function fetchMe(): Promise<{ user: AuthUser | null; offline: boolean }> {
   try {
-    const res = await fetch(`${API_URL}/api/me`, { credentials: "include" })
-    if (!res.ok) return { user: null, offline: false }
-    const data = (await res.json()) as AuthUser
-    return { user: data, offline: false }
-  } catch {
+    const data = await getMe()
+    return {
+      user: {
+        id: data.id,
+        address: data.address,
+        username: data.username,
+        displayName: data.display_name,
+        avatarUrl: resolveAvatarUrl(data.avatar_url),
+      },
+      offline: false,
+    }
+  } catch (error) {
+    if (error instanceof APIError) {
+      return { user: null, offline: false }
+    }
     return { user: null, offline: true }
   }
 }
@@ -178,8 +215,35 @@ export function AuthProvider({
     void initiateLogout()
   }, [clearForUser])
 
+  const updateProfile = useCallback(
+    async (patch: { displayName?: string; avatarUrl?: string | null }) => {
+      const currentUser = currentUserIdRef.current
+      if (!currentUser) return
+
+      const response = await updateMe({
+        display_name: patch.displayName,
+        avatar_url: patch.avatarUrl,
+      })
+
+      const nextUser: AuthUser = {
+        id: response.id,
+        address: response.address,
+        username: response.username,
+        displayName: response.display_name,
+        avatarUrl: resolveAvatarUrl(response.avatar_url),
+      }
+
+      await persistAuthUser(nextUser)
+      setState((prev) => ({
+        ...prev,
+        user: nextUser,
+      }))
+    },
+    [],
+  )
+
   return (
-    <AuthContext.Provider value={{ ...state, logout, refresh }}>
+    <AuthContext.Provider value={{ ...state, logout, refresh, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )
@@ -189,4 +253,8 @@ export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error("useAuth must be used within AuthProvider")
   return ctx
+}
+
+export function useOptionalAuth() {
+  return useContext(AuthContext)
 }

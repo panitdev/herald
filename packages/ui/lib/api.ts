@@ -50,6 +50,14 @@ export interface MessageBody {
   body: string
 }
 
+export interface MeResponse {
+  id: string
+  username: string
+  address: string
+  display_name: string
+  avatar_url: string | null
+}
+
 export interface SyncMailbox {
   id: ApiId
   user_id: ApiId
@@ -233,6 +241,25 @@ export async function apiFetch<T>(
   }
 
   return parseJsonPreservingIds<T>(await response.text())
+}
+
+export function getMe(): Promise<MeResponse> {
+  return apiFetch<MeResponse>("/api/me")
+}
+
+export function updateMe(input: {
+  display_name?: string
+  avatar_url?: string | null
+}): Promise<MeResponse> {
+  const body: { display_name?: string; avatar_url?: string | null } = {}
+
+  if (input.display_name !== undefined) body.display_name = input.display_name
+  if (input.avatar_url !== undefined) body.avatar_url = input.avatar_url
+
+  return apiFetch<MeResponse>("/api/me", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
 }
 
 async function apiText(path: string, options: RequestInit = {}): Promise<string> {

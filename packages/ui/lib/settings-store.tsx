@@ -8,18 +8,21 @@ import {
   type ReactNode,
 } from "react"
 
+import { useOptionalAuth, type AuthUser } from "@/lib/auth-store"
+
 export type ThemeMode = "light" | "dark" | "system"
 export type Density = "comfortable" | "cozy" | "compact"
 
 export const THEME_STORAGE_KEY = "herald-theme"
+const SETTINGS_STORAGE_PREFIX = "herald-settings"
 
 export type Settings = {
   displayName: string
-  email: string
   initials: string
+  avatarUrl: string | null
   theme: ThemeMode
   density: Density
-  accent: string // hue label
+  accent: string
   notifications: {
     desktop: boolean
     sound: boolean
@@ -30,9 +33,9 @@ export type Settings = {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  displayName: "Your Name",
-  email: "you@inbox.co",
-  initials: "YO",
+  displayName: "",
+  initials: "ME",
+  avatarUrl: null,
   theme: "system",
   density: "cozy",
   accent: "indigo",
@@ -42,7 +45,7 @@ const DEFAULT_SETTINGS: Settings = {
     mentionsOnly: false,
     digest: true,
   },
-  signature: "Sent from Inbox — a calmer email client.",
+  signature: "Sent from Inbox - a calmer email client.",
 }
 
 type Ctx = {
@@ -58,24 +61,126 @@ function isThemeMode(value: unknown): value is ThemeMode {
   return value === "light" || value === "dark" || value === "system"
 }
 
+function isDensity(value: unknown): value is Density {
+  return value === "comfortable" || value === "cozy" || value === "compact"
+}
+
 function resolveSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "light"
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 }
 
-function loadInitialSettings(): Settings {
-  if (typeof window === "undefined") return DEFAULT_SETTINGS
+function normalizeNamePart(value: string): string {
+  return value
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .map((part) => part[0]!.toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ")
+}
+
+function deriveDisplayName(user: AuthUser | null | undefined): string {
+  if (!user) return DEFAULT_SETTINGS.displayName
+  return user.displayName || normalizeNamePart(user.username) || user.address
+}
+
+export function deriveInitials(value: string): string {
+  const letters = value
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+
+  return letters || DEFAULT_SETTINGS.initials
+}
+
+function baseSettings(user: AuthUser | null | undefined, theme: ThemeMode): Settings {
+  const displayName = deriveDisplayName(user)
+  return {
+    ...DEFAULT_SETTINGS,
+    theme,
+    displayName,
+    initials: deriveInitials(displayName),
+    avatarUrl: user?.avatarUrl ?? null,
+  }
+}
+
+function settingsStorageKey(userId: string | null | undefined): string {
+  return `${SETTINGS_STORAGE_PREFIX}:${userId ?? "guest"}`
+}
+
+function sanitizeSettings(
+  value: unknown,
+  user: AuthUser | null | undefined,
+  theme: ThemeMode,
+): Settings {
+  const defaults = baseSettings(user, theme)
+  if (!value || typeof value !== "object") return defaults
+
+  const candidate = value as Partial<Settings>
+  const notifications = candidate.notifications
+  return {
+    ...defaults,
+    theme: isThemeMode(candidate.theme) ? candidate.theme : theme,
+    density: isDensity(candidate.density) ? candidate.density : defaults.density,
+    accent: typeof candidate.accent === "string" && candidate.accent.trim()
+      ? candidate.accent.trim()
+      : defaults.accent,
+    notifications:
+      notifications &&
+      typeof notifications === "object" &&
+      !Array.isArray(notifications)
+        ? {
+            desktop:
+              typeof notifications.desktop === "boolean"
+                ? notifications.desktop
+                : defaults.notifications.desktop,
+            sound:
+              typeof notifications.sound === "boolean"
+                ? notifications.sound
+                : defaults.notifications.sound,
+            mentionsOnly:
+              typeof notifications.mentionsOnly === "boolean"
+                ? notifications.mentionsOnly
+                : defaults.notifications.mentionsOnly,
+            digest:
+              typeof notifications.digest === "boolean"
+                ? notifications.digest
+                : defaults.notifications.digest,
+          }
+        : defaults.notifications,
+    signature:
+      typeof candidate.signature === "string"
+        ? candidate.signature
+        : defaults.signature,
+  }
+}
+
+function loadStoredTheme(): ThemeMode {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS.theme
 
   try {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
-    if (!isThemeMode(storedTheme)) return DEFAULT_SETTINGS
-
-    return {
-      ...DEFAULT_SETTINGS,
-      theme: storedTheme,
-    }
+    return isThemeMode(storedTheme) ? storedTheme : DEFAULT_SETTINGS.theme
   } catch {
-    return DEFAULT_SETTINGS
+    return DEFAULT_SETTINGS.theme
+  }
+}
+
+function loadStoredSettings(
+  user: AuthUser | null | undefined,
+  theme: ThemeMode,
+): Settings {
+  if (typeof window === "undefined") return baseSettings(user, theme)
+
+  try {
+    const stored = window.localStorage.getItem(settingsStorageKey(user?.id))
+    if (!stored) return baseSettings(user, theme)
+    return sanitizeSettings(JSON.parse(stored), user, theme)
+  } catch {
+    return baseSettings(user, theme)
   }
 }
 
@@ -86,10 +191,17 @@ function applyResolvedTheme(theme: "light" | "dark") {
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettingsState] = useState<Settings>(loadInitialSettings)
-  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(resolveSystemTheme)
+  const auth = useOptionalAuth()
+  const user = auth?.user
+  const updateProfile = auth?.updateProfile
 
-  // Track system theme
+  const [settings, setSettingsState] = useState<Settings>(() => {
+    const theme = loadStoredTheme()
+    return baseSettings(null, theme)
+  })
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(resolveSystemTheme)
+  const [loadedUserKey, setLoadedUserKey] = useState<string | null>(null)
+
   useEffect(() => {
     setSystemTheme(resolveSystemTheme())
     const mql = window.matchMedia("(prefers-color-scheme: dark)")
@@ -98,10 +210,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => mql.removeEventListener("change", onChange)
   }, [])
 
+  useEffect(() => {
+    const theme = loadStoredTheme()
+    const key = settingsStorageKey(user?.id)
+    setSettingsState(loadStoredSettings(user, theme))
+    setLoadedUserKey(key)
+  }, [user?.id, user?.username, user?.address, user?.displayName, user?.avatarUrl])
+
   const resolvedTheme: "light" | "dark" =
     settings.theme === "system" ? systemTheme : settings.theme
 
-  // Apply theme class to document root
   useEffect(() => {
     applyResolvedTheme(resolvedTheme)
   }, [resolvedTheme])
@@ -115,12 +233,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = settings.theme
   }, [settings.theme])
 
-  // Apply density attribute to document root (used by CSS if desired)
   useEffect(() => {
     document.documentElement.dataset.density = settings.density
   }, [settings.density])
 
-  // Apply accent as a CSS custom property override and data attribute.
   useEffect(() => {
     const accent = ACCENTS.find((a) => a.id === settings.accent)
     const root = document.documentElement
@@ -133,15 +249,71 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [settings.accent])
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const key = settingsStorageKey(user?.id)
+    if (loadedUserKey !== key) return
+
+    try {
+      window.localStorage.setItem(key, JSON.stringify(settings))
+    } catch {
+      // Ignore persistence failures in restricted browsing contexts.
+    }
+  }, [loadedUserKey, settings, user?.id])
+
+  useEffect(() => {
+    if (!user || !updateProfile) return
+    if (
+      settings.displayName === user.displayName &&
+      settings.avatarUrl === user.avatarUrl
+    ) {
+      return
+    }
+
+    const handle = window.setTimeout(() => {
+      void updateProfile({
+        displayName: settings.displayName,
+        avatarUrl: settings.avatarUrl,
+      }).catch(() => {
+        // Keep local edits visible; refresh will reconcile from the API later.
+      })
+    }, 400)
+
+    return () => window.clearTimeout(handle)
+  }, [
+    settings.avatarUrl,
+    settings.displayName,
+    updateProfile,
+    user,
+  ])
+
   const setSettings = useCallback(
-    (updater: (prev: Settings) => Settings) => setSettingsState(updater),
-    [],
+    (updater: (prev: Settings) => Settings) =>
+      setSettingsState((prev) => {
+        const next = updater(prev)
+        const displayName = next.displayName.trim() || deriveDisplayName(user)
+        return {
+          ...next,
+          displayName,
+          initials: deriveInitials(displayName),
+        }
+      }),
+    [user],
   )
 
   const updateSettings = useCallback(
     (patch: Partial<Settings>) =>
-      setSettingsState((prev) => ({ ...prev, ...patch })),
-    [],
+      setSettingsState((prev) => {
+        const next = { ...prev, ...patch }
+        const displayName = next.displayName.trim() || deriveDisplayName(user)
+        return {
+          ...next,
+          displayName,
+          initials: deriveInitials(displayName),
+        }
+      }),
+    [user],
   )
 
   const value = useMemo<Ctx>(

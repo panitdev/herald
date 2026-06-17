@@ -18,6 +18,8 @@ function SidebarStory() {
           id: "user-story",
           address: "you@panit.dev",
           username: "you",
+          displayName: "You",
+          avatarUrl: null,
         }}
       >
         <div className="h-[640px] w-72 overflow-hidden rounded-lg border border-sidebar-border">

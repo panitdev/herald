@@ -20,6 +20,8 @@ const meta = {
             id: "user-story",
             address: "you@panit.dev",
             username: "you",
+            displayName: "You",
+            avatarUrl: null,
           }}
         >
           <div className="w-72 rounded-lg border border-sidebar-border bg-sidebar p-2">

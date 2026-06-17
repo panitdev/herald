@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState, type ChangeEvent } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   User,
@@ -19,6 +19,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AnimatedField } from "@/components/ui/animated-field"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -26,7 +27,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
-import { ACCENTS, useSettings, type Density, type ThemeMode } from "@/lib/settings-store"
+import {
+  ACCENTS,
+  deriveInitials,
+  useSettings,
+  type Density,
+  type ThemeMode,
+} from "@/lib/settings-store"
+import { useAuth } from "@/lib/auth-store"
 import { toast } from "sonner"
 
 type TabId = "account" | "appearance" | "notifications" | "signature"
@@ -190,22 +198,113 @@ function Row({
 
 function AccountPanel() {
   const { settings, updateSettings } = useSettings()
+  const { user } = useAuth()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  async function fileToDataUrl(file: File): Promise<string> {
+    const source = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"))
+      reader.onload = () => {
+        if (typeof reader.result === "string") resolve(reader.result)
+        else reject(new Error("Unsupported image data"))
+      }
+      reader.readAsDataURL(file)
+    })
+
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image()
+      img.onerror = () => reject(new Error("Failed to decode image"))
+      img.onload = () => resolve(img)
+      img.src = source
+    })
+
+    const canvas = document.createElement("canvas")
+    const size = 256
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext("2d")
+    if (!ctx) throw new Error("Canvas is unavailable")
+
+    const scale = Math.max(size / image.width, size / image.height)
+    const width = image.width * scale
+    const height = image.height * scale
+    const x = (size - width) / 2
+    const y = (size - height) / 2
+
+    ctx.drawImage(image, x, y, width, height)
+    return canvas.toDataURL("image/webp", 0.9)
+  }
+
+  async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Unsupported file", { description: "Choose an image file." })
+      event.target.value = ""
+      return
+    }
+
+    try {
+      const avatarUrl = await fileToDataUrl(file)
+      updateSettings({ avatarUrl })
+      toast.success("Profile photo updated")
+    } catch (error) {
+      toast.error("Could not update photo", {
+        description:
+          error instanceof Error ? error.message : "Try a different image file.",
+      })
+    } finally {
+      event.target.value = ""
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-4">
-        <div
-          className="flex h-14 w-14 items-center justify-center rounded-full text-base font-semibold"
-          style={{ backgroundColor: "var(--accent)", color: "var(--accent-foreground)" }}
-          aria-hidden
-        >
-          {settings.initials}
-        </div>
+        <Avatar className="h-14 w-14">
+          <AvatarImage src={settings.avatarUrl ?? undefined} alt={settings.displayName} />
+          <AvatarFallback
+            className="text-base font-semibold"
+            style={{ backgroundColor: "var(--accent)", color: "var(--accent-foreground)" }}
+          >
+            {settings.initials}
+          </AvatarFallback>
+        </Avatar>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold">{settings.displayName}</div>
           <div className="truncate text-xs text-muted-foreground">
-            {settings.email}
+            {user?.address ?? ""}
           </div>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Upload photo
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!settings.avatarUrl}
+          onClick={() => updateSettings({ avatarUrl: null })}
+        >
+          Remove
+        </Button>
       </div>
 
       <Separator />
@@ -216,27 +315,20 @@ function AccountPanel() {
           label="Display name"
           value={settings.displayName}
           onChange={(v) => {
-            const initials =
-              v
-                .split(/\s+/)
-                .map((p) => p[0])
-                .filter(Boolean)
-                .slice(0, 2)
-                .join("")
-                .toUpperCase() || "YO"
-            updateSettings({ displayName: v, initials })
+            updateSettings({ displayName: v, initials: deriveInitials(v) })
           }}
-          placeholder="Your name"
+          placeholder="Display name"
           autoComplete="name"
         />
         <AnimatedField
           id="email"
           label="Email address"
           type="email"
-          value={settings.email}
-          onChange={(v) => updateSettings({ email: v })}
-          placeholder="you@domain.com"
+          value={user?.address ?? ""}
+          onChange={() => {}}
+          placeholder="name@domain.com"
           autoComplete="email"
+          disabled
         />
       </div>
     </div>
@@ -464,7 +556,7 @@ function SignaturePanel() {
           rows={5}
           value={settings.signature}
           onChange={(e) => updateSettings({ signature: e.target.value })}
-          placeholder="Kind regards,&#10;Your Name"
+          placeholder={`Kind regards,\n${settings.displayName || "Me"}`}
           className="resize-none"
         />
         <p className="text-[11px] text-muted-foreground">

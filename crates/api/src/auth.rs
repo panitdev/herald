@@ -154,6 +154,8 @@ impl KratosIdentity {
             kratos_id: self.kratos_user_id,
             username: &self.username,
             address: &email_address,
+            display_name: &self.username,
+            avatar_url: None,
         };
 
         // ON CONFLICT DO NOTHING handles concurrent first-logins racing to insert the same user.

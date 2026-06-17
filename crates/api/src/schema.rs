@@ -33,6 +33,8 @@ diesel::table! {
         kratos_id  -> Uuid,
         username   -> Varchar,
         address    -> Varchar,
+        display_name -> Text,
+        avatar_url -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
