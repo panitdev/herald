@@ -83,6 +83,7 @@ function MailboxRoute() {
     <EmailSidebar
       active={mailbox}
       onSelect={(f) => navigate({ to: "/$mailbox", params: { mailbox: f } })}
+      onOpenMessages={() => navigate({ to: "/messages" })}
       counts={counts}
       onCompose={() => openCompose()}
       onOpenSettings={openSettings}

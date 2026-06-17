@@ -11,8 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppMessagesRouteImport } from './routes/_app/messages'
 import { Route as AppMailboxRouteImport } from './routes/_app/$mailbox'
+import { Route as AppMessagesIndexRouteImport } from './routes/_app/messages.index'
 import { Route as AppMailboxIndexRouteImport } from './routes/_app/$mailbox.index'
+import { Route as AppMessagesConversationIdRouteImport } from './routes/_app/messages.$conversationId'
 import { Route as AppMailboxMessageIdRouteImport } from './routes/_app/$mailbox.$messageId'
 
 const AppRoute = AppRouteImport.update({
@@ -24,16 +27,32 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppMessagesRoute = AppMessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMailboxRoute = AppMailboxRouteImport.update({
   id: '/$mailbox',
   path: '/$mailbox',
   getParentRoute: () => AppRoute,
+} as any)
+const AppMessagesIndexRoute = AppMessagesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppMessagesRoute,
 } as any)
 const AppMailboxIndexRoute = AppMailboxIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppMailboxRoute,
 } as any)
+const AppMessagesConversationIdRoute =
+  AppMessagesConversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => AppMessagesRoute,
+  } as any)
 const AppMailboxMessageIdRoute = AppMailboxMessageIdRouteImport.update({
   id: '/$messageId',
   path: '/$messageId',
@@ -43,34 +62,57 @@ const AppMailboxMessageIdRoute = AppMailboxMessageIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$mailbox': typeof AppMailboxRouteWithChildren
+  '/messages': typeof AppMessagesRouteWithChildren
   '/$mailbox/$messageId': typeof AppMailboxMessageIdRoute
+  '/messages/$conversationId': typeof AppMessagesConversationIdRoute
   '/$mailbox/': typeof AppMailboxIndexRoute
+  '/messages/': typeof AppMessagesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$mailbox/$messageId': typeof AppMailboxMessageIdRoute
+  '/messages/$conversationId': typeof AppMessagesConversationIdRoute
   '/$mailbox': typeof AppMailboxIndexRoute
+  '/messages': typeof AppMessagesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/_app/$mailbox': typeof AppMailboxRouteWithChildren
+  '/_app/messages': typeof AppMessagesRouteWithChildren
   '/_app/$mailbox/$messageId': typeof AppMailboxMessageIdRoute
+  '/_app/messages/$conversationId': typeof AppMessagesConversationIdRoute
   '/_app/$mailbox/': typeof AppMailboxIndexRoute
+  '/_app/messages/': typeof AppMessagesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$mailbox' | '/$mailbox/$messageId' | '/$mailbox/'
+  fullPaths:
+    | '/'
+    | '/$mailbox'
+    | '/messages'
+    | '/$mailbox/$messageId'
+    | '/messages/$conversationId'
+    | '/$mailbox/'
+    | '/messages/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$mailbox/$messageId' | '/$mailbox'
+  to:
+    | '/'
+    | '/$mailbox/$messageId'
+    | '/messages/$conversationId'
+    | '/$mailbox'
+    | '/messages'
   id:
     | '__root__'
     | '/'
     | '/_app'
     | '/_app/$mailbox'
+    | '/_app/messages'
     | '/_app/$mailbox/$messageId'
+    | '/_app/messages/$conversationId'
     | '/_app/$mailbox/'
+    | '/_app/messages/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,6 +136,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/messages': {
+      id: '/_app/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof AppMessagesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/$mailbox': {
       id: '/_app/$mailbox'
       path: '/$mailbox'
@@ -101,12 +150,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMailboxRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/messages/': {
+      id: '/_app/messages/'
+      path: '/'
+      fullPath: '/messages/'
+      preLoaderRoute: typeof AppMessagesIndexRouteImport
+      parentRoute: typeof AppMessagesRoute
+    }
     '/_app/$mailbox/': {
       id: '/_app/$mailbox/'
       path: '/'
       fullPath: '/$mailbox/'
       preLoaderRoute: typeof AppMailboxIndexRouteImport
       parentRoute: typeof AppMailboxRoute
+    }
+    '/_app/messages/$conversationId': {
+      id: '/_app/messages/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/messages/$conversationId'
+      preLoaderRoute: typeof AppMessagesConversationIdRouteImport
+      parentRoute: typeof AppMessagesRoute
     }
     '/_app/$mailbox/$messageId': {
       id: '/_app/$mailbox/$messageId'
@@ -132,12 +195,28 @@ const AppMailboxRouteWithChildren = AppMailboxRoute._addFileChildren(
   AppMailboxRouteChildren,
 )
 
+interface AppMessagesRouteChildren {
+  AppMessagesConversationIdRoute: typeof AppMessagesConversationIdRoute
+  AppMessagesIndexRoute: typeof AppMessagesIndexRoute
+}
+
+const AppMessagesRouteChildren: AppMessagesRouteChildren = {
+  AppMessagesConversationIdRoute: AppMessagesConversationIdRoute,
+  AppMessagesIndexRoute: AppMessagesIndexRoute,
+}
+
+const AppMessagesRouteWithChildren = AppMessagesRoute._addFileChildren(
+  AppMessagesRouteChildren,
+)
+
 interface AppRouteChildren {
   AppMailboxRoute: typeof AppMailboxRouteWithChildren
+  AppMessagesRoute: typeof AppMessagesRouteWithChildren
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppMailboxRoute: AppMailboxRouteWithChildren,
+  AppMessagesRoute: AppMessagesRouteWithChildren,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

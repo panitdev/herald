@@ -1,14 +1,13 @@
 import { useState } from "react"
 import type { Meta, StoryObj } from "@storybook/react-vite"
 
-import { EmailSidebar } from "@/components/email/sidebar"
+import { EmailSidebar, type SidebarSection } from "@/components/email/sidebar"
 import { AuthProvider } from "@/lib/auth-store"
 import { SettingsProvider } from "@/lib/settings-store"
-import type { Folder } from "@/lib/types"
 import { folderCounts } from "@/components/email/story-fixtures"
 
 function SidebarStory() {
-  const [active, setActive] = useState<Folder>("inbox")
+  const [active, setActive] = useState<SidebarSection>("inbox")
 
   return (
     <SettingsProvider>
@@ -27,6 +26,7 @@ function SidebarStory() {
           <EmailSidebar
             active={active}
             onSelect={setActive}
+            onOpenMessages={() => setActive("messages")}
             counts={folderCounts}
             onCompose={() => {}}
             onOpenSettings={() => {}}
@@ -44,6 +44,7 @@ const meta = {
   args: {
     active: "inbox",
     onSelect: () => {},
+    onOpenMessages: () => {},
     counts: folderCounts,
     onCompose: () => {},
     onOpenSettings: () => {},

@@ -12,7 +12,7 @@ import { SettingsDialog } from "@/components/email/settings-dialog"
 import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
 import { useLocalOverrides } from "@/lib/local-overrides-store"
-import { sendMail } from "@/lib/api"
+import { connectRealtimeSync, sendMail } from "@/lib/api"
 import type { Email } from "@/lib/types"
 import {
   AppChromeContext,
@@ -95,6 +95,12 @@ function AppLayout() {
     setComposeOpen(false)
     toast.success("Message sent", { description: `to ${data.to}` })
   }
+
+  // Open the realtime socket for the authenticated session. It drives the
+  // "herald-sync-updated" events both the mailbox and messages views react to.
+  useEffect(() => {
+    return connectRealtimeSync()
+  }, [])
 
   // Keyboard shortcuts: "c" compose, ⌘/Ctrl+, settings
   useEffect(() => {
