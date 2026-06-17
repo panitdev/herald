@@ -8,7 +8,7 @@ import {
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query"
 
 import { AuthProvider, useAuth } from "@/lib/auth-store"
-import { SettingsProvider } from "@/lib/settings-store"
+import { SettingsProvider, THEME_STORAGE_KEY } from "@/lib/settings-store"
 import { LocalOverridesProvider } from "@/lib/local-overrides-store"
 import { AuthScreen } from "@/components/auth/auth-screen"
 import { AuthGuardDialog } from "@/components/auth/auth-guard-dialog"
@@ -58,13 +58,34 @@ function serializePublicEnv(env: PublicEnv): string {
   return JSON.stringify(env).replace(/</g, "\\u003c")
 }
 
+function getThemeBootScript(): string {
+  return `
+    (() => {
+      const storageKey = ${JSON.stringify(THEME_STORAGE_KEY)};
+      const root = document.documentElement;
+      const stored = window.localStorage.getItem(storageKey);
+      const theme = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+      const resolved = theme === "system"
+        ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+        : theme;
+
+      root.dataset.theme = theme;
+      root.classList.toggle("dark", resolved === "dark");
+      root.style.colorScheme = resolved;
+    })();
+  `.trim()
+}
+
 export const Route = createRootRouteWithContext<RouterContext>()({
   loader: async (): Promise<PublicEnv> => {
     return getPublicEnv()
   },
   head: ({ loaderData }) => ({
     scripts: loaderData
-      ? [{ children: `window.__ENV__=${serializePublicEnv(loaderData)}` }]
+      ? [
+          { children: getThemeBootScript() },
+          { children: `window.__ENV__=${serializePublicEnv(loaderData)}` },
+        ]
       : [],
     meta: [
       { charSet: "utf-8" },

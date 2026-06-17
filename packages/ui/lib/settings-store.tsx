@@ -11,6 +11,8 @@ import {
 export type ThemeMode = "light" | "dark" | "system"
 export type Density = "comfortable" | "cozy" | "compact"
 
+export const THEME_STORAGE_KEY = "herald-theme"
+
 export type Settings = {
   displayName: string
   email: string
@@ -52,14 +54,40 @@ type Ctx = {
 
 const SettingsContext = createContext<Ctx | null>(null)
 
+function isThemeMode(value: unknown): value is ThemeMode {
+  return value === "light" || value === "dark" || value === "system"
+}
+
 function resolveSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "light"
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 }
 
+function loadInitialSettings(): Settings {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS
+
+  try {
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
+    if (!isThemeMode(storedTheme)) return DEFAULT_SETTINGS
+
+    return {
+      ...DEFAULT_SETTINGS,
+      theme: storedTheme,
+    }
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
+
+function applyResolvedTheme(theme: "light" | "dark") {
+  const root = document.documentElement
+  root.classList.toggle("dark", theme === "dark")
+  root.style.colorScheme = theme
+}
+
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettingsState] = useState<Settings>(DEFAULT_SETTINGS)
-  const [systemTheme, setSystemTheme] = useState<"light" | "dark">("light")
+  const [settings, setSettingsState] = useState<Settings>(loadInitialSettings)
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(resolveSystemTheme)
 
   // Track system theme
   useEffect(() => {
@@ -75,9 +103,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   // Apply theme class to document root
   useEffect(() => {
-    const root = document.documentElement
-    root.classList.toggle("dark", resolvedTheme === "dark")
+    applyResolvedTheme(resolvedTheme)
   }, [resolvedTheme])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, settings.theme)
+    } catch {
+      // Ignore persistence failures in restricted browsing contexts.
+    }
+    document.documentElement.dataset.theme = settings.theme
+  }, [settings.theme])
 
   // Apply density attribute to document root (used by CSS if desired)
   useEffect(() => {
