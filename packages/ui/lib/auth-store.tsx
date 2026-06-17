@@ -153,6 +153,12 @@ export function AuthProvider({
   }, [])
 
   const refresh = useCallback(async () => {
+    const persisted = await loadPersistedAuthUser()
+
+    if (persisted?.user) {
+      await restoreOfflineData(persisted.user)
+    }
+
     const { status, session } = await getWhoami()
 
     if (status === "unauthed") {
@@ -162,7 +168,6 @@ export function AuthProvider({
     }
 
     if (status === "offline") {
-      const persisted = await loadPersistedAuthUser()
       await restoreOfflineData(persisted?.user ?? null)
       return
     }
@@ -170,7 +175,6 @@ export function AuthProvider({
     const sessionUser = userFromSession(session)
     const me = await fetchMe()
     if (me.offline) {
-      const persisted = await loadPersistedAuthUser()
       await restoreOfflineData(persisted?.user ?? sessionUser ?? null)
       return
     }
