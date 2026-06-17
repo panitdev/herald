@@ -72,7 +72,7 @@ export function LocalOverridesProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [user])
+  }, [user?.id])
 
   useEffect(() => {
     if (!user || !initialized) return
