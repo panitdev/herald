@@ -56,7 +56,15 @@ type Props = {
 
 export function SettingsDialog({ open, onOpenChange }: Props) {
   const [active, setActive] = useState<TabId>("account")
+  const [transitionCount, setTransitionCount] = useState(0)
   const activeTab = TABS.find((t) => t.id === active)!
+
+  function handleTabChange(tabId: TabId) {
+    if (tabId === active) return
+
+    setTransitionCount((count) => count + 1)
+    setActive(tabId)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -85,7 +93,7 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActive(tab.id)}
+                    onClick={() => handleTabChange(tab.id)}
                     className={cn(
                       "group relative flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors",
                       !isActive &&
@@ -120,33 +128,45 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
           {/* Right content */}
           <section className="flex min-w-0 flex-1 flex-col">
             <header className="border-b border-border px-6 py-4">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeTab.id}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <h3 className="text-base font-semibold tracking-tight">
+              <div className="relative h-5 overflow-hidden">
+                <AnimatePresence initial={false}>
+                  <motion.h3
+                    key={`${activeTab.id}-${transitionCount}`}
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "-100%" }}
+                    transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                    className="absolute inset-x-0 top-0 text-base font-semibold tracking-tight"
+                  >
                     {activeTab.label}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
+                  </motion.h3>
+                </AnimatePresence>
+              </div>
+              <div className="relative h-4">
+                <AnimatePresence initial={false}>
+                  <motion.p
+                    key={`${activeTab.description}-${transitionCount}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    className="absolute inset-x-0 top-0 text-xs text-muted-foreground"
+                  >
                     {activeTab.description}
-                  </p>
-                </motion.div>
-              </AnimatePresence>
+                  </motion.p>
+                </AnimatePresence>
+              </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto scrollbar-thin">
-              <AnimatePresence mode="wait">
+            <div className="relative flex-1 overflow-hidden bg-background">
+              <AnimatePresence initial={false}>
                 <motion.div
-                  key={active}
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                  className="px-6 py-5"
+                  key={`${active}-${transitionCount}`}
+                  initial={{ opacity: 0, y: "100%", filter: "blur(1px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: "-100%", filter: "blur(1px)" }}
+                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                  className="absolute inset-0 overflow-y-auto bg-background px-6 py-5 scrollbar-thin"
                 >
                   {active === "account" && <AccountPanel />}
                   {active === "appearance" && <AppearancePanel />}
