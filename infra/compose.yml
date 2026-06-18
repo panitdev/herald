@@ -4,8 +4,8 @@ services:
   api:
     image: ${HERALD_API_IMAGE:-herald-api:latest}
     build:
-      context: ../crates/api
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: crates/api/Dockerfile
     restart: unless-stopped
     environment:
       API_PORT: 3001

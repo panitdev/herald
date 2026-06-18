@@ -64,7 +64,7 @@ jobs:
       - name: Build and push API image
         uses: docker/build-push-action@v6
         with:
-          context: crates/api
+          context: .
           file: crates/api/Dockerfile
           push: true
           build-args: |

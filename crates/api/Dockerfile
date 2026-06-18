@@ -9,10 +9,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY Cargo.toml Cargo.lock ./
-COPY migrations ./migrations
-COPY src ./src
+COPY crates/api/Cargo.toml ./crates/api/Cargo.toml
+COPY crates/api/migrations ./crates/api/migrations
+COPY crates/api/src ./crates/api/src
 
-RUN cargo build --release --locked
+RUN cargo build --release --locked -p herald-api
 
 FROM debian:bookworm-slim AS runner
 
