@@ -10,12 +10,14 @@ import {
   Trash2,
   PenSquare,
   MessagesSquare,
+  Plus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Folder } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { HeraldLogo } from "@/components/ui/logos"
 import { ProfileMenu } from "./profile-menu"
+import { ButtonGroup } from "../ui/button-group"
 
 /** Either a mail folder or the realtime messenger. */
 export type SidebarSection = Folder | "messages"
@@ -60,14 +62,19 @@ export function EmailSidebar({
       </div>
 
       <div className="px-3 pb-3">
-        <Button
-          onClick={onCompose}
-          className="w-full justify-start gap-2 rounded-lg shadow-sm"
-          size="lg"
-        >
-          <PenSquare className="h-4 w-4" />
-          Compose
-        </Button>
+        <ButtonGroup className="w-full">
+          <Button
+            onClick={onCompose}
+            size="lg"
+            className="gap-2 flex-1 justify-start"
+          >
+            <PenSquare className="h-4 w-4" />
+            Compose
+          </Button>
+          <Button size="icon-lg">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </ButtonGroup>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 scrollbar-thin" aria-label="Folders">
@@ -147,7 +154,7 @@ function NavItem({
           // - hover: subtle neutral wash
           // - selected: accent background (set via motion layout pill below)
           !isActive &&
-            "font-medium text-sidebar-foreground/75 hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground",
+          "font-medium text-sidebar-foreground/75 hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground",
           isActive && "font-semibold text-sidebar-accent-foreground",
         )}
         aria-current={isActive ? "page" : undefined}
