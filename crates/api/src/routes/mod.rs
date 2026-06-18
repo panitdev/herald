@@ -190,7 +190,7 @@ async fn update_me(
         .returning(User::as_returning())
         .get_result(&mut conn)
         .await
-        .map_err(AppError::Db)?;
+        .map_err(|err| AppError::db(err, "routes.update_me.update_user_profile"))?;
 
     let addresses = load_user_addresses(&state, updated.id).await?;
 

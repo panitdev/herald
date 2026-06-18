@@ -70,7 +70,6 @@ impl FromRequestParts<AppState> for KratosIdentity {
 
         if !has_session_cookie && !has_bearer {
             tracing::info!(
-                target: "api",
                 elapsed_ms = started_at.elapsed().as_millis(),
                 "kratos auth rejected before whoami"
             );
@@ -92,7 +91,6 @@ impl FromRequestParts<AppState> for KratosIdentity {
         let whoami_started = Instant::now();
         let resp = req.send().await.map_err(AppError::Http)?;
         tracing::info!(
-            target: "api",
             elapsed_ms = whoami_started.elapsed().as_millis(),
             status = %resp.status(),
             "kratos whoami"
@@ -115,7 +113,6 @@ impl FromRequestParts<AppState> for KratosIdentity {
         })?;
 
         tracing::info!(
-            target: "api",
             elapsed_ms = started_at.elapsed().as_millis(),
             username = %payload.identity.traits.username,
             "kratos identity extracted"
@@ -141,11 +138,22 @@ impl KratosIdentity {
             .select(User::as_select())
             .first(&mut conn)
             .await
-            .optional()?;
+            .optional()
+            .map_err(|err| AppError::db(err, "auth.resolve_user.lookup_user"))?;
 
         if let Some(u) = existing {
             let default_address = u.address.to_lowercase();
-            ensure_user_address(&mut conn, &state.ids, u.id, &default_address).await?;
+            ensure_user_address(&mut conn, &state.ids, u.id, &default_address)
+                .await
+                .map_err(|err| {
+                    tracing::error!(
+                        user_id = u.id,
+                        address = %default_address,
+                        error = %err,
+                        "failed to ensure existing user address during auth"
+                    );
+                    err
+                })?;
             return Ok(u);
         }
 
@@ -172,7 +180,7 @@ impl KratosIdentity {
             .get_result(&mut conn)
             .await
             .optional()
-            .map_err(AppError::Db)?;
+            .map_err(|err| AppError::db(err, "auth.resolve_user.insert_user"))?;
 
         let user = match inserted {
             Some(u) => u,
@@ -181,10 +189,20 @@ impl KratosIdentity {
                 .select(User::as_select())
                 .first(&mut conn)
                 .await
-                .map_err(AppError::Db)?,
+                .map_err(|err| AppError::db(err, "auth.resolve_user.lookup_raced_user"))?,
         };
 
-        ensure_user_address(&mut conn, &state.ids, user.id, &email_address).await?;
+        ensure_user_address(&mut conn, &state.ids, user.id, &email_address)
+            .await
+            .map_err(|err| {
+                tracing::error!(
+                    user_id = user.id,
+                    address = %email_address,
+                    error = %err,
+                    "failed to ensure new user address during auth"
+                );
+                err
+            })?;
 
         Ok(user)
     }

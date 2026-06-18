@@ -64,7 +64,8 @@ pub async fn ensure_system_mailboxes(
         .filter(mailboxes::system_role.is_not_null())
         .select(Mailbox::as_select())
         .load(conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "mailboxes.ensure_system_mailboxes.load_existing"))?;
 
     let missing: Vec<NewMailbox<'_>> = SYSTEM_MAILBOX_SPECS
         .iter()
@@ -90,7 +91,8 @@ pub async fn ensure_system_mailboxes(
             .values(&missing)
             .on_conflict_do_nothing()
             .execute(conn)
-            .await?;
+            .await
+            .map_err(|err| AppError::db(err, "mailboxes.ensure_system_mailboxes.insert_missing"))?;
     }
 
     let all = mailboxes::table
@@ -99,7 +101,8 @@ pub async fn ensure_system_mailboxes(
         .order((mailboxes::sort_order.asc(), mailboxes::created_at.asc()))
         .select(Mailbox::as_select())
         .load(conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "mailboxes.ensure_system_mailboxes.load_all"))?;
 
     let created = if created_ids.is_empty() {
         Vec::new()

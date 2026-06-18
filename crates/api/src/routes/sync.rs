@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::{
     auth::AuthUser,
-    error::ApiResult,
+    error::{ApiResult, AppError},
     mail::current_sync_cursor,
     models::{
         attachment::Attachment, chat_message::ChatMessage, conversation::Conversation,
@@ -84,7 +84,8 @@ pub async fn bootstrap(
         .order((mailboxes::sort_order.asc(), mailboxes::created_at.asc()))
         .select(Mailbox::as_select())
         .load(&mut conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "sync.bootstrap.load_mailboxes"))?;
 
     let mailbox_ids: Vec<i64> = mailboxes.iter().map(|mailbox| mailbox.id).collect();
 
@@ -99,7 +100,8 @@ pub async fn bootstrap(
         .order(messages::received_at.desc())
         .select(Message::as_select())
         .load(&mut conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "sync.bootstrap.load_messages"))?;
 
     let message_ids: Vec<i64> = messages.iter().map(|message| message.id).collect();
 
@@ -110,7 +112,8 @@ pub async fn bootstrap(
             .filter(message_recipients::message_id.eq_any(&message_ids))
             .select(MessageRecipient::as_select())
             .load(&mut conn)
-            .await?
+            .await
+            .map_err(|err| AppError::db(err, "sync.bootstrap.load_message_recipients"))?
     };
 
     let message_mailboxes = if message_ids.is_empty() {
@@ -121,7 +124,8 @@ pub async fn bootstrap(
             .filter(message_mailboxes::mailbox_id.eq_any(&mailbox_ids))
             .select(MessageMailbox::as_select())
             .load(&mut conn)
-            .await?
+            .await
+            .map_err(|err| AppError::db(err, "sync.bootstrap.load_message_mailboxes"))?
     };
 
     let attachments = if message_ids.is_empty() {
@@ -131,7 +135,8 @@ pub async fn bootstrap(
             .filter(attachments::message_id.eq_any(&message_ids))
             .select(Attachment::as_select())
             .load(&mut conn)
-            .await?
+            .await
+            .map_err(|err| AppError::db(err, "sync.bootstrap.load_attachments"))?
     };
 
     let conversations = conversations::table
@@ -141,7 +146,8 @@ pub async fn bootstrap(
         .order(conversations::updated_at.desc())
         .select(Conversation::as_select())
         .load(&mut conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "sync.bootstrap.load_conversations"))?;
 
     let conversation_ids: Vec<i64> = conversations
         .iter()
@@ -155,7 +161,8 @@ pub async fn bootstrap(
             .filter(conversation_participants::conversation_id.eq_any(&conversation_ids))
             .select(ConversationParticipant::as_select())
             .load(&mut conn)
-            .await?
+            .await
+            .map_err(|err| AppError::db(err, "sync.bootstrap.load_conversation_participants"))?
     };
 
     let chat_messages = if conversation_ids.is_empty() {
@@ -166,7 +173,8 @@ pub async fn bootstrap(
             .order((chat_messages::created_at.asc(), chat_messages::id.asc()))
             .select(ChatMessage::as_select())
             .load(&mut conn)
-            .await?
+            .await
+            .map_err(|err| AppError::db(err, "sync.bootstrap.load_chat_messages"))?
     };
 
     let cursor = current_sync_cursor(&state, user.id).await?;
@@ -203,7 +211,8 @@ pub async fn pull(
         .limit(limit + 1)
         .select(SyncEvent::as_select())
         .load(&mut conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "sync.pull.load_events"))?;
 
     let has_more = events.len() as i64 > limit;
     if has_more {
@@ -214,7 +223,8 @@ pub async fn pull(
         .filter(sync_events::user_id.eq(user.id))
         .select(dsl::max(sync_events::id))
         .first::<Option<i64>>(&mut conn)
-        .await?
+        .await
+        .map_err(|err| AppError::db(err, "sync.pull.load_current_max"))?
         .unwrap_or(0);
 
     let to = events.last().map(|event| event.id).unwrap_or(current_max);

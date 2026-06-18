@@ -35,7 +35,8 @@ pub async fn ensure_user_address(
         .values(&grant)
         .on_conflict_do_nothing()
         .execute(conn)
-        .await?
+        .await
+        .map_err(|err| AppError::db(err, "addresses.ensure_user_address.grant_address"))?
         > 0;
 
     let mailboxes = ensure_system_mailboxes(conn, ids, address.id).await?;
@@ -58,7 +59,8 @@ pub async fn user_has_address(
         .select(user_addresses::user_id)
         .first::<i64>(conn)
         .await
-        .optional()?;
+        .optional()
+        .map_err(|err| AppError::db(err, "addresses.user_has_address.lookup"))?;
 
     Ok(existing.is_some())
 }
@@ -72,7 +74,8 @@ pub async fn find_address(
         .select(Address::as_select())
         .first(conn)
         .await
-        .optional()?;
+        .optional()
+        .map_err(|err| AppError::db(err, "addresses.find_address.lookup"))?;
 
     Ok(address)
 }
@@ -93,7 +96,8 @@ async fn ensure_address(
         .returning(Address::as_returning())
         .get_result(conn)
         .await
-        .optional()?;
+        .optional()
+        .map_err(|err| AppError::db(err, "addresses.ensure_address.insert"))?;
 
     if let Some(address) = inserted {
         return Ok(address);
@@ -104,5 +108,5 @@ async fn ensure_address(
         .select(Address::as_select())
         .first(conn)
         .await
-        .map_err(AppError::Db)
+        .map_err(|err| AppError::db(err, "addresses.ensure_address.lookup_existing"))
 }

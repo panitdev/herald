@@ -159,7 +159,8 @@ pub async fn list_conversations(
         .order(conversations::updated_at.desc())
         .select(Conversation::as_select())
         .load(&mut conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.list_conversations.load_conversations"))?;
 
     let summaries = load_conversation_summaries(&mut conn, rows).await?;
     Ok(Json(ConversationsResponse {
@@ -197,7 +198,8 @@ pub async fn list_messages(
         .limit(limit + 1)
         .select(ChatMessage::as_select())
         .load(&mut conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.list_messages.load_messages"))?;
 
     let has_more = messages.len() as i64 > limit;
     if has_more {
@@ -242,7 +244,8 @@ pub async fn send_message(
                         .select(ChatMessage::as_select())
                         .first(conn)
                         .await
-                        .optional()?
+                        .optional()
+                        .map_err(|err| AppError::db(err, "chat.send_message.lookup_idempotent"))?
                 } else {
                     None
                 };
@@ -263,14 +266,16 @@ pub async fn send_message(
                     .values(&new_message)
                     .returning(ChatMessage::as_returning())
                     .get_result(conn)
-                    .await?;
+                    .await
+                    .map_err(|err| AppError::db(err, "chat.send_message.insert_message"))?;
 
                 let updated_conversation =
                     diesel::update(conversations::table.find(conversation_id))
                         .set(conversations::updated_at.eq(Utc::now()))
                         .returning(Conversation::as_returning())
                         .get_result(conn)
-                        .await?;
+                        .await
+                        .map_err(|err| AppError::db(err, "chat.send_message.touch_conversation"))?;
 
                 let participant_ids = active_participant_ids(conn, conversation_id).await?;
                 let notify = insert_sync_events(
@@ -319,7 +324,8 @@ async fn create_or_get_direct_conversation(
         .returning(Conversation::as_returning())
         .get_result(conn)
         .await
-        .optional()?;
+        .optional()
+        .map_err(|err| AppError::db(err, "chat.create_direct_conversation.insert"))?;
 
     let conversation = if let Some(conversation) = inserted {
         let participant_ids = vec![current_user_id, other_user_id];
@@ -337,7 +343,8 @@ async fn create_or_get_direct_conversation(
             .filter(conversations::direct_key.eq(&direct_key))
             .select(Conversation::as_select())
             .first(conn)
-            .await?
+            .await
+            .map_err(|err| AppError::db(err, "chat.create_direct_conversation.load_existing"))?
     };
 
     Ok((conversation.id, HashMap::new()))
@@ -369,7 +376,8 @@ async fn create_group_conversation(
         .values(&new_conversation)
         .returning(Conversation::as_returning())
         .get_result(conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.create_group_conversation.insert"))?;
 
     let participants = insert_participants(conn, conversation.id, participant_ids).await?;
     let notify = insert_sync_events(
@@ -401,14 +409,16 @@ async fn insert_participants(
         .values(&rows)
         .on_conflict_do_nothing()
         .execute(conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.insert_participants.insert"))?;
 
     let participants = conversation_participants::table
         .filter(conversation_participants::conversation_id.eq(conversation_id))
         .filter(conversation_participants::user_id.eq_any(participant_ids))
         .select(ConversationParticipant::as_select())
         .load(conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.insert_participants.load_inserted"))?;
 
     Ok(participants)
 }
@@ -481,7 +491,8 @@ async fn insert_sync_events(
         diesel::insert_into(sync_events::table)
             .values(&rows)
             .execute(conn)
-            .await?;
+            .await
+            .map_err(|err| AppError::db(err, "chat.insert_sync_events.insert"))?;
     }
 
     Ok(notify)
@@ -498,7 +509,8 @@ async fn load_conversation_summary(
         .find(conversation_id)
         .select(Conversation::as_select())
         .first(&mut conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.load_conversation_summary.load_conversation"))?;
     let mut summaries = load_conversation_summaries(&mut conn, vec![conversation]).await?;
     summaries.pop().ok_or(AppError::NotFound)
 }
@@ -522,7 +534,8 @@ async fn load_conversation_summaries(
         .order(conversation_participants::joined_at.asc())
         .select((ConversationParticipant::as_select(), User::as_select()))
         .load::<(ConversationParticipant, User)>(conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.load_conversation_summaries.load_participants"))?;
 
     let mut participants_by_conversation: HashMap<i64, Vec<ParticipantSummary>> = HashMap::new();
     for (participant, user) in participants {
@@ -545,7 +558,8 @@ async fn load_conversation_summaries(
         .order((chat_messages::created_at.desc(), chat_messages::id.desc()))
         .select(ChatMessage::as_select())
         .load(conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.load_conversation_summaries.load_last_messages"))?;
 
     let mut last_messages = HashMap::new();
     for message in messages {
@@ -582,7 +596,8 @@ async fn ensure_active_participant(
         .select(conversation_participants::user_id)
         .first::<i64>(conn)
         .await
-        .optional()?
+        .optional()
+        .map_err(|err| AppError::db(err, "chat.ensure_active_participant.lookup"))?
         .is_some();
 
     if exists {
@@ -601,7 +616,8 @@ async fn active_participant_ids(
         .filter(conversation_participants::left_at.is_null())
         .select(conversation_participants::user_id)
         .load(conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.active_participant_ids.load"))?;
     Ok(ids)
 }
 
@@ -614,7 +630,8 @@ async fn ensure_users_exist(
         .filter(users::id.eq_any(unique_ids.iter().copied().collect::<Vec<_>>()))
         .select(dsl::count_star())
         .first::<i64>(conn)
-        .await?;
+        .await
+        .map_err(|err| AppError::db(err, "chat.ensure_users_exist.count"))?;
 
     if found_count == unique_ids.len() as i64 {
         Ok(())
