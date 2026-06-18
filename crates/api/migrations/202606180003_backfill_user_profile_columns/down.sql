@@ -1,0 +1,6 @@
+-- Intentionally left as a no-op.
+--
+-- This migration repairs databases that applied 202606160001 before
+-- display_name and avatar_url were added there. On fresh databases those
+-- columns already come from the original create-table migration, so dropping
+-- them here would remove schema that this version of the application expects.
