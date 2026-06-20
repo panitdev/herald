@@ -36,11 +36,16 @@ app.get('/internal/unprocessed', async (c) => {
 
 // Axum passes the raw R2 key (e.g. "inbound/ts-<id@domain>.eml") directly in
 // the URL path, which means it contains slashes. Use a wildcard to capture it.
-// reqwest percent-encodes angle brackets; Hono decodes them back on extraction.
+// reqwest percent-encodes angle brackets (via url::Url); we decode them
+// with decodeURIComponent before the R2 lookup.
 
 app.get('/internal/unprocessed/*', async (c) => {
-  const key = c.req.param('*')
-  if (!key || !key.startsWith('inbound/')) return c.notFound()
+  const rawKey = c.req.param('*')
+  if (!rawKey || !rawKey.startsWith('inbound/')) return c.notFound()
+
+  // reqwest percent-encodes characters like < > (via url::Url) that appear
+  // in raw R2 keys derived from message-id headers; decode before lookup.
+  const key = decodeURIComponent(rawKey)
 
   const object = await c.env.R2.get(key)
   if (!object) return c.notFound()
@@ -53,8 +58,10 @@ app.get('/internal/unprocessed/*', async (c) => {
 // Move message from inbound/ to processed/ (mark as processed).
 // R2 has no rename — copy then delete.
 app.delete('/internal/unprocessed/*', async (c) => {
-  const key = c.req.param('*')
-  if (!key || !key.startsWith('inbound/')) return c.notFound()
+  const rawKey = c.req.param('*')
+  if (!rawKey || !rawKey.startsWith('inbound/')) return c.notFound()
+
+  const key = decodeURIComponent(rawKey)
 
   const object = await c.env.R2.get(key)
   if (!object) return c.notFound()
