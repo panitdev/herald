@@ -1,13 +1,17 @@
 import { Hono } from 'hono'
 import { bearerAuth } from 'hono/bearer-auth'
+import type { Context } from 'hono'
 
-type Env = {
+type WorkerBindings = {
   R2: R2Bucket
   HERALD_API_URL: string
   HERALD_INTERNAL_SECRET: string
 }
 
-const app = new Hono<{ Bindings: Env }>()
+type AppEnv = { Bindings: WorkerBindings }
+type AppContext = Context<AppEnv>
+
+const app = new Hono<AppEnv>()
 
 app.get('/health', async (c) => {
   return c.json({
@@ -17,13 +21,16 @@ app.get('/health', async (c) => {
 
 // All /internal/* endpoints require the internal bearer secret
 app.use('/internal/*', async (c, next) => {
-  const middleware = bearerAuth({ token: c.env.HERALD_INTERNAL_SECRET })
+  const middleware = bearerAuth<AppEnv>({ token: c.env.HERALD_INTERNAL_SECRET })
   return middleware(c, next)
 })
 
 // List unprocessed mail (first page, up to 1000 objects).
 // Response shape matches Axum's UnprocessedItem { key: string }.
 app.get('/internal/unprocessed', async (c) => {
+  const key = c.req.query('key')
+  if (key) return getUnprocessedObject(c, key)
+
   const list = await c.env.R2.list({ prefix: 'inbound/' })
   const items = list.objects.map((obj) => ({
     key: obj.key,
@@ -34,18 +41,29 @@ app.get('/internal/unprocessed', async (c) => {
   return c.json(items)
 })
 
-// Axum passes the raw R2 key (e.g. "inbound/ts-<id@domain>.eml") directly in
-// the URL path, which means it contains slashes. Use a wildcard to capture it.
-// reqwest percent-encodes angle brackets (via url::Url); we decode them
-// with decodeURIComponent before the R2 lookup.
+app.delete('/internal/unprocessed', async (c) => {
+  const key = c.req.query('key')
+  if (!key) return c.notFound()
+  return deleteUnprocessedObject(c, key)
+})
 
+// Backward compatibility for older API builds that pass the R2 key in the path.
 app.get('/internal/unprocessed/*', async (c) => {
-  const rawKey = c.req.param('*')
-  if (!rawKey || !rawKey.startsWith('inbound/')) return c.notFound()
+  return getUnprocessedObject(c, keyFromPath(c))
+})
 
-  // reqwest percent-encodes characters like < > (via url::Url) that appear
-  // in raw R2 keys derived from message-id headers; decode before lookup.
-  const key = decodeURIComponent(rawKey)
+// Move message from inbound/ to processed/ (mark as processed).
+// R2 has no rename — copy then delete.
+app.delete('/internal/unprocessed/*', async (c) => {
+  return deleteUnprocessedObject(c, keyFromPath(c))
+})
+
+function keyFromPath(c: AppContext): string {
+  return c.req.path.slice('/internal/unprocessed/'.length)
+}
+
+async function getUnprocessedObject(c: AppContext, key: string): Promise<Response> {
+  if (!key.startsWith('inbound/')) return c.notFound()
 
   const object = await c.env.R2.get(key)
   if (!object) return c.notFound()
@@ -53,15 +71,13 @@ app.get('/internal/unprocessed/*', async (c) => {
   return new Response(object.body, {
     headers: { 'Content-Type': 'message/rfc822' },
   })
-})
+}
 
-// Move message from inbound/ to processed/ (mark as processed).
-// R2 has no rename — copy then delete.
-app.delete('/internal/unprocessed/*', async (c) => {
-  const rawKey = c.req.param('*')
-  if (!rawKey || !rawKey.startsWith('inbound/')) return c.notFound()
-
-  const key = decodeURIComponent(rawKey)
+async function deleteUnprocessedObject(
+  c: AppContext,
+  key: string,
+): Promise<Response> {
+  if (!key.startsWith('inbound/')) return c.notFound()
 
   const object = await c.env.R2.get(key)
   if (!object) return c.notFound()
@@ -74,10 +90,10 @@ app.delete('/internal/unprocessed/*', async (c) => {
   await c.env.R2.delete(key)
 
   return c.json({ ok: true, processedKey })
-})
+}
 
 export default {
-  async email(message: ForwardableEmailMessage, env: Env, _ctx: ExecutionContext) {
+  async email(message: ForwardableEmailMessage, env: WorkerBindings, _ctx: ExecutionContext) {
     // message.raw is a ReadableStream — wrap in Response to get arrayBuffer
     const raw = await new Response(message.raw).arrayBuffer()
     let failure = 'Axum inbound failed'

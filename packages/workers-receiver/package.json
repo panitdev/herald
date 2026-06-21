@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev -c wrangler.jsonc --persist-to=./.persist",
     "deploy": "wrangler deploy -c wrangler.jsonc",
+    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
