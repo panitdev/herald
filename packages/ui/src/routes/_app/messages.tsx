@@ -12,6 +12,7 @@ import {
 import { Menu } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 
 import { EmailSidebar } from "@/components/email/sidebar"
 import { ConversationList } from "@/components/chat/conversation-list"
@@ -38,6 +39,7 @@ function MessagesRoute() {
   const online = useOnlineStatus()
   const { user } = useAuth()
   const myUserId = user?.id ?? ""
+  const { t } = useTranslation()
 
   // selectedId comes from the optional $conversationId child route.
   const childParams = useParams({ strict: false }) as { conversationId?: string }
@@ -107,16 +109,16 @@ function MessagesRoute() {
           <div className="flex items-center gap-1 border-b border-border px-2 py-2 md:hidden">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Open menu">
+                <Button variant="ghost" size="icon" aria-label={t("app.openMenu")}>
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0">
-                <SheetTitle className="sr-only">Folders</SheetTitle>
+                <SheetTitle className="sr-only">{t("app.folders")}</SheetTitle>
                 {sidebarNode}
               </SheetContent>
             </Sheet>
-            <span className="text-sm font-medium">Messages</span>
+            <span className="text-sm font-medium">{t("chat.list.title")}</span>
           </div>
 
           <div className="min-h-0 flex-1">
@@ -127,14 +129,14 @@ function MessagesRoute() {
                 <p className="text-sm text-destructive">
                   {conversationsQ.error instanceof Error
                     ? conversationsQ.error.message
-                    : "Failed to load conversations"}
+                    : t("app.messages.failedToLoad")}
                 </p>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => conversationsQ.refetch()}
                 >
-                  Retry
+                  {t("app.retry")}
                 </Button>
               </div>
             ) : (
@@ -171,10 +173,11 @@ function MessagesRoute() {
 }
 
 function ConversationListFallback() {
+  const { t } = useTranslation()
   return (
     <div className="flex h-full flex-col bg-background">
       <div className="border-b border-border px-4 pt-4 pb-3">
-        <h2 className="text-lg font-semibold tracking-tight">Messages</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{t("chat.list.title")}</h2>
         <div className="mt-3 h-9 rounded-lg bg-muted" />
       </div>
       <div className="flex-1 space-y-3 p-4">
@@ -227,6 +230,7 @@ function ChatPane({
   const queryClient = useQueryClient()
   const messagesQ = useQuery(chatMessagesQuery(conversationId))
   const messages = messagesQ.data ?? []
+  const { t } = useTranslation()
 
   const sendMutation = useMutation({
     mutationFn: (vars: { body: string; clientMutationId: string }) =>
@@ -254,8 +258,8 @@ function ChatPane({
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(ctx.key, ctx.previous)
-      toast.error("Message failed to send", {
-        description: "Check your connection and try again.",
+      toast.error(t("app.messages.failedToSend"), {
+        description: t("app.messages.failedToSendDescription"),
       })
     },
     onSuccess: (res, vars) => {
@@ -274,8 +278,8 @@ function ChatPane({
 
   const handleSend = (body: string) => {
     if (!online) {
-      toast.error("You're offline", {
-        description: "Sending messages requires a connection.",
+      toast.error(t("app.messages.offlineError"), {
+        description: t("app.messages.offlineErrorDescription"),
       })
       return
     }
@@ -292,7 +296,7 @@ function ChatPane({
         messagesQ.error
           ? messagesQ.error instanceof Error
             ? messagesQ.error.message
-            : "Failed to load messages"
+            : t("app.messages.failedToLoadMessages")
           : null
       }
       sending={sendMutation.isPending}

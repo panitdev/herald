@@ -1,5 +1,7 @@
 "use client"
 
+import { useTranslation } from "react-i18next"
+
 type SafeEmailBodyProps = {
   body: string
   format: "html" | "text"
@@ -7,6 +9,7 @@ type SafeEmailBodyProps = {
 }
 
 export function SafeEmailBody({ body, format, messageId }: SafeEmailBodyProps) {
+  const { t } = useTranslation()
   if (format !== "html") {
     return (
       <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/90">
@@ -17,7 +20,7 @@ export function SafeEmailBody({ body, format, messageId }: SafeEmailBodyProps) {
 
   return (
     <iframe
-      title="Email content"
+      title={t("emailDetail.emailContent")}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       referrerPolicy="no-referrer"
       srcDoc={body}

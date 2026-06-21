@@ -12,6 +12,7 @@ import {
   MessagesSquare,
   Plus,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import type { Folder } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -24,17 +25,16 @@ export type SidebarSection = Folder | "messages"
 
 type FolderDef = {
   id: Folder
-  label: string
   icon: React.ComponentType<{ className?: string }>
 }
 
 const FOLDERS: FolderDef[] = [
-  { id: "inbox", label: "Inbox", icon: Inbox },
-  { id: "starred", label: "Starred", icon: Star },
-  { id: "sent", label: "Sent", icon: Send },
-  { id: "drafts", label: "Drafts", icon: FileText },
-  { id: "archive", label: "Archive", icon: Archive },
-  { id: "trash", label: "Trash", icon: Trash2 },
+  { id: "inbox", icon: Inbox },
+  { id: "starred", icon: Star },
+  { id: "sent", icon: Send },
+  { id: "drafts", icon: FileText },
+  { id: "archive", icon: Archive },
+  { id: "trash", icon: Trash2 },
 ]
 
 type Props = {
@@ -54,6 +54,7 @@ export function EmailSidebar({
   onCompose,
   onOpenSettings,
 }: Props) {
+  const { t } = useTranslation()
   return (
     <aside className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex items-center gap-2 px-5 pt-5 pb-4">
@@ -69,7 +70,7 @@ export function EmailSidebar({
             className="gap-2 flex-1 justify-start"
           >
             <PenSquare className="h-4 w-4" />
-            Compose
+            {t("sidebar.compose")}
           </Button>
           <Button size="icon-lg">
             <Plus className="h-4 w-4" />
@@ -77,7 +78,7 @@ export function EmailSidebar({
         </ButtonGroup>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 scrollbar-thin" aria-label="Folders">
+      <nav className="flex-1 overflow-y-auto px-2 scrollbar-thin" aria-label={t("sidebar.navAriaLabel")}>
         <ul className="flex flex-col gap-0.5">
           {FOLDERS.map((folder) => {
             const isActive = active === folder.id
@@ -85,7 +86,7 @@ export function EmailSidebar({
             return (
               <NavItem
                 key={folder.id}
-                label={folder.label}
+                label={t(`sidebar.folders.${folder.id}`)}
                 icon={folder.icon}
                 isActive={isActive}
                 onClick={() => onSelect(folder.id)}
@@ -116,7 +117,7 @@ export function EmailSidebar({
 
         <ul className="flex flex-col gap-0.5">
           <NavItem
-            label="Messages"
+            label={t("sidebar.messages")}
             icon={MessagesSquare}
             isActive={active === "messages"}
             onClick={onOpenMessages}

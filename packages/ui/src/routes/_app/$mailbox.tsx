@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Menu, Loader2 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 
 import { EmailSidebar } from "@/components/email/sidebar"
 import { EmailList } from "@/components/email/email-list"
@@ -42,6 +43,7 @@ export const Route = createFileRoute("/_app/$mailbox")({
 const noop = () => {}
 
 function MailboxRoute() {
+  const { t } = useTranslation()
   const { mailbox: rawMailbox } = Route.useParams()
   const mailbox = (
     VALID_FOLDERS.includes(rawMailbox as Folder) ? rawMailbox : "inbox"
@@ -132,16 +134,16 @@ function MailboxRoute() {
           <div className="flex items-center gap-1 border-b border-border px-2 py-2 md:hidden">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Open menu">
+                <Button variant="ghost" size="icon" aria-label={t("app.openMenu")}>
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0">
-                <SheetTitle className="sr-only">Folders</SheetTitle>
+                <SheetTitle className="sr-only">{t("app.folders")}</SheetTitle>
                 {sidebarNode}
               </SheetContent>
             </Sheet>
-            <span className="text-sm font-medium">Mail</span>
+            <span className="text-sm font-medium">{t("app.mail")}</span>
           </div>
 
           <div className="min-h-0 flex-1">
@@ -152,7 +154,7 @@ function MailboxRoute() {
             ) : error ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
                 <p className="text-sm text-destructive">
-                  {error instanceof Error ? error.message : "Failed to load"}
+                  {error instanceof Error ? error.message : t("app.failedToLoad")}
                 </p>
                 <Button
                   variant="outline"
@@ -162,7 +164,7 @@ function MailboxRoute() {
                     messagesQ.refetch()
                   }}
                 >
-                  Retry
+                  {t("app.retry")}
                 </Button>
               </div>
             ) : (
@@ -229,6 +231,7 @@ function MessageDetailPane({
   email: Email | null
   messageId: string
 }) {
+  const { t } = useTranslation()
   const bodyQ = useQuery(messageBodyQuery(messageId))
   const emailBody = bodyQ.isSuccess
     ? bodyQ.data.body || "(No content available)"
@@ -248,7 +251,7 @@ function MessageDetailPane({
       link.remove()
       window.setTimeout(() => URL.revokeObjectURL(url), 0)
     } catch (error) {
-      toast.error("Download failed", {
+      toast.error(t("app.downloadFailed"), {
         description: error instanceof Error ? error.message : "Could not download source",
       })
     }

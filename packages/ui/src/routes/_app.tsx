@@ -6,6 +6,7 @@ import {
 } from "react"
 import { Outlet, createFileRoute } from "@tanstack/react-router"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 
 import { ComposePanel } from "@/components/email/compose-panel"
 import { SettingsDialog } from "@/components/email/settings-dialog"
@@ -33,6 +34,7 @@ function AppLayout() {
   const { user } = useAuth()
   const { addLocalEmail, initialized: overridesInitialized } = useLocalOverrides()
   const online = useOnlineStatus()
+  const { t } = useTranslation()
 
   const [composeOpen, setComposeOpen] = useState(false)
   const [composePrefill, setComposePrefill] = useState<ComposePrefill>({
@@ -55,8 +57,8 @@ function AppLayout() {
 
   async function handleSend(data: { to: string; subject: string; body: string }) {
     if (!online) {
-      toast.error("You're offline", {
-        description: "Compose is available, but sending requires a network connection.",
+      toast.error(t("app.offlineError"), {
+        description: t("app.offlineErrorDescription"),
       })
       return
     }
@@ -65,7 +67,7 @@ function AppLayout() {
     try {
       result = await sendMail({ ...data, fromName: settings.displayName })
     } catch (err) {
-      toast.error("Message failed to send", {
+      toast.error(t("app.messageFailedToSend"), {
         description:
           err instanceof Error
             ? err.message
@@ -77,7 +79,7 @@ function AppLayout() {
     const newEmail: Email = {
       id: result.message.id,
       from: {
-        name: "You",
+        name: t("app.you"),
         email: user?.address ?? result.message.from_addr,
         initials: settings.initials,
         color: "oklch(0.7 0.16 258)",
@@ -93,7 +95,7 @@ function AppLayout() {
     }
     addLocalEmail(newEmail)
     setComposeOpen(false)
-    toast.success("Message sent", { description: `to ${data.to}` })
+    toast.success(t("app.messageSent"), { description: t("app.messageSentTo", { email: data.to }) })
   }
 
   // Open the realtime socket for the authenticated session. It drives the
@@ -130,15 +132,15 @@ function AppLayout() {
     <AppChromeContext.Provider value={chrome}>
       {!online ? (
         <div className="border-b border-border bg-amber-100/70 px-4 py-2 text-sm text-amber-950">
-          Offline. Cached mail is available, but sending and refresh require a connection.
+          {t("app.offline")}
         </div>
       ) : null}
       {!overridesInitialized ? (
         <div className="flex h-dvh items-center justify-center bg-background px-6 text-center">
           <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">Restoring cached mail</p>
+            <p className="text-sm font-medium text-foreground">{t("app.restoringCachedMail")}</p>
             <p className="text-sm text-muted-foreground">
-              Reloading your local mailbox state before background refresh.
+              {t("app.restoringCachedMailBody")}
             </p>
           </div>
         </div>

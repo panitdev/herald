@@ -24,6 +24,7 @@ export type Settings = {
   theme: ThemeMode
   density: Density
   accent: string
+  language: string
   notifications: {
     desktop: boolean
     sound: boolean
@@ -40,6 +41,7 @@ const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   density: "cozy",
   accent: "indigo",
+  language: "auto",
   notifications: {
     desktop: true,
     sound: false,
@@ -129,6 +131,9 @@ function sanitizeSettings(
     accent: typeof candidate.accent === "string" && candidate.accent.trim()
       ? candidate.accent.trim()
       : defaults.accent,
+    language: typeof candidate.language === "string" && candidate.language.trim()
+      ? candidate.language.trim()
+      : defaults.language,
     notifications:
       notifications &&
       typeof notifications === "object" &&

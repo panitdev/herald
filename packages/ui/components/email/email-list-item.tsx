@@ -13,6 +13,7 @@ import {
   FolderInput,
   Forward,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import type { Email } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatEmailDate } from "@/lib/email-utils"
@@ -49,6 +50,7 @@ export function EmailListItem({
   onDelete,
   onReply,
 }: Props) {
+  const { t } = useTranslation()
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -135,7 +137,7 @@ export function EmailListItem({
                   {email.hasAttachment && (
                     <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                       <Paperclip className="h-3 w-3" aria-hidden />
-                      attachment
+                      {t("emailListItem.attachment")}
                     </span>
                   )}
                   {email.labels?.map((l) => (
@@ -155,7 +157,7 @@ export function EmailListItem({
           <button
             type="button"
             onClick={onToggleStar}
-            aria-label={email.starred ? "Unstar email" : "Star email"}
+            aria-label={email.starred ? t("emailListItem.unstarEmail") : t("emailListItem.starEmail")}
             aria-pressed={email.starred}
             className={cn(
               "absolute right-3 top-3 rounded-md p-1 transition-opacity",
@@ -185,12 +187,12 @@ export function EmailListItem({
       <ContextMenuContent className="w-60">
         <ContextMenuItem onSelect={onSelect}>
           <MailOpen className="h-4 w-4" />
-          Open
+          {t("emailListItem.menu.open")}
           <ContextMenuShortcut>↵</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem onSelect={onReply}>
           <Reply className="h-4 w-4" />
-          Reply
+          {t("emailListItem.menu.reply")}
           <ContextMenuShortcut>R</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem
@@ -199,19 +201,19 @@ export function EmailListItem({
           }
         >
           <Forward className="h-4 w-4" />
-          Copy sender
+          {t("emailListItem.menu.copySender")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={onToggleRead}>
           {email.read ? (
             <>
               <MailIcon className="h-4 w-4" />
-              Mark as unread
+              {t("emailListItem.menu.markAsUnread")}
             </>
           ) : (
             <>
               <CopyCheck className="h-4 w-4" />
-              Mark as read
+              {t("emailListItem.menu.markAsRead")}
             </>
           )}
           <ContextMenuShortcut>U</ContextMenuShortcut>
@@ -223,29 +225,29 @@ export function EmailListItem({
               email.starred && "fill-amber-400 text-amber-400",
             )}
           />
-          {email.starred ? "Remove star" : "Add star"}
+          {email.starred ? t("emailListItem.menu.removeStar") : t("emailListItem.menu.addStar")}
           <ContextMenuShortcut>S</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <FolderInput className="h-4 w-4" />
-            Move to
+            {t("emailListItem.menu.moveTo")}
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-44">
             <ContextMenuItem onSelect={onArchive}>
               <Archive className="h-4 w-4" />
-              Archive
+              {t("emailListItem.menu.archive")}
             </ContextMenuItem>
             <ContextMenuItem onSelect={onDelete}>
               <Trash2 className="h-4 w-4" />
-              Trash
+              {t("emailListItem.menu.trash")}
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onSelect={onDelete}>
           <Trash2 className="h-4 w-4" />
-          Delete
+          {t("emailListItem.menu.delete")}
           <ContextMenuShortcut>⌫</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
