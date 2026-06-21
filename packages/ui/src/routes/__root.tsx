@@ -6,6 +6,7 @@ import {
   createRootRouteWithContext,
 } from "@tanstack/react-router"
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query"
+import { I18nextProvider, useTranslation } from "react-i18next"
 
 import { AuthProvider, useAuth } from "@/lib/auth-store"
 import {
@@ -13,6 +14,7 @@ import {
   SETTINGS_STORAGE_PREFIX,
   SettingsProvider,
   THEME_STORAGE_KEY,
+  useSettings,
 } from "@/lib/settings-store"
 import { LocalOverridesProvider } from "@/lib/local-overrides-store"
 import { AuthScreen } from "@/components/auth/auth-screen"
@@ -20,6 +22,7 @@ import { AuthGuardDialog } from "@/components/auth/auth-guard-dialog"
 import { Toaster } from "@/components/ui/sonner"
 import { ErrorBoundary } from "@/components/error-boundary"
 import type { PublicEnv } from "@/lib/env"
+import i18n from "@/i18n/config"
 import appCss from "../globals.css?url"
 
 export interface RouterContext {
@@ -263,23 +266,40 @@ function RootComponent() {
 
   return (
     <RootDocument>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <SettingsProvider>
-            <LocalOverridesProvider>
-              <ErrorBoundary>
-                <AuthGate>
-                  <Outlet />
-                </AuthGate>
-              </ErrorBoundary>
-              <Toaster position="bottom-right" richColors closeButton />
-              <AuthGuardDialog />
-            </LocalOverridesProvider>
-          </SettingsProvider>
-        </AuthProvider>
-      </QueryClientProvider>
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <SettingsProvider>
+              <LocalOverridesProvider>
+                <LanguageSyncer />
+                <ErrorBoundary>
+                  <AuthGate>
+                    <Outlet />
+                  </AuthGate>
+                </ErrorBoundary>
+                <Toaster position="bottom-right" richColors closeButton />
+                <AuthGuardDialog />
+              </LocalOverridesProvider>
+            </SettingsProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </I18nextProvider>
     </RootDocument>
   )
+}
+
+function LanguageSyncer() {
+  const { settings } = useSettings()
+  const { i18n: i18nInstance } = useTranslation()
+
+  useEffect(() => {
+    const lang = settings.language
+    if (lang && lang !== "auto") {
+      void i18nInstance.changeLanguage(lang)
+    }
+  }, [settings.language, i18nInstance])
+
+  return null
 }
 
 /**
@@ -288,6 +308,7 @@ function RootComponent() {
  */
 function AuthGate({ children }: { children: ReactNode }) {
   const { user, initialized, restoringCachedMail } = useAuth()
+  const { t } = useTranslation()
   if (!initialized) {
     return (
       <div
@@ -296,12 +317,12 @@ function AuthGate({ children }: { children: ReactNode }) {
       >
         <div data-auth-splash-copy className="space-y-2">
           <p data-auth-splash-title className="text-sm font-medium text-foreground">
-            {restoringCachedMail ? "Restoring cached mail" : "Loading Herald"}
+            {restoringCachedMail ? t("auth.restoringCachedMail") : t("auth.loadingHerald")}
           </p>
           <p data-auth-splash-body className="text-sm text-muted-foreground">
             {restoringCachedMail
-              ? "Reopening your last synced mailbox snapshot."
-              : "Checking your session."}
+              ? t("auth.restoringCachedMailBody")
+              : t("auth.checkingSession")}
           </p>
         </div>
       </div>

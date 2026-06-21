@@ -13,6 +13,7 @@ import {
   Moon,
   Monitor,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import {
   Dialog,
@@ -42,11 +43,11 @@ import { toast } from "sonner"
 
 type TabId = "account" | "appearance" | "notifications" | "signature"
 
-const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }>; description: string }[] = [
-  { id: "account", label: "Account", icon: User, description: "Your profile and identity." },
-  { id: "appearance", label: "Appearance", icon: Palette, description: "Theme, density, and accent." },
-  { id: "notifications", label: "Notifications", icon: Bell, description: "Sounds and alerts." },
-  { id: "signature", label: "Signature", icon: PenLine, description: "Appended to outgoing mail." },
+const TAB_DEFS: { id: TabId; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "account", icon: User },
+  { id: "appearance", icon: Palette },
+  { id: "notifications", icon: Bell },
+  { id: "signature", icon: PenLine },
 ]
 
 type Props = {
@@ -57,14 +58,28 @@ type Props = {
 export function SettingsDialog({ open, onOpenChange }: Props) {
   const [active, setActive] = useState<TabId>("account")
   const [transitionCount, setTransitionCount] = useState(0)
-  const activeTab = TABS.find((t) => t.id === active)!
+  const { t } = useTranslation()
 
   function handleTabChange(tabId: TabId) {
     if (tabId === active) return
-
     setTransitionCount((count) => count + 1)
     setActive(tabId)
   }
+
+  const tabLabels: Record<TabId, string> = {
+    account: t("settings.tabs.account"),
+    appearance: t("settings.tabs.appearance"),
+    notifications: t("settings.tabs.notifications"),
+    signature: t("settings.tabs.signature"),
+  }
+  const tabDescriptions: Record<TabId, string> = {
+    account: t("settings.tabs.accountDescription"),
+    appearance: t("settings.tabs.appearanceDescription"),
+    notifications: t("settings.tabs.notificationsDescription"),
+    signature: t("settings.tabs.signatureDescription"),
+  }
+  const activeLabel = tabLabels[active]
+  const activeDescription = tabDescriptions[active]
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -77,17 +92,17 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
           <aside className="flex shrink-0 flex-col border-b border-border bg-sidebar px-3 py-4 md:w-56 md:border-b-0 md:border-r md:py-5">
             <div className="px-2 pb-3">
               <DialogTitle className="text-base font-semibold tracking-tight">
-                Settings
+                {t("settings.title")}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Tune your inbox
+                {t("settings.subtitle")}
               </DialogDescription>
             </div>
             <nav
               className="flex gap-1 overflow-x-auto scrollbar-thin md:flex-col md:gap-0.5 md:overflow-visible"
-              aria-label="Settings sections"
+              aria-label={t("settings.navAriaLabel")}
             >
-              {TABS.map((tab) => {
+              {TAB_DEFS.map((tab) => {
                 const Icon = tab.icon
                 const isActive = active === tab.id
                 return (
@@ -118,7 +133,7 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
                       )}
                       aria-hidden
                     />
-                    <span className="relative z-10">{tab.label}</span>
+                    <span className="relative z-10">{tabLabels[tab.id]}</span>
                   </button>
                 )
               })}
@@ -131,28 +146,28 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
               <div className="relative h-5 overflow-hidden">
                 <AnimatePresence initial={false}>
                   <motion.h3
-                    key={`${activeTab.id}-${transitionCount}`}
+                    key={`${active}-${transitionCount}`}
                     initial={{ y: "100%" }}
                     animate={{ y: 0 }}
                     exit={{ y: "-100%" }}
                     transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                     className="absolute inset-x-0 top-0 text-base font-semibold tracking-tight"
                   >
-                    {activeTab.label}
+                    {activeLabel}
                   </motion.h3>
                 </AnimatePresence>
               </div>
               <div className="relative h-4">
                 <AnimatePresence initial={false}>
                   <motion.p
-                    key={`${activeTab.description}-${transitionCount}`}
+                    key={`${active}-desc-${transitionCount}`}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.5, ease: "easeOut" }}
                     className="absolute inset-x-0 top-0 text-xs text-muted-foreground"
                   >
-                    {activeTab.description}
+                    {activeDescription}
                   </motion.p>
                 </AnimatePresence>
               </div>
@@ -178,14 +193,14 @@ export function SettingsDialog({ open, onOpenChange }: Props) {
 
             <footer className="flex items-center justify-between border-t border-border bg-muted/30 px-6 py-3">
               <p className="text-[11px] text-muted-foreground">
-                Changes save automatically
+                {t("settings.changesSaveAutomatically")}
               </p>
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={() => onOpenChange(false)}
               >
-                Done
+                {t("settings.done")}
               </Button>
             </footer>
           </section>
@@ -227,6 +242,7 @@ function AccountPanel() {
   const [addressInput, setAddressInput] = useState("")
   const [addingAddress, setAddingAddress] = useState(false)
   const addresses = user?.addresses?.length ? user.addresses : user?.address ? [user.address] : []
+  const { t } = useTranslation()
 
   async function fileToDataUrl(file: File): Promise<string> {
     const source = await new Promise<string>((resolve, reject) => {
@@ -268,7 +284,7 @@ function AccountPanel() {
     if (!file) return
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Unsupported file", { description: "Choose an image file." })
+      toast.error(t("settings.account.unsupportedFile"), { description: t("settings.account.chooseImageFile") })
       event.target.value = ""
       return
     }
@@ -276,9 +292,9 @@ function AccountPanel() {
     try {
       const avatarUrl = await fileToDataUrl(file)
       updateSettings({ avatarUrl })
-      toast.success("Profile photo updated")
+      toast.success(t("settings.account.profilePhotoUpdated"))
     } catch (error) {
-      toast.error("Could not update photo", {
+      toast.error(t("settings.account.couldNotUpdatePhoto"), {
         description:
           error instanceof Error ? error.message : "Try a different image file.",
       })
@@ -300,9 +316,9 @@ function AccountPanel() {
       await refreshSyncStateNow()
       void queryClient.invalidateQueries({ queryKey: ["mailboxes"] })
       void queryClient.invalidateQueries({ queryKey: ["messages"] })
-      toast.success("Address added")
+      toast.success(t("settings.account.addressAdded"))
     } catch (error) {
-      toast.error("Could not add address", {
+      toast.error(t("settings.account.couldNotAddAddress"), {
         description: error instanceof Error ? error.message : "Try a different address.",
       })
     } finally {
@@ -344,7 +360,7 @@ function AccountPanel() {
           size="sm"
           onClick={() => fileInputRef.current?.click()}
         >
-          Upload photo
+          {t("settings.account.uploadPhoto")}
         </Button>
         <Button
           type="button"
@@ -353,7 +369,7 @@ function AccountPanel() {
           disabled={!settings.avatarUrl}
           onClick={() => updateSettings({ avatarUrl: null })}
         >
-          Remove
+          {t("settings.account.remove")}
         </Button>
       </div>
 
@@ -362,21 +378,21 @@ function AccountPanel() {
       <div className="grid gap-4">
         <AnimatedField
           id="display-name"
-          label="Display name"
+          label={t("settings.account.displayName")}
           value={settings.displayName}
           onChange={(v) => {
             updateSettings({ displayName: v, initials: deriveInitials(v) })
           }}
-          placeholder="Display name"
+          placeholder={t("settings.account.displayNamePlaceholder")}
           autoComplete="name"
         />
         <AnimatedField
           id="email"
-          label="Email address"
+          label={t("settings.account.emailAddress")}
           type="email"
           value={user?.address ?? ""}
           onChange={() => {}}
-          placeholder="name@domain.com"
+          placeholder={t("settings.account.emailPlaceholder")}
           autoComplete="email"
           disabled
         />
@@ -386,9 +402,9 @@ function AccountPanel() {
 
       <div className="grid gap-3">
         <div>
-          <Label className="text-sm font-medium">Available addresses</Label>
+          <Label className="text-sm font-medium">{t("settings.account.availableAddresses")}</Label>
           <p className="text-xs text-muted-foreground">
-            Inbox shows mail from all listed addresses.
+            {t("settings.account.availableAddressesHint")}
           </p>
         </div>
         <div className="grid gap-2">
@@ -400,7 +416,7 @@ function AccountPanel() {
               <span className="truncate">{address}</span>
               {address === user?.address && (
                 <span className="ml-3 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                  default
+                  {t("settings.account.default")}
                 </span>
               )}
             </div>
@@ -410,12 +426,12 @@ function AccountPanel() {
           <Input
             value={addressInput}
             onChange={(event) => setAddressInput(event.target.value)}
-            placeholder="alias or alias@domain.com"
+            placeholder={t("settings.account.addressPlaceholder")}
             autoComplete="off"
             disabled={addingAddress}
           />
           <Button type="submit" disabled={!addressInput.trim() || addingAddress}>
-            Add
+            {t("settings.account.add")}
           </Button>
         </form>
       </div>
@@ -423,36 +439,54 @@ function AccountPanel() {
   )
 }
 
+const SUPPORTED_LANGUAGES = [
+  { code: "auto", nameKey: "settings.appearance.languageAuto" },
+  { code: "en", name: "English" },
+] as const
+
 function AppearancePanel() {
   const { settings, updateSettings } = useSettings()
+  const { t } = useTranslation()
 
-  const themes: { id: ThemeMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: "light", label: "Light", icon: Sun },
-    { id: "dark", label: "Dark", icon: Moon },
-    { id: "system", label: "System", icon: Monitor },
+  const themes: { id: ThemeMode; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: "light", icon: Sun },
+    { id: "dark", icon: Moon },
+    { id: "system", icon: Monitor },
   ]
 
-  const densities: { id: Density; label: string }[] = [
-    { id: "comfortable", label: "Comfortable" },
-    { id: "cozy", label: "Cozy" },
-    { id: "compact", label: "Compact" },
+  const themeLabels: Record<ThemeMode, string> = {
+    light: t("settings.appearance.themeLight"),
+    dark: t("settings.appearance.themeDark"),
+    system: t("settings.appearance.themeSystem"),
+  }
+
+  const densities: { id: Density }[] = [
+    { id: "comfortable" },
+    { id: "cozy" },
+    { id: "compact" },
   ]
+
+  const densityLabels: Record<Density, string> = {
+    comfortable: t("settings.appearance.densityComfortable"),
+    cozy: t("settings.appearance.densityCozy"),
+    compact: t("settings.appearance.densityCompact"),
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
-          Theme
+          {t("settings.appearance.theme")}
         </Label>
         <div className="grid grid-cols-3 gap-2">
-          {themes.map((t) => {
-            const Icon = t.icon
-            const isActive = settings.theme === t.id
+          {themes.map((theme) => {
+            const Icon = theme.icon
+            const isActive = settings.theme === theme.id
             return (
               <button
-                key={t.id}
+                key={theme.id}
                 type="button"
-                onClick={() => updateSettings({ theme: t.id })}
+                onClick={() => updateSettings({ theme: theme.id })}
                 className={cn(
                   "group relative flex flex-col items-center gap-2 rounded-xl border p-4 text-sm font-medium transition-colors",
                   isActive
@@ -472,7 +506,7 @@ function AppearancePanel() {
                 >
                   <Icon className="h-4 w-4" aria-hidden />
                 </motion.span>
-                {t.label}
+                {themeLabels[theme.id]}
                 {isActive && (
                   <motion.span
                     layoutId="theme-check"
@@ -490,7 +524,7 @@ function AppearancePanel() {
 
       <div>
         <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
-          Accent
+          {t("settings.appearance.accent")}
         </Label>
         <div className="flex flex-wrap gap-2">
           {ACCENTS.map((a) => {
@@ -528,13 +562,13 @@ function AppearancePanel() {
           })}
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Preview color — applied to highlights and the brand mark.
+          {t("settings.appearance.accentHint")}
         </p>
       </div>
 
       <div>
         <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
-          Density
+          {t("settings.appearance.density")}
         </Label>
         <div className="flex rounded-lg bg-muted p-1">
           {densities.map((d) => {
@@ -559,11 +593,49 @@ function AppearancePanel() {
                     transition={{ type: "spring", stiffness: 500, damping: 40 }}
                   />
                 )}
-                <span className="relative z-10">{d.label}</span>
+                <span className="relative z-10">{densityLabels[d.id]}</span>
               </button>
             )
           })}
         </div>
+      </div>
+
+      <div>
+        <Label className="mb-2 block text-xs uppercase tracking-wide text-muted-foreground">
+          {t("settings.appearance.language")}
+        </Label>
+        <div className="flex rounded-lg bg-muted p-1">
+          {SUPPORTED_LANGUAGES.map((lang) => {
+            const isActive = settings.language === lang.code
+            const label = "nameKey" in lang ? t(lang.nameKey) : lang.name
+            return (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => updateSettings({ language: lang.code })}
+                className={cn(
+                  "relative flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  isActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                aria-pressed={isActive}
+              >
+                {isActive && (
+                  <motion.span
+                    layoutId="language-active"
+                    className="absolute inset-0 rounded-md bg-background shadow-sm ring-1 ring-border"
+                    transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                  />
+                )}
+                <span className="relative z-10">{label}</span>
+              </button>
+            )
+          })}
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {t("settings.appearance.languageHint")}
+        </p>
       </div>
     </div>
   )
@@ -572,6 +644,7 @@ function AppearancePanel() {
 function NotificationsPanel() {
   const { settings, setSettings } = useSettings()
   const n = settings.notifications
+  const { t } = useTranslation()
 
   function set<K extends keyof typeof n>(key: K, v: boolean) {
     setSettings((prev) => ({
@@ -583,49 +656,49 @@ function NotificationsPanel() {
   return (
     <div className="flex flex-col">
       <Row
-        label="Desktop notifications"
-        description="Show a system banner for new messages."
+        label={t("settings.notifications.desktop")}
+        description={t("settings.notifications.desktopDescription")}
         control={
           <Switch
             checked={n.desktop}
             onCheckedChange={(v) => set("desktop", v)}
-            aria-label="Desktop notifications"
+            aria-label={t("settings.notifications.desktop")}
           />
         }
       />
       <Separator />
       <Row
-        label="Notification sound"
-        description="Play a soft chime when mail arrives."
+        label={t("settings.notifications.sound")}
+        description={t("settings.notifications.soundDescription")}
         control={
           <Switch
             checked={n.sound}
             onCheckedChange={(v) => set("sound", v)}
-            aria-label="Notification sound"
+            aria-label={t("settings.notifications.sound")}
           />
         }
       />
       <Separator />
       <Row
-        label="Mentions only"
-        description="Only notify when you're directly addressed."
+        label={t("settings.notifications.mentionsOnly")}
+        description={t("settings.notifications.mentionsOnlyDescription")}
         control={
           <Switch
             checked={n.mentionsOnly}
             onCheckedChange={(v) => set("mentionsOnly", v)}
-            aria-label="Mentions only"
+            aria-label={t("settings.notifications.mentionsOnly")}
           />
         }
       />
       <Separator />
       <Row
-        label="Daily digest"
-        description="A summary of your inbox every morning."
+        label={t("settings.notifications.digest")}
+        description={t("settings.notifications.digestDescription")}
         control={
           <Switch
             checked={n.digest}
             onCheckedChange={(v) => set("digest", v)}
-            aria-label="Daily digest"
+            aria-label={t("settings.notifications.digest")}
           />
         }
       />
@@ -635,10 +708,11 @@ function NotificationsPanel() {
 
 function SignaturePanel() {
   const { settings, updateSettings } = useSettings()
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-2">
-        <Label htmlFor="signature">Signature</Label>
+        <Label htmlFor="signature">{t("settings.signature.label")}</Label>
         <Textarea
           id="signature"
           rows={5}
@@ -648,13 +722,13 @@ function SignaturePanel() {
           className="resize-none"
         />
         <p className="text-[11px] text-muted-foreground">
-          Appears at the end of every new message you send.
+          {t("settings.signature.hint")}
         </p>
       </div>
 
       <div className="rounded-xl border border-border bg-muted/40 p-4">
         <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Preview
+          {t("settings.signature.preview")}
         </div>
         <AnimatePresence mode="wait">
           <motion.pre
@@ -665,7 +739,7 @@ function SignaturePanel() {
             transition={{ duration: 0.15 }}
             className="whitespace-pre-wrap font-sans text-sm text-foreground/80"
           >
-            {settings.signature || <span className="text-muted-foreground">No signature set.</span>}
+            {settings.signature || <span className="text-muted-foreground">{t("settings.signature.noSignatureSet")}</span>}
           </motion.pre>
         </AnimatePresence>
       </div>
@@ -678,10 +752,10 @@ function SignaturePanel() {
             updateSettings({
               signature: "Sent from Inbox — a calmer email client.",
             })
-            toast.success("Signature reset to default")
+            toast.success(t("settings.signature.resetSuccess"))
           }}
         >
-          Reset to default
+          {t("settings.signature.resetToDefault")}
         </Button>
       </div>
     </div>

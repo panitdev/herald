@@ -16,6 +16,7 @@ import {
   Mail as MailIcon,
   Paperclip,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import type { Email } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatEmailDateLong } from "@/lib/email-utils"
@@ -62,6 +63,7 @@ export function EmailDetail({
   onDownloadSource,
 }: Props) {
   const [isDownloadingSource, setIsDownloadingSource] = useState(false)
+  const { t } = useTranslation()
 
   async function handleDownloadSource(id: string) {
     try {
@@ -92,23 +94,23 @@ export function EmailDetail({
                   size="icon"
                   onClick={onBack}
                   className="md:hidden"
-                  aria-label="Back to list"
+                  aria-label={t("emailDetail.backToList")}
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <TooltipProvider delayDuration={300}>
                   <ToolbarButton
-                    label="Archive"
+                    label={t("emailDetail.archive")}
                     onClick={() => onArchive(email.id)}
                     icon={<Archive className="h-4 w-4" />}
                   />
                   <ToolbarButton
-                    label="Delete"
+                    label={t("emailDetail.delete")}
                     onClick={() => onDelete(email.id)}
                     icon={<Trash2 className="h-4 w-4" />}
                   />
                   <ToolbarButton
-                    label={email.read ? "Mark as unread" : "Mark as read"}
+                    label={email.read ? t("emailDetail.markAsUnread") : t("emailDetail.markAsRead")}
                     onClick={() => onToggleRead(email.id)}
                     icon={
                       email.read ? (
@@ -119,7 +121,7 @@ export function EmailDetail({
                     }
                   />
                   <ToolbarButton
-                    label={email.starred ? "Unstar" : "Star"}
+                    label={email.starred ? t("emailDetail.unstar") : t("emailDetail.star")}
                     onClick={() => onToggleStar(email.id)}
                     icon={
                       <motion.span
@@ -140,7 +142,7 @@ export function EmailDetail({
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="More actions">
+                  <Button variant="ghost" size="icon" aria-label={t("emailDetail.moreActions")}>
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -150,7 +152,7 @@ export function EmailDetail({
                     onSelect={() => void handleDownloadSource(email.id)}
                   >
                     <Download className="h-4 w-4" />
-                    Download source
+                    {t("emailDetail.downloadSource")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -207,7 +209,7 @@ export function EmailDetail({
                       </span>
                     </div>
                     <span className="mt-0.5 text-xs text-muted-foreground">
-                      to {email.to}
+                      {t("emailDetail.toPrefix")}{email.to}
                     </span>
                   </div>
                 </motion.div>
@@ -241,7 +243,7 @@ export function EmailDetail({
                         <div className="text-xs text-muted-foreground">142 KB · PDF</div>
                       </div>
                       <Button size="sm" variant="outline">
-                        Download
+                        {t("emailDetail.download")}
                       </Button>
                     </div>
                   </motion.div>
@@ -255,13 +257,13 @@ export function EmailDetail({
                   className="mt-8 flex flex-wrap gap-2"
                 >
                   <Button variant="outline" size="sm" className="gap-2" onClick={onReply}>
-                    <Reply className="h-4 w-4" /> Reply
+                    <Reply className="h-4 w-4" /> {t("emailDetail.reply")}
                   </Button>
                   <Button variant="outline" size="sm" className="gap-2">
-                    <ReplyAll className="h-4 w-4" /> Reply all
+                    <ReplyAll className="h-4 w-4" /> {t("emailDetail.replyAll")}
                   </Button>
                   <Button variant="outline" size="sm" className="gap-2">
-                    <Forward className="h-4 w-4" /> Forward
+                    <Forward className="h-4 w-4" /> {t("emailDetail.forward")}
                   </Button>
                 </motion.div>
               </div>
@@ -279,9 +281,9 @@ export function EmailDetail({
               <MailIcon className="h-6 w-6 text-muted-foreground" aria-hidden />
             </div>
             <div className="max-w-xs">
-              <p className="text-sm font-medium">No message selected</p>
+              <p className="text-sm font-medium">{t("emailDetail.noMessageSelected")}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Select a message from the list to read it here.
+                {t("emailDetail.noMessageSelectedHint")}
               </p>
             </div>
           </motion.div>

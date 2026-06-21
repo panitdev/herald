@@ -12,6 +12,7 @@ import {
   HelpCircle,
   Check,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import {
   DropdownMenu,
@@ -39,6 +40,7 @@ type Props = {
 export function ProfileMenu({ onOpenSettings }: Props) {
   const { settings, updateSettings, resolvedTheme } = useSettings()
   const { logout, user } = useAuth()
+  const { t } = useTranslation()
 
   const ThemeIcon =
     settings.theme === "system" ? Monitor : resolvedTheme === "dark" ? Moon : Sun
@@ -50,7 +52,7 @@ export function ProfileMenu({ onOpenSettings }: Props) {
           type="button"
           whileTap={{ scale: 0.985 }}
           className="group flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-sidebar-foreground/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="Open profile menu"
+          aria-label={t("profileMenu.openProfileMenu")}
         >
           <Avatar className="h-9 w-9 shrink-0">
             <AvatarImage src={settings.avatarUrl ?? undefined} alt={settings.displayName} />
@@ -105,19 +107,19 @@ export function ProfileMenu({ onOpenSettings }: Props) {
           }}
         >
           <UserCircle2 className="h-4 w-4" />
-          Account
+          {t("profileMenu.account")}
         </DropdownMenuItem>
 
         <DropdownMenuItem onSelect={onOpenSettings}>
           <Settings className="h-4 w-4" />
-          Settings
+          {t("profileMenu.settings")}
           <span className="ml-auto text-[10px] text-muted-foreground">⌘,</span>
         </DropdownMenuItem>
 
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <ThemeIcon className="h-4 w-4" />
-            Theme
+            {t("profileMenu.theme")}
             <span className="ml-auto text-xs capitalize text-muted-foreground">
               {settings.theme}
             </span>
@@ -130,17 +132,17 @@ export function ProfileMenu({ onOpenSettings }: Props) {
               >
                 <DropdownMenuRadioItem value="light">
                   <Sun className="h-4 w-4" />
-                  Light
+                  {t("profileMenu.themeLight")}
                   {settings.theme === "light" && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="dark">
                   <Moon className="h-4 w-4" />
-                  Dark
+                  {t("profileMenu.themeDark")}
                   {settings.theme === "dark" && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="system">
                   <Monitor className="h-4 w-4" />
-                  System
+                  {t("profileMenu.themeSystem")}
                   {settings.theme === "system" && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
@@ -150,9 +152,9 @@ export function ProfileMenu({ onOpenSettings }: Props) {
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem onSelect={() => toast.info("Keyboard shortcuts", { description: "Press ? anywhere to view." })}>
+        <DropdownMenuItem onSelect={() => toast.info(t("profileMenu.keyboardShortcutsTitle"), { description: t("profileMenu.keyboardShortcutsDescription") })}>
           <HelpCircle className="h-4 w-4" />
-          Help & shortcuts
+          {t("profileMenu.helpAndShortcuts")}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
@@ -167,7 +169,7 @@ export function ProfileMenu({ onOpenSettings }: Props) {
           onSelect={() => logout()}
         >
           <LogOut className="h-4 w-4" />
-          Sign out
+          {t("profileMenu.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

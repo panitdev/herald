@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion"
 import { Users } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { formatEmailDate } from "@/lib/email-utils"
 import type { ConversationView } from "@/lib/chat"
@@ -13,6 +14,7 @@ type Props = {
 }
 
 export function ConversationListItem({ conversation, selected, onSelect }: Props) {
+  const { t } = useTranslation()
   return (
     <motion.li
       layout
@@ -64,7 +66,7 @@ export function ConversationListItem({ conversation, selected, onSelect }: Props
             )}
           </div>
           <p className="truncate text-[13px] text-muted-foreground">
-            {conversation.lastMessageBody || "No messages yet"}
+            {conversation.lastMessageBody || t("chat.list.noMessagesYet")}
           </p>
         </div>
       </div>

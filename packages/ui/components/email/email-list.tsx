@@ -2,18 +2,10 @@
 
 import { AnimatePresence, motion } from "framer-motion"
 import { Inbox as InboxIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import type { Email, Folder } from "@/lib/types"
 import { ListSearchHeader } from "@/components/list-search-header"
 import { EmailListItem } from "./email-list-item"
-
-const FOLDER_LABEL: Record<Folder, string> = {
-  inbox: "Inbox",
-  starred: "Starred",
-  sent: "Sent",
-  drafts: "Drafts",
-  archive: "Archive",
-  trash: "Trash",
-}
 
 type Props = {
   folder: Folder
@@ -44,21 +36,22 @@ export function EmailList({
   onSearchChange,
   unreadCount,
 }: Props) {
+  const { t } = useTranslation()
   return (
     <div className="flex h-full flex-col bg-background">
       <ListSearchHeader
-        title={FOLDER_LABEL[folder]}
+        title={t(`sidebar.folders.${folder}`)}
         annotation={
           folder === "inbox" && unreadCount > 0 ? (
             <span className="text-xs text-muted-foreground tabular-nums">
-              {unreadCount} unread
+              {t("emailList.unread", { count: unreadCount })}
             </span>
           ) : null
         }
         search={search}
         onSearchChange={onSearchChange}
-        searchPlaceholder="Search mail"
-        searchAriaLabel="Search mail"
+        searchPlaceholder={t("emailList.searchPlaceholder")}
+        searchAriaLabel={t("emailList.searchAriaLabel")}
       />
 
       <div className="relative flex-1 overflow-y-auto scrollbar-thin">
@@ -89,6 +82,7 @@ export function EmailList({
 }
 
 function EmptyState({ folder, hasSearch }: { folder: Folder; hasSearch: boolean }) {
+  const { t } = useTranslation()
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -101,17 +95,17 @@ function EmptyState({ folder, hasSearch }: { folder: Folder; hasSearch: boolean 
       <div>
         <p className="text-sm font-medium">
           {hasSearch
-            ? "No results"
+            ? t("emailList.empty.noResults")
             : folder === "trash"
-              ? "Trash is empty"
+              ? t("emailList.empty.trashEmpty")
               : folder === "drafts"
-                ? "No drafts"
-                : "You're all caught up"}
+                ? t("emailList.empty.noDrafts")
+                : t("emailList.empty.allCaughtUp")}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {hasSearch
-            ? "Try a different search term."
-            : "New messages will appear here."}
+            ? t("emailList.empty.tryDifferentSearch")
+            : t("emailList.empty.newMessagesHere")}
         </p>
       </div>
     </motion.div>

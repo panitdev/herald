@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion"
 import { useEffect, useRef, useState } from "react"
 import { Minus, X, Send, Paperclip, Trash2 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
@@ -30,6 +31,7 @@ export function ComposePanel({
   const [body, setBody] = useState("")
   const [sending, setSending] = useState(false)
   const toRef = useRef<HTMLInputElement>(null)
+  const { t } = useTranslation()
 
   useEffect(() => {
     if (open) {
@@ -76,7 +78,7 @@ export function ComposePanel({
       {open && (
         <motion.div
           role="dialog"
-          aria-label="Compose new message"
+          aria-label={t("compose.ariaLabel")}
           aria-modal="false"
           initial={{ y: 32, opacity: 0, scale: 0.98 }}
           animate={{
@@ -96,20 +98,20 @@ export function ComposePanel({
           {/* Header */}
           <div className="flex items-center justify-between gap-2 bg-foreground px-4 py-2 text-background">
             <span className="truncate text-sm font-medium">
-              {subject.trim() || "New message"}
+              {subject.trim() || t("compose.newMessage")}
             </span>
             <div className="flex items-center gap-0.5">
               <button
                 onClick={() => setMinimized((m) => !m)}
                 className="rounded-md p-1.5 text-background/80 transition-colors hover:bg-background/10 hover:text-background"
-                aria-label={minimized ? "Expand" : "Minimize"}
+                aria-label={minimized ? t("compose.expand") : t("compose.minimize")}
               >
                 <Minus className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={onClose}
                 className="rounded-md p-1.5 text-background/80 transition-colors hover:bg-background/10 hover:text-background"
-                aria-label="Close compose"
+                aria-label={t("compose.close")}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -128,40 +130,40 @@ export function ComposePanel({
               >
                 <div className="flex items-center gap-3 border-b border-border px-4 py-2 transition-colors focus-within:border-primary/40">
                   <label htmlFor="compose-to" className="shrink-0 text-xs text-muted-foreground">
-                    To
+                    {t("compose.to")}
                   </label>
                   <input
                     id="compose-to"
                     ref={toRef}
                     value={to}
                     onChange={(e) => setTo(e.target.value)}
-                    placeholder="recipient@example.com"
+                    placeholder={t("compose.toPlaceholder")}
                     autoComplete="email"
                     className="h-7 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
                   />
                 </div>
                 <div className="flex items-center gap-3 border-b border-border px-4 py-2 transition-colors focus-within:border-primary/40">
                   <label htmlFor="compose-subject" className="shrink-0 text-xs text-muted-foreground">
-                    Subject
+                    {t("compose.subject")}
                   </label>
                   <input
                     id="compose-subject"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    placeholder="What's this about?"
+                    placeholder={t("compose.subjectPlaceholder")}
                     className="h-7 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
                   />
                 </div>
                 <textarea
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
-                  placeholder="Write your message…"
+                  placeholder={t("compose.bodyPlaceholder")}
                   rows={8}
                   className="min-h-[180px] w-full resize-none bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none placeholder:text-muted-foreground/60"
                 />
                 {offline ? (
                   <div className="border-t border-border bg-amber-100/60 px-4 py-2 text-sm text-amber-950">
-                    You're offline. Sending is disabled until the connection returns.
+                    {t("compose.offline")}
                   </div>
                 ) : null}
                 <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
@@ -170,7 +172,7 @@ export function ComposePanel({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      aria-label="Attach file"
+                      aria-label={t("compose.attachFile")}
                     >
                       <Paperclip className="h-4 w-4" />
                     </Button>
@@ -178,7 +180,7 @@ export function ComposePanel({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      aria-label="Discard"
+                      aria-label={t("compose.discard")}
                       onClick={onClose}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -190,11 +192,11 @@ export function ComposePanel({
                     className="gap-2"
                     size="sm"
                     loading={sending}
-                    loadingText="Sending"
+                    loadingText={t("compose.sending")}
                     animateWidth
                   >
                     <Send className="h-3.5 w-3.5" />
-                    Send
+                    {t("compose.send")}
                   </Button>
                 </div>
               </motion.div>

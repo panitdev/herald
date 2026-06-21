@@ -1,0 +1,221 @@
+{
+  "sidebar": {
+    "folders": {
+      "inbox": "Inbox",
+      "starred": "Starred",
+      "sent": "Sent",
+      "drafts": "Drafts",
+      "archive": "Archive",
+      "trash": "Trash"
+    },
+    "compose": "Compose",
+    "messages": "Messages",
+    "navAriaLabel": "Folders"
+  },
+  "emailList": {
+    "searchPlaceholder": "Search mail",
+    "searchAriaLabel": "Search mail",
+    "unread_one": "{{count}} unread",
+    "unread_other": "{{count}} unread",
+    "empty": {
+      "noResults": "No results",
+      "trashEmpty": "Trash is empty",
+      "noDrafts": "No drafts",
+      "allCaughtUp": "You're all caught up",
+      "tryDifferentSearch": "Try a different search term.",
+      "newMessagesHere": "New messages will appear here."
+    }
+  },
+  "emailListItem": {
+    "starEmail": "Star email",
+    "unstarEmail": "Unstar email",
+    "attachment": "attachment",
+    "menu": {
+      "open": "Open",
+      "reply": "Reply",
+      "copySender": "Copy sender",
+      "markAsUnread": "Mark as unread",
+      "markAsRead": "Mark as read",
+      "removeStar": "Remove star",
+      "addStar": "Add star",
+      "moveTo": "Move to",
+      "archive": "Archive",
+      "trash": "Trash",
+      "delete": "Delete"
+    }
+  },
+  "emailDetail": {
+    "backToList": "Back to list",
+    "archive": "Archive",
+    "delete": "Delete",
+    "markAsUnread": "Mark as unread",
+    "markAsRead": "Mark as read",
+    "unstar": "Unstar",
+    "star": "Star",
+    "moreActions": "More actions",
+    "downloadSource": "Download source",
+    "noMessageSelected": "No message selected",
+    "noMessageSelectedHint": "Select a message from the list to read it here.",
+    "reply": "Reply",
+    "replyAll": "Reply all",
+    "forward": "Forward",
+    "download": "Download",
+    "emailContent": "Email content",
+    "toPrefix": "to "
+  },
+  "compose": {
+    "ariaLabel": "Compose new message",
+    "expand": "Expand",
+    "minimize": "Minimize",
+    "close": "Close compose",
+    "newMessage": "New message",
+    "to": "To",
+    "toPlaceholder": "recipient@example.com",
+    "subject": "Subject",
+    "subjectPlaceholder": "What's this about?",
+    "bodyPlaceholder": "Write your message…",
+    "offline": "You're offline. Sending is disabled until the connection returns.",
+    "attachFile": "Attach file",
+    "discard": "Discard",
+    "send": "Send",
+    "sending": "Sending"
+  },
+  "profileMenu": {
+    "openProfileMenu": "Open profile menu",
+    "account": "Account",
+    "settings": "Settings",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "helpAndShortcuts": "Help & shortcuts",
+    "keyboardShortcutsTitle": "Keyboard shortcuts",
+    "keyboardShortcutsDescription": "Press ? anywhere to view.",
+    "signOut": "Sign out"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Tune your inbox",
+    "navAriaLabel": "Settings sections",
+    "changesSaveAutomatically": "Changes save automatically",
+    "done": "Done",
+    "tabs": {
+      "account": "Account",
+      "accountDescription": "Your profile and identity.",
+      "appearance": "Appearance",
+      "appearanceDescription": "Theme, density, and accent.",
+      "notifications": "Notifications",
+      "notificationsDescription": "Sounds and alerts.",
+      "signature": "Signature",
+      "signatureDescription": "Appended to outgoing mail."
+    },
+    "account": {
+      "uploadPhoto": "Upload photo",
+      "remove": "Remove",
+      "displayName": "Display name",
+      "displayNamePlaceholder": "Display name",
+      "emailAddress": "Email address",
+      "emailPlaceholder": "name@domain.com",
+      "availableAddresses": "Available addresses",
+      "availableAddressesHint": "Inbox shows mail from all listed addresses.",
+      "default": "default",
+      "addressPlaceholder": "alias or alias@domain.com",
+      "add": "Add",
+      "unsupportedFile": "Unsupported file",
+      "chooseImageFile": "Choose an image file.",
+      "profilePhotoUpdated": "Profile photo updated",
+      "couldNotUpdatePhoto": "Could not update photo",
+      "addressAdded": "Address added",
+      "couldNotAddAddress": "Could not add address"
+    },
+    "appearance": {
+      "theme": "Theme",
+      "accent": "Accent",
+      "accentHint": "Preview color — applied to highlights and the brand mark.",
+      "density": "Density",
+      "language": "Language",
+      "languageHint": "Choose your preferred display language.",
+      "languageAuto": "Auto (system)",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "themeSystem": "System",
+      "densityComfortable": "Comfortable",
+      "densityCozy": "Cozy",
+      "densityCompact": "Compact"
+    },
+    "notifications": {
+      "desktop": "Desktop notifications",
+      "desktopDescription": "Show a system banner for new messages.",
+      "sound": "Notification sound",
+      "soundDescription": "Play a soft chime when mail arrives.",
+      "mentionsOnly": "Mentions only",
+      "mentionsOnlyDescription": "Only notify when you're directly addressed.",
+      "digest": "Daily digest",
+      "digestDescription": "A summary of your inbox every morning."
+    },
+    "signature": {
+      "label": "Signature",
+      "hint": "Appears at the end of every new message you send.",
+      "preview": "Preview",
+      "noSignatureSet": "No signature set.",
+      "resetToDefault": "Reset to default",
+      "resetSuccess": "Signature reset to default"
+    }
+  },
+  "chat": {
+    "backToConversations": "Back to conversations",
+    "memberCount_one": "{{count}} member",
+    "memberCount_other": "{{count}} members",
+    "directMessage": "Direct message",
+    "noMessagesYet": "No messages yet",
+    "sendMessageToStart": "Send a message to start the conversation.",
+    "offlinePlaceholder": "You're offline",
+    "writeMessage": "Write a message",
+    "sendMessage": "Send message",
+    "sending": "Sending…",
+    "noConversationSelected": "No conversation selected",
+    "chooseConversation": "Choose a conversation from the list to start chatting.",
+    "retry": "Retry",
+    "list": {
+      "title": "Messages",
+      "searchPlaceholder": "Search messages",
+      "searchAriaLabel": "Search messages",
+      "noConversationsYet": "No conversations yet",
+      "noResults": "No results",
+      "conversationsWillAppear": "Conversations you join will appear here.",
+      "tryDifferentSearch": "Try a different search term.",
+      "noMessagesYet": "No messages yet"
+    }
+  },
+  "auth": {
+    "restoringCachedMail": "Restoring cached mail",
+    "restoringCachedMailBody": "Reopening your last synced mailbox snapshot.",
+    "loadingHerald": "Loading Herald",
+    "checkingSession": "Checking your session."
+  },
+  "app": {
+    "offline": "Offline. Cached mail is available, but sending and refresh require a connection.",
+    "restoringCachedMail": "Restoring cached mail",
+    "restoringCachedMailBody": "Reloading your local mailbox state before background refresh.",
+    "offlineError": "You're offline",
+    "offlineErrorDescription": "Compose is available, but sending requires a network connection.",
+    "messageFailedToSend": "Message failed to send",
+    "messageSent": "Message sent",
+    "messageSentTo": "to {{email}}",
+    "you": "You",
+    "mail": "Mail",
+    "openMenu": "Open menu",
+    "folders": "Folders",
+    "failedToLoad": "Failed to load",
+    "retry": "Retry",
+    "downloadFailed": "Download failed",
+    "messages": {
+      "offlineError": "You're offline",
+      "offlineErrorDescription": "Sending messages requires a connection.",
+      "failedToSend": "Message failed to send",
+      "failedToSendDescription": "Check your connection and try again.",
+      "failedToLoad": "Failed to load conversations",
+      "failedToLoadMessages": "Failed to load messages"
+    }
+  }
+}

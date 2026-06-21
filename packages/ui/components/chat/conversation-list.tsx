@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion"
 import { MessagesSquare } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { ListSearchHeader } from "@/components/list-search-header"
 import type { ConversationView } from "@/lib/chat"
 import { ConversationListItem } from "./conversation-list-item"
@@ -21,14 +22,15 @@ export function ConversationList({
   search,
   onSearchChange,
 }: Props) {
+  const { t } = useTranslation()
   return (
     <div className="flex h-full flex-col bg-background">
       <ListSearchHeader
-        title="Messages"
+        title={t("chat.list.title")}
         search={search}
         onSearchChange={onSearchChange}
-        searchPlaceholder="Search messages"
-        searchAriaLabel="Search messages"
+        searchPlaceholder={t("chat.list.searchPlaceholder")}
+        searchAriaLabel={t("chat.list.searchAriaLabel")}
       />
 
       <div className="relative flex-1 overflow-y-auto scrollbar-thin">
@@ -54,6 +56,7 @@ export function ConversationList({
 }
 
 function EmptyState({ hasSearch }: { hasSearch: boolean }) {
+  const { t } = useTranslation()
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -65,12 +68,12 @@ function EmptyState({ hasSearch }: { hasSearch: boolean }) {
       </div>
       <div>
         <p className="text-sm font-medium">
-          {hasSearch ? "No results" : "No conversations yet"}
+          {hasSearch ? t("chat.list.noResults") : t("chat.list.noConversationsYet")}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {hasSearch
-            ? "Try a different search term."
-            : "Conversations you join will appear here."}
+            ? t("chat.list.tryDifferentSearch")
+            : t("chat.list.conversationsWillAppear")}
         </p>
       </div>
     </motion.div>

@@ -9,6 +9,7 @@ import {
 } from "react"
 import { motion } from "framer-motion"
 import { ArrowLeft, Loader2, MessagesSquare, SendHorizontal, Users } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import type { ChatConversation, SyncChatMessage } from "@/lib/api"
 import {
   conversationTitle,
@@ -43,6 +44,7 @@ export function ChatScreen({
   onRetry,
   onSend,
 }: Props) {
+  const { t } = useTranslation()
   if (!conversation) {
     return <EmptyChat />
   }
@@ -51,8 +53,8 @@ export function ChatScreen({
   const title = conversationTitle(conversation, myUserId)
   const others = otherParticipants(conversation, myUserId)
   const subtitle = isGroup
-    ? `${conversation.participants.length} members`
-    : (others[0]?.username ? `@${others[0].username}` : "Direct message")
+    ? t("chat.memberCount", { count: conversation.participants.length })
+    : (others[0]?.username ? `@${others[0].username}` : t("chat.directMessage"))
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -63,7 +65,7 @@ export function ChatScreen({
           size="icon"
           onClick={onBack}
           className="md:hidden"
-          aria-label="Back to conversations"
+          aria-label={t("chat.backToConversations")}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -89,7 +91,7 @@ export function ChatScreen({
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
           <p className="text-sm text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={onRetry}>
-            Retry
+            {t("chat.retry")}
           </Button>
         </div>
       ) : (
@@ -133,12 +135,13 @@ function MessageThread({
     if (node) node.scrollTop = node.scrollHeight
   }, [messages.length, conversation.id])
 
+  const { t } = useTranslation()
   if (messages.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-        <p className="text-sm font-medium">No messages yet</p>
+        <p className="text-sm font-medium">{t("chat.noMessagesYet")}</p>
         <p className="text-xs text-muted-foreground">
-          Send a message to start the conversation.
+          {t("chat.sendMessageToStart")}
         </p>
       </div>
     )
@@ -256,12 +259,19 @@ function ChatBubble({
           {body}
         </div>
         {endsRun && (
-          <span className="mt-0.5 px-1 text-[10px] tabular-nums text-muted-foreground">
-            {pending ? "Sending…" : formatTime(createdAt)}
-          </span>
+          <SendingTimestamp pending={pending} createdAt={createdAt} />
         )}
       </div>
     </motion.div>
+  )
+}
+
+function SendingTimestamp({ pending, createdAt }: { pending: boolean; createdAt: string }) {
+  const { t } = useTranslation()
+  return (
+    <span className="mt-0.5 px-1 text-[10px] tabular-nums text-muted-foreground">
+      {pending ? t("chat.sending") : formatTime(createdAt)}
+    </span>
   )
 }
 
@@ -276,6 +286,7 @@ function Composer({
 }) {
   const [value, setValue] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { t } = useTranslation()
 
   // Grow the textarea with its content, up to a few lines.
   useEffect(() => {
@@ -310,9 +321,9 @@ function Composer({
                 submit()
               }
             }}
-            placeholder={offline ? "You're offline" : "Write a message"}
+            placeholder={offline ? t("chat.offlinePlaceholder") : t("chat.writeMessage")}
             disabled={offline}
-            aria-label="Write a message"
+            aria-label={t("chat.writeMessage")}
             className="max-h-[140px] flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 disabled:cursor-not-allowed disabled:opacity-60"
           />
         </div>
@@ -321,7 +332,7 @@ function Composer({
           size="icon"
           onClick={submit}
           disabled={!canSend}
-          aria-label="Send message"
+          aria-label={t("chat.sendMessage")}
           className="h-10 w-10 shrink-0 rounded-full"
         >
           {sending ? (
@@ -336,15 +347,16 @@ function Composer({
 }
 
 function EmptyChat() {
+  const { t } = useTranslation()
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
         <MessagesSquare className="h-6 w-6 text-muted-foreground" aria-hidden />
       </div>
       <div className="max-w-xs">
-        <p className="text-sm font-medium">No conversation selected</p>
+        <p className="text-sm font-medium">{t("chat.noConversationSelected")}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Choose a conversation from the list to start chatting.
+          {t("chat.chooseConversation")}
         </p>
       </div>
     </div>
