@@ -9,6 +9,15 @@ export default defineConfig({
   resolve: {
     // Mirrors tsconfig "@/*": ["./*"] — "@" maps to the ui/ root.
     alias: { '@': path.resolve(import.meta.dirname, '.') },
+    // Deduplicate React so Bun's .bun symlink cache doesn't load a second copy
+    // (19.2.5 from the cache vs 19.2.7 from packages/ui/node_modules) during SSR.
+    dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react-i18next', 'i18next'],
+  },
+  ssr: {
+    // Force Vite to bundle these for SSR so their react import goes through
+    // Vite's resolver (which respects dedupe) rather than Node's native resolution
+    // following Bun's .bun symlinks to a mismatched React version.
+    noExternal: ['react-i18next', 'i18next'],
   },
   server: {
     // Keep AGENTS.md's https://localhost.panit.dev browser-testing flow working.
