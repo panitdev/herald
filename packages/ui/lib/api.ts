@@ -867,6 +867,45 @@ export function sendChatMessage(
   )
 }
 
+export interface UserSearchResult {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+}
+
+export interface ContactUser {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  addedAt: string
+}
+
+export function searchUsers(q: string): Promise<{ users: UserSearchResult[] }> {
+  if (!q.trim()) return Promise.resolve({ users: [] })
+  return apiFetch<{ users: UserSearchResult[] }>(
+    `/api/users/search?q=${encodeURIComponent(q)}`,
+  )
+}
+
+export function getContacts(): Promise<{ contacts: ContactUser[] }> {
+  return apiFetch<{ contacts: ContactUser[] }>("/api/contacts")
+}
+
+export function addContact(userId: string): Promise<{ contact: ContactUser }> {
+  return apiFetch<{ contact: ContactUser }>("/api/contacts", {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  })
+}
+
+export function removeContact(userId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/contacts/${userId}`, {
+    method: "DELETE",
+  })
+}
+
 export function connectRealtimeSync(): () => void {
   if (typeof window === "undefined") return () => {}
 

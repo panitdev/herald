@@ -485,6 +485,11 @@ function CommandNest({
   )
 }
 
+function useCommandSearch(): string {
+  const ctx = useNestContext()
+  return ctx?.searchValue ?? ""
+}
+
 export {
   Command,
   CommandDialog,
@@ -497,5 +502,6 @@ export {
   CommandNest,
   CommandSeparator,
   CommandShortcut,
+  useCommandSearch,
 }
 export type { CommandNestProps }

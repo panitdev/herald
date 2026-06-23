@@ -27,6 +27,7 @@ use crate::{
 };
 
 pub mod chat;
+pub mod contacts;
 pub mod email_senders;
 pub mod internal;
 pub mod objects;
@@ -57,6 +58,15 @@ pub fn router() -> Router<AppState> {
         .route(
             "/chat/conversations/{id}/messages",
             get(chat::list_messages).post(chat::send_message),
+        )
+        .route("/api/users/search", get(contacts::search_users))
+        .route(
+            "/api/contacts",
+            get(contacts::list_contacts).post(contacts::add_contact),
+        )
+        .route(
+            "/api/contacts/{user_id}",
+            axum::routing::delete(contacts::remove_contact),
         )
         .route("/realtime", get(realtime_socket))
         .route("/internal/mail/inbound", post(internal::inbound_mail))

@@ -165,6 +165,14 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    contacts (owner_user_id, contact_user_id) {
+        owner_user_id   -> Int8,
+        contact_user_id -> Int8,
+        created_at      -> Timestamptz,
+    }
+}
+
 diesel::joinable!(email_senders -> users (owner_user_id));
 diesel::joinable!(mailboxes -> addresses (address_id));
 diesel::joinable!(attachments -> messages (message_id));
@@ -185,6 +193,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     addresses,
     attachments,
     chat_messages,
+    contacts,
     conversation_participants,
     conversations,
     email_senders,
