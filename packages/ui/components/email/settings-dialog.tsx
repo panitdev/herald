@@ -441,7 +441,8 @@ function AccountPanel() {
 
 const SUPPORTED_LANGUAGES = [
   { code: "auto", nameKey: "settings.appearance.languageAuto" },
-  { code: "en", name: "English" },
+  { code: "en", nameKey: "settings.appearance.languageEnglish" },
+  { code: "ko", nameKey: "settings.appearance.languageKorean" },
 ] as const
 
 function AppearancePanel() {
@@ -607,7 +608,7 @@ function AppearancePanel() {
         <div className="flex rounded-lg bg-muted p-1">
           {SUPPORTED_LANGUAGES.map((lang) => {
             const isActive = settings.language === lang.code
-            const label = "nameKey" in lang ? t(lang.nameKey) : lang.name
+            const label = t(lang.nameKey)
             return (
               <button
                 key={lang.code}
