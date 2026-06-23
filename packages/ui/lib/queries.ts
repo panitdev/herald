@@ -2,6 +2,19 @@ import { queryOptions } from "@tanstack/react-query"
 import * as api from "@/lib/api"
 import type { MessageBody } from "@/lib/api"
 
+export const contactsQuery = () =>
+  queryOptions({
+    queryKey: ["contacts"] as const,
+    queryFn: () => api.getContacts().then((r) => r.contacts),
+  })
+
+export const userSearchQuery = (q: string) =>
+  queryOptions({
+    queryKey: ["userSearch", q] as const,
+    queryFn: () => api.searchUsers(q).then((r) => r.users),
+    enabled: q.trim().length > 0,
+  })
+
 export const mailboxesQuery = () =>
   queryOptions({
     queryKey: ["mailboxes"] as const,
