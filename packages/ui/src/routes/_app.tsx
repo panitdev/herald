@@ -8,6 +8,7 @@ import { Outlet, createFileRoute } from "@tanstack/react-router"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
+import { CommandMenu } from "@/components/email/command-menu"
 import { ComposePanel } from "@/components/email/compose-panel"
 import { SettingsDialog } from "@/components/email/settings-dialog"
 import { useSettings } from "@/lib/settings-store"
@@ -42,6 +43,7 @@ function AppLayout() {
     subject: "",
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [commandOpen, setCommandOpen] = useState(false)
 
   const openCompose = useCallback((prefill?: ComposePrefill) => {
     setComposePrefill(prefill ?? { to: "", subject: "" })
@@ -104,12 +106,17 @@ function AppLayout() {
     return connectRealtimeSync()
   }, [])
 
-  // Keyboard shortcuts: "c" compose, ⌘/Ctrl+, settings
+  // Keyboard shortcuts: "c" compose, ⌘/Ctrl+, settings, ⌘/Ctrl+K command
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ",") {
         e.preventDefault()
         setSettingsOpen(true)
+        return
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault()
+        setCommandOpen((prev) => !prev)
         return
       }
       const target = e.target as HTMLElement | null
@@ -156,6 +163,7 @@ function AppLayout() {
         offline={!online}
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <CommandMenu open={commandOpen} onOpenChange={setCommandOpen} />
     </AppChromeContext.Provider>
   )
 }
