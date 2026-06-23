@@ -9,7 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query"
-import { Menu } from "lucide-react"
+import { Command, Menu } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/_app/messages")({
 
 function MessagesRoute() {
   const navigate = useNavigate()
-  const { openCompose, openSettings } = useAppChrome()
+  const { openCompose, openSettings, openMobileCommand } = useAppChrome()
   const queryClient = useQueryClient()
   const online = useOnlineStatus()
   const { user } = useAuth()
@@ -118,7 +118,15 @@ function MessagesRoute() {
                 {sidebarNode}
               </SheetContent>
             </Sheet>
-            <span className="text-sm font-medium">{t("chat.list.title")}</span>
+            <span className="flex-1 text-sm font-medium">{t("chat.list.title")}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("mobileCommand.open")}
+              onClick={openMobileCommand}
+            >
+              <Command className="h-5 w-5" />
+            </Button>
           </div>
 
           <div className="min-h-0 flex-1">

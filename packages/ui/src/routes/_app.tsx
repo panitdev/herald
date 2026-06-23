@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next"
 
 import { CommandMenu } from "@/components/email/command-menu"
 import { ComposePanel } from "@/components/email/compose-panel"
+import { MobileCommandDrawer } from "@/components/email/mobile-command-drawer"
 import { SettingsDialog } from "@/components/email/settings-dialog"
 import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
@@ -43,18 +44,25 @@ function AppLayout() {
     subject: "",
   })
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsDefaultTab, setSettingsDefaultTab] = useState<string | undefined>()
   const [commandOpen, setCommandOpen] = useState(false)
+  const [mobileCommandOpen, setMobileCommandOpen] = useState(false)
 
   const openCompose = useCallback((prefill?: ComposePrefill) => {
     setComposePrefill(prefill ?? { to: "", subject: "" })
     setComposeOpen(true)
   }, [])
 
-  const openSettings = useCallback(() => setSettingsOpen(true), [])
+  const openSettings = useCallback((tab?: string) => {
+    setSettingsDefaultTab(tab)
+    setSettingsOpen(true)
+  }, [])
+
+  const openMobileCommand = useCallback(() => setMobileCommandOpen(true), [])
 
   const chrome = useMemo<AppChromeCtx>(
-    () => ({ openCompose, openSettings }),
-    [openCompose, openSettings],
+    () => ({ openCompose, openSettings, openMobileCommand }),
+    [openCompose, openSettings, openMobileCommand],
   )
 
   async function handleSend(data: { to: string; subject: string; body: string }) {
@@ -162,8 +170,17 @@ function AppLayout() {
         initialSubject={composePrefill.subject}
         offline={!online}
       />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        defaultTab={settingsDefaultTab}
+      />
       <CommandMenu open={commandOpen} onOpenChange={setCommandOpen} />
+      <MobileCommandDrawer
+        open={mobileCommandOpen}
+        onOpenChange={setMobileCommandOpen}
+        onOpenSettings={openSettings}
+      />
     </AppChromeContext.Provider>
   )
 }

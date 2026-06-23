@@ -5,7 +5,7 @@ import {
   useParams,
 } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Menu, Loader2 } from "lucide-react"
+import { Command, Loader2, Menu } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
@@ -49,7 +49,7 @@ function MailboxRoute() {
     VALID_FOLDERS.includes(rawMailbox as Folder) ? rawMailbox : "inbox"
   ) as Folder
   const navigate = useNavigate()
-  const { openCompose, openSettings } = useAppChrome()
+  const { openCompose, openSettings, openMobileCommand } = useAppChrome()
   const queryClient = useQueryClient()
   const online = useOnlineStatus()
 
@@ -143,7 +143,15 @@ function MailboxRoute() {
                 {sidebarNode}
               </SheetContent>
             </Sheet>
-            <span className="text-sm font-medium">{t("app.mail")}</span>
+            <span className="flex-1 text-sm font-medium">{t("app.mail")}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("mobileCommand.open")}
+              onClick={openMobileCommand}
+            >
+              <Command className="h-5 w-5" />
+            </Button>
           </div>
 
           <div className="min-h-0 flex-1">

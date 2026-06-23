@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react"
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 import {
@@ -53,10 +53,18 @@ const TAB_DEFS: { id: TabId; icon: React.ComponentType<{ className?: string }> }
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  defaultTab?: string
 }
 
-export function SettingsDialog({ open, onOpenChange }: Props) {
+export function SettingsDialog({ open, onOpenChange, defaultTab }: Props) {
   const [active, setActive] = useState<TabId>("account")
+
+  // When opened with a specific tab, jump to it
+  useEffect(() => {
+    if (open && defaultTab && TAB_DEFS.some((t) => t.id === defaultTab)) {
+      setActive(defaultTab as TabId)
+    }
+  }, [open, defaultTab])
   const [transitionCount, setTransitionCount] = useState(0)
   const { t } = useTranslation()
 

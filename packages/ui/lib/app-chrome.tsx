@@ -4,7 +4,8 @@ export type ComposePrefill = { to: string; subject: string }
 
 export type AppChromeCtx = {
   openCompose: (prefill?: ComposePrefill) => void
-  openSettings: () => void
+  openSettings: (tab?: string) => void
+  openMobileCommand: () => void
 }
 
 export const AppChromeContext = createContext<AppChromeCtx | null>(null)

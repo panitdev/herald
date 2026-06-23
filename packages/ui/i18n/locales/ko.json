@@ -190,6 +190,29 @@
       "noMessagesYet": "아직 메시지가 없습니다"
     }
   },
+  "mobileCommand": {
+    "open": "메뉴 열기",
+    "title": "메뉴",
+    "back": "뒤로",
+    "close": "닫기",
+    "mailboxes": "메일함",
+    "contacts": "연락처",
+    "addContact": "연락처 추가",
+    "listContacts": "연락처 목록",
+    "settings": "설정",
+    "searchPeople": "사람 검색...",
+    "searching": "검색 중...",
+    "noUsersFound": "사용자 없음",
+    "noContactsYet": "연락처 없음",
+    "openChat": "채팅 열기",
+    "seeProfile": "프로필 보기",
+    "removeContact": "연락처 삭제",
+    "contactAdded": "{{name}}을(를) 연락처에 추가했습니다",
+    "contactRemoved": "{{name}}을(를) 연락처에서 삭제했습니다",
+    "contactAddFailed": "연락처 추가 실패",
+    "contactRemoveFailed": "연락처 삭제 실패",
+    "openChatFailed": "채팅 열기 실패"
+  },
   "auth": {
     "restoringCachedMail": "캐시된 메일 복원 중",
     "restoringCachedMailBody": "마지막으로 동기화된 메일함 스냅샷을 다시 여는 중입니다.",
