@@ -11,6 +11,7 @@ import {
   UserCircle2,
   HelpCircle,
   Check,
+  Globe,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -32,6 +33,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
 import { toast } from "sonner"
+
+const LANGUAGE_OPTIONS = [
+  { code: "auto", nameKey: "settings.appearance.languageAuto" },
+  { code: "en", nameKey: "settings.appearance.languageEnglish" },
+  { code: "ko", nameKey: "settings.appearance.languageKorean" },
+] as const
 
 type Props = {
   onOpenSettings: () => void
@@ -145,6 +152,36 @@ export function ProfileMenu({ onOpenSettings }: Props) {
                   {t("profileMenu.themeSystem")}
                   {settings.theme === "system" && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Globe className="h-4 w-4" />
+            {t("profileMenu.language")}
+            <span className="ml-auto text-xs text-muted-foreground">
+              {t(
+                LANGUAGE_OPTIONS.find((l) => l.code === settings.language)?.nameKey ??
+                  "settings.appearance.languageAuto",
+              )}
+            </span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent sideOffset={6} className="w-44">
+              <DropdownMenuRadioGroup
+                value={settings.language}
+                onValueChange={(v) => updateSettings({ language: v })}
+              >
+                {LANGUAGE_OPTIONS.map((lang) => (
+                  <DropdownMenuRadioItem key={lang.code} value={lang.code}>
+                    {t(lang.nameKey)}
+                    {settings.language === lang.code && (
+                      <Check className="ml-auto h-3.5 w-3.5" />
+                    )}
+                  </DropdownMenuRadioItem>
+                ))}
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuPortal>
