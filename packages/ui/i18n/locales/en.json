@@ -190,6 +190,29 @@
       "noMessagesYet": "No messages yet"
     }
   },
+  "mobileCommand": {
+    "open": "Open menu",
+    "title": "Menu",
+    "back": "Back",
+    "close": "Close",
+    "mailboxes": "Mailboxes",
+    "contacts": "Contacts",
+    "addContact": "Add contact",
+    "listContacts": "List contacts",
+    "settings": "Settings",
+    "searchPeople": "Search people...",
+    "searching": "Searching...",
+    "noUsersFound": "No users found",
+    "noContactsYet": "No contacts yet",
+    "openChat": "Open chat",
+    "seeProfile": "See profile",
+    "removeContact": "Remove from contacts",
+    "contactAdded": "Added {{name}} to contacts",
+    "contactRemoved": "Removed {{name}} from contacts",
+    "contactAddFailed": "Failed to add contact",
+    "contactRemoveFailed": "Failed to remove contact",
+    "openChatFailed": "Failed to open chat"
+  },
   "auth": {
     "restoringCachedMail": "Restoring cached mail",
     "restoringCachedMailBody": "Reopening your last synced mailbox snapshot.",
