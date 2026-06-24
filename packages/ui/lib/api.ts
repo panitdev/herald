@@ -8,6 +8,7 @@ import {
   persistSyncState,
   type PersistedSyncState,
 } from "@/lib/offline-cache"
+import type { Drop, DropItem } from "@/lib/types"
 
 // ============================================
 // Types
@@ -142,6 +143,15 @@ export interface SyncChatMessage {
   created_at: string
 }
 
+export interface SyncDrop {
+  id: ApiId
+  user_id: ApiId
+  title: string | null
+  items: DropItem[]
+  created_at: string
+  updated_at: string
+}
+
 export interface ChatParticipant {
   userId: string
   username: string
@@ -183,6 +193,7 @@ interface BootstrapResponse {
     conversations: SyncConversation[]
     conversationParticipants: SyncConversationParticipant[]
     chatMessages: SyncChatMessage[]
+    drops: SyncDrop[]
   }
 }
 
@@ -210,6 +221,7 @@ type SyncObjectType =
   | "conversation"
   | "conversationParticipant"
   | "chatMessage"
+  | "drop"
   | string
 
 type SyncState = {
@@ -223,6 +235,7 @@ type SyncState = {
   conversations: Map<string, SyncConversation>
   conversationParticipants: Map<string, SyncConversationParticipant>
   chatMessages: Map<string, SyncChatMessage>
+  drops: Map<string, SyncDrop>
 }
 
 // ============================================
@@ -438,6 +451,7 @@ async function bootstrapSyncState(): Promise<SyncState> {
     conversations: new Map(),
     conversationParticipants: new Map(),
     chatMessages: new Map(),
+    drops: new Map(),
   }
 
   for (const mailbox of response.objects.mailboxes) {
@@ -463,6 +477,9 @@ async function bootstrapSyncState(): Promise<SyncState> {
   }
   for (const message of response.objects.chatMessages) {
     state.chatMessages.set(idToString(message.id), message)
+  }
+  for (const drop of response.objects.drops) {
+    state.drops.set(idToString(drop.id), drop)
   }
 
   await persistCurrentSyncState(state)
@@ -561,6 +578,11 @@ function applySyncChange(state: SyncState, change: PullChange) {
     case "chatMessage": {
       const message = change.data as SyncChatMessage
       state.chatMessages.set(idToString(message.id), message)
+      return
+    }
+    case "drop": {
+      const drop = change.data as SyncDrop
+      state.drops.set(idToString(drop.id), drop)
     }
   }
 }
@@ -627,6 +649,9 @@ function deleteSyncObject(state: SyncState, change: PullChange) {
       return
     case "chatMessage":
       state.chatMessages.delete(objectId)
+      return
+    case "drop":
+      state.drops.delete(objectId)
   }
 }
 
@@ -1007,6 +1032,43 @@ export async function getRawEmailBlob(messageId: string): Promise<Blob> {
   return apiBlob(`/objects/messages/${messageId}/raw`)
 }
 
+function toDrop(syncDrop: SyncDrop): Drop {
+  return {
+    id: idToString(syncDrop.id),
+    createdAt: syncDrop.created_at,
+    updatedAt: syncDrop.updated_at,
+    title: syncDrop.title ?? undefined,
+    items: syncDrop.items,
+  }
+}
+
+export async function getDrops(): Promise<Drop[]> {
+  const state = await getSyncedState()
+  return [...state.drops.values()]
+    .map(toDrop)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+}
+
+export async function apiCreateDrop(items: DropItem[], title?: string): Promise<Drop> {
+  const result = await apiFetch<{ drop: SyncDrop }>("/drops", {
+    method: "POST",
+    body: JSON.stringify({ title: title ?? null, items }),
+  })
+  if (syncState) {
+    syncState.drops.set(idToString(result.drop.id), result.drop)
+    void persistCurrentSyncState(syncState)
+  }
+  return toDrop(result.drop)
+}
+
+export async function apiDeleteDrop(id: string): Promise<void> {
+  await apiFetch(`/drops/${id}`, { method: "DELETE" })
+  if (syncState) {
+    syncState.drops.delete(id)
+    void persistCurrentSyncState(syncState)
+  }
+}
+
 function syncStateFromPersisted(persisted: PersistedSyncState): SyncState {
   return {
     schemaVersion: persisted.schemaVersion,
@@ -1050,6 +1112,12 @@ function syncStateFromPersisted(persisted: PersistedSyncState): SyncState {
         message as SyncChatMessage,
       ]),
     ),
+    drops: new Map(
+      (persisted.drops ?? []).map((drop) => [
+        idToString((drop as SyncDrop).id),
+        drop as SyncDrop,
+      ]),
+    ),
   }
 }
 
@@ -1069,6 +1137,7 @@ async function persistCurrentSyncState(state: SyncState): Promise<void> {
     conversations: [...state.conversations.values()],
     conversationParticipants: [...state.conversationParticipants.values()],
     chatMessages: [...state.chatMessages.values()],
+    drops: [...state.drops.values()],
     updatedAt: new Date().toISOString(),
   })
 }

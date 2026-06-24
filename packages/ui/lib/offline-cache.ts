@@ -23,6 +23,7 @@ export type PersistedSyncState = {
   conversations?: unknown[]
   conversationParticipants?: unknown[]
   chatMessages?: unknown[]
+  drops?: unknown[]
   updatedAt: string
 }
 

@@ -208,7 +208,7 @@ function AppLayoutInner() {
         mode={newDropMode}
         onOpenChange={setNewDropOpen}
         onSave={(items) => {
-          createDrop(items)
+          void createDrop(items)
           toast.success(t("drop.created"))
         }}
       />

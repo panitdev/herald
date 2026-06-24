@@ -4,33 +4,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react"
 import type { Drop, DropItem } from "@/lib/types"
+import { getDrops, apiCreateDrop, apiDeleteDrop } from "@/lib/api"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function storageKey(userId: string): string {
-  return `herald-drops:${userId}`
-}
-
-function loadDrops(userId: string): Drop[] {
-  try {
-    const raw = localStorage.getItem(storageKey(userId))
-    if (!raw) return []
-    return JSON.parse(raw) as Drop[]
-  } catch {
-    return []
-  }
-}
-
-function saveDrops(userId: string, drops: Drop[]): void {
-  try {
-    localStorage.setItem(storageKey(userId), JSON.stringify(drops))
-  } catch {
-    // localStorage may be full or unavailable
-  }
-}
 
 export function dropTitle(drop: Drop): string {
   if (drop.title) return drop.title
@@ -62,7 +42,7 @@ export function dropPreview(drop: Drop): string {
 type DropStoreCtx = {
   drops: Drop[]
   recentDrops: Drop[]
-  createDrop: (items: DropItem[], title?: string) => Drop
+  createDrop: (items: DropItem[], title?: string) => Promise<Drop>
   deleteDrop: (id: string) => void
   getDrop: (id: string) => Drop | undefined
 }
@@ -70,55 +50,50 @@ type DropStoreCtx = {
 const DropStoreContext = createContext<DropStoreCtx | null>(null)
 
 export function DropStoreProvider({
-  userId,
   children,
 }: {
   userId: string
   children: React.ReactNode
 }) {
-  const [drops, setDrops] = useState<Drop[]>(() => loadDrops(userId))
+  const [drops, setDrops] = useState<Drop[]>([])
+  const mountedRef = useRef(true)
 
-  // Sync with localStorage from other tabs
-  useEffect(() => {
-    const handler = (e: StorageEvent) => {
-      if (e.key === storageKey(userId)) {
-        setDrops(loadDrops(userId))
-      }
+  const refresh = useCallback(async () => {
+    try {
+      const latest = await getDrops()
+      if (mountedRef.current) setDrops(latest)
+    } catch {
+      // Keep existing state if refresh fails (e.g. offline)
     }
-    window.addEventListener("storage", handler)
-    return () => window.removeEventListener("storage", handler)
-  }, [userId])
+  }, [])
 
-  const persist = useCallback(
-    (next: Drop[]) => {
-      setDrops(next)
-      saveDrops(userId, next)
-    },
-    [userId],
-  )
+  useEffect(() => {
+    mountedRef.current = true
+    void refresh()
+
+    const onSyncUpdated = () => void refresh()
+    window.addEventListener("herald-sync-updated", onSyncUpdated)
+    return () => {
+      mountedRef.current = false
+      window.removeEventListener("herald-sync-updated", onSyncUpdated)
+    }
+  }, [refresh])
 
   const createDrop = useCallback(
-    (items: DropItem[], title?: string): Drop => {
-      const now = new Date().toISOString()
-      const drop: Drop = {
-        id: crypto.randomUUID(),
-        createdAt: now,
-        updatedAt: now,
-        items,
-        title,
-      }
-      persist([drop, ...drops])
+    async (items: DropItem[], title?: string): Promise<Drop> => {
+      const drop = await apiCreateDrop(items, title)
+      setDrops((prev) => [drop, ...prev.filter((d) => d.id !== drop.id)])
       return drop
     },
-    [drops, persist],
+    [],
   )
 
-  const deleteDrop = useCallback(
-    (id: string) => {
-      persist(drops.filter((d) => d.id !== id))
-    },
-    [drops, persist],
-  )
+  const deleteDrop = useCallback((id: string) => {
+    setDrops((prev) => prev.filter((d) => d.id !== id))
+    void apiDeleteDrop(id).catch(() => {
+      void refresh()
+    })
+  }, [refresh])
 
   const getDrop = useCallback(
     (id: string) => drops.find((d) => d.id === id),

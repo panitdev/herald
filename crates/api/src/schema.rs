@@ -173,6 +173,18 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    drops (id) {
+        id         -> Int8,
+        user_id    -> Int8,
+        title      -> Nullable<Text>,
+        items      -> Jsonb,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::joinable!(drops -> users (user_id));
 diesel::joinable!(email_senders -> users (owner_user_id));
 diesel::joinable!(mailboxes -> addresses (address_id));
 diesel::joinable!(attachments -> messages (message_id));
@@ -196,6 +208,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     contacts,
     conversation_participants,
     conversations,
+    drops,
     email_senders,
     mailboxes,
     message_mailboxes,

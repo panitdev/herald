@@ -13,12 +13,12 @@ use crate::{
     mail::current_sync_cursor,
     models::{
         attachment::Attachment, chat_message::ChatMessage, conversation::Conversation,
-        conversation_participant::ConversationParticipant, mailbox::Mailbox, message::Message,
-        message_mailbox::MessageMailbox, message_recipient::MessageRecipient,
+        conversation_participant::ConversationParticipant, drop::Drop, mailbox::Mailbox,
+        message::Message, message_mailbox::MessageMailbox, message_recipient::MessageRecipient,
         sync_event::SyncEvent,
     },
     schema::{
-        attachments, chat_messages, conversation_participants, conversations, mailboxes,
+        attachments, chat_messages, conversation_participants, conversations, drops, mailboxes,
         message_mailboxes, message_recipients, messages, sync_events, user_addresses,
     },
     state::AppState,
@@ -43,6 +43,7 @@ pub struct BootstrapObjects {
     pub conversations: Vec<Conversation>,
     pub conversation_participants: Vec<ConversationParticipant>,
     pub chat_messages: Vec<ChatMessage>,
+    pub drops: Vec<Drop>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -177,10 +178,18 @@ pub async fn bootstrap(
             .map_err(|err| AppError::db(err, "sync.bootstrap.load_chat_messages"))?
     };
 
+    let user_drops = drops::table
+        .filter(drops::user_id.eq(user.id))
+        .order(drops::created_at.desc())
+        .select(Drop::as_select())
+        .load(&mut conn)
+        .await
+        .map_err(|err| AppError::db(err, "sync.bootstrap.load_drops"))?;
+
     let cursor = current_sync_cursor(&state, user.id).await?;
 
     Ok(Json(BootstrapResponse {
-        schema_version: 3,
+        schema_version: 4,
         cursor,
         objects: BootstrapObjects {
             mailboxes,
@@ -191,6 +200,7 @@ pub async fn bootstrap(
             conversations,
             conversation_participants,
             chat_messages,
+            drops: user_drops,
         },
     }))
 }
