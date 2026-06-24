@@ -70,6 +70,7 @@ function MessagesRoute() {
       active="messages"
       onSelect={(f) => navigate({ to: "/$mailbox", params: { mailbox: f } })}
       onOpenMessages={() => navigate({ to: "/messages" })}
+      onOpenDrop={() => navigate({ to: "/drop" })}
       onCompose={() => openCompose()}
       onOpenSettings={openSettings}
     />

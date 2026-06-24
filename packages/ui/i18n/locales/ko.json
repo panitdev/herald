@@ -10,6 +10,7 @@
     },
     "compose": "편지 쓰기",
     "messages": "메시지",
+    "drop": "드롭",
     "navAriaLabel": "폴더"
   },
   "emailList": {
@@ -188,6 +189,41 @@
       "conversationsWillAppear": "참여한 대화가 여기에 표시됩니다.",
       "tryDifferentSearch": "다른 검색어를 사용해 보세요.",
       "noMessagesYet": "아직 메시지가 없습니다"
+    }
+  },
+  "drop": {
+    "created": "드롭 저장됨",
+    "deleted": "드롭 삭제됨",
+    "list": {
+      "title": "드롭",
+      "searchPlaceholder": "드롭 검색",
+      "searchAriaLabel": "드롭 검색",
+      "noDropsYet": "아직 드롭이 없습니다",
+      "noResults": "결과 없음",
+      "dropsWillAppear": "드롭이 여기에 표시됩니다.",
+      "tryDifferentSearch": "다른 검색어를 사용해 보세요."
+    },
+    "detail": {
+      "backToList": "목록으로",
+      "delete": "드롭 삭제",
+      "noDropSelected": "선택된 드롭 없음",
+      "noDropSelectedHint": "목록에서 드롭을 선택하면 여기에서 볼 수 있습니다."
+    },
+    "new": {
+      "title": "새 드롭",
+      "description": "파일, 이미지, 텍스트 또는 링크를 나중을 위해 저장하세요",
+      "button": "새 드롭",
+      "cancel": "취소",
+      "save": "저장",
+      "dropZoneAriaLabel": "파일을 여기에 끌어다 놓거나 클릭하여 탐색하세요",
+      "dropFilesHere": "파일을 여기에 끌어다 놓으세요",
+      "orClickToBrowse": "또는 클릭하여 탐색",
+      "clipboardHint": "클립보드를 읽거나 아래에 내용을 붙여넣으세요.",
+      "readClipboard": "클립보드 읽기",
+      "reading": "읽는 중…",
+      "clipboardPlaceholder": "여기에 붙여넣거나 입력하세요…",
+      "textBlockPlaceholder": "내용을 입력하세요…",
+      "addBlock": "블록 추가"
     }
   },
   "mobileCommand": {
