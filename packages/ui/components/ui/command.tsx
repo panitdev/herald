@@ -35,6 +35,11 @@ function useParentNestId(): string | null {
   return React.useContext(ParentNestIdContext)
 }
 
+function useCommandSearch(): string {
+  const ctx = useNestContext()
+  return ctx?.searchValue ?? ""
+}
+
 function NestProvider({ children }: { children: React.ReactNode }) {
   const [stack, setStack] = React.useState<string[]>([])
   const [direction, setDirection] = React.useState<"forward" | "back">("forward")
@@ -142,6 +147,7 @@ function CommandDialogInner({
   children,
   className,
   onOpenChange,
+  open: openProp,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root> & {
   title?: string
@@ -151,6 +157,19 @@ function CommandDialogInner({
   const ctx = useNestContext()
   const squishControls = useAnimationControls()
   const squishInitialized = React.useRef(false)
+
+  // Reset nest state when dialog opens, so it always starts at the root.
+  // We intentionally do NOT reset on close — the closing animation
+  // plays out with the current nest page visible (natural fade-out),
+  // and the state is cleared before the next open.
+  const resetRef = React.useRef(ctx?.reset)
+  resetRef.current = ctx?.reset
+  React.useEffect(() => {
+    if (openProp) {
+      resetRef.current?.()
+      squishInitialized.current = false
+    }
+  }, [openProp])
 
   // Scale-compress the whole dialog box on each navigation, then spring back.
   // Uses asChild + motion.div so framer owns the transform stack and composes
@@ -167,15 +186,13 @@ function CommandDialogInner({
   }, [ctx?.activeId])
 
   function handleOpenChange(next: boolean) {
-    if (!next) {
-      ctx?.reset()
-      squishInitialized.current = false
-    }
+    // Reset is handled by the useEffect above watching openProp,
+    // which catches both programmatic and user-initiated closes.
     onOpenChange?.(next)
   }
 
   return (
-    <DialogPrimitive.Root onOpenChange={handleOpenChange} {...props}>
+    <DialogPrimitive.Root open={openProp} onOpenChange={handleOpenChange} {...props}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content asChild>
@@ -445,9 +462,14 @@ function CommandNest({
   shortcut,
   keywords,
 }: CommandNestProps) {
-  const id = React.useId()
   const ctx = useNestContext()
   const parentId = useParentNestId()
+
+  // Stable identity: prefix the label with the parent nest's ID so the same
+  // label at different nesting levels doesn't collide in the flat stack.
+  // Props-based (not useId) so it survives AnimatePresence unmount/remount
+  // when CommandList's key changes on navigation.
+  const id = parentId ? `${parentId}>${label}` : label
 
   React.useEffect(() => {
     ctx?.registerPlaceholder(id, placeholder)
@@ -483,11 +505,6 @@ function CommandNest({
       )}
     </>
   )
-}
-
-function useCommandSearch(): string {
-  const ctx = useNestContext()
-  return ctx?.searchValue ?? ""
 }
 
 export {
