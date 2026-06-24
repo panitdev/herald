@@ -163,8 +163,8 @@ export interface ChatConversation {
 }
 
 export type CreateChatConversationInput =
-  | { kind: "direct"; userId: string }
-  | { kind: "group"; participantUserIds: string[]; title?: string }
+  | { kind: "direct"; user_id: string }
+  | { kind: "group"; participant_user_ids: string[]; title?: string }
 
 export interface SendChatMessageInput {
   body: string

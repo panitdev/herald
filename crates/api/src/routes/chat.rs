@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CreateConversationRequest {
     Direct {
         user_id: String,

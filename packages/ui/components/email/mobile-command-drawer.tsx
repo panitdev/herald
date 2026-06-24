@@ -529,7 +529,7 @@ function ContactActionsScreen({
           c.participants.some((p) => p.userId === contact.id),
       )
       if (existing) return existing
-      const result = await createChatConversation({ kind: "direct", userId: contact.id })
+      const result = await createChatConversation({ kind: "direct", user_id: contact.id })
       await queryClient.invalidateQueries({ queryKey: ["chatConversations"] })
       return result.conversation
     },

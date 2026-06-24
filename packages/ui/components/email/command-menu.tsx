@@ -172,7 +172,7 @@ function ShowContactsContent({
       if (existing) return existing
       const result = await createChatConversation({
         kind: "direct",
-        userId: contact.id,
+        user_id: contact.id,
       })
       await queryClient.invalidateQueries({ queryKey: ["chatConversations"] })
       return result.conversation
