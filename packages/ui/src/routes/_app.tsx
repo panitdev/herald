@@ -12,15 +12,18 @@ import { CommandMenu } from "@/components/email/command-menu"
 import { ComposePanel } from "@/components/email/compose-panel"
 import { MobileCommandDrawer } from "@/components/email/mobile-command-drawer"
 import { SettingsDialog } from "@/components/email/settings-dialog"
+import { NewDropSheet } from "@/components/drop/new-drop-sheet"
 import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
 import { useLocalOverrides } from "@/lib/local-overrides-store"
+import { DropStoreProvider, useDropStore } from "@/lib/drop-store"
 import { connectRealtimeSync, sendMail } from "@/lib/api"
 import type { Email } from "@/lib/types"
 import {
   AppChromeContext,
   type AppChromeCtx,
   type ComposePrefill,
+  type NewDropMode,
 } from "@/lib/app-chrome"
 import { useOnlineStatus } from "@/lib/network-store"
 
@@ -32,11 +35,23 @@ export const Route = createFileRoute("/_app")({
 })
 
 function AppLayout() {
+  const { user } = useAuth()
+  const userId = user?.id ?? "anonymous"
+
+  return (
+    <DropStoreProvider userId={userId}>
+      <AppLayoutInner />
+    </DropStoreProvider>
+  )
+}
+
+function AppLayoutInner() {
   const { settings } = useSettings()
   const { user } = useAuth()
   const { addLocalEmail, initialized: overridesInitialized } = useLocalOverrides()
   const online = useOnlineStatus()
   const { t } = useTranslation()
+  const { createDrop } = useDropStore()
 
   const [composeOpen, setComposeOpen] = useState(false)
   const [composePrefill, setComposePrefill] = useState<ComposePrefill>({
@@ -47,6 +62,8 @@ function AppLayout() {
   const [settingsDefaultTab, setSettingsDefaultTab] = useState<string | undefined>()
   const [commandOpen, setCommandOpen] = useState(false)
   const [mobileCommandOpen, setMobileCommandOpen] = useState(false)
+  const [newDropOpen, setNewDropOpen] = useState(false)
+  const [newDropMode, setNewDropMode] = useState<NewDropMode>("text")
 
   const openCompose = useCallback((prefill?: ComposePrefill) => {
     setComposePrefill(prefill ?? { to: "", subject: "" })
@@ -60,9 +77,14 @@ function AppLayout() {
 
   const openMobileCommand = useCallback(() => setMobileCommandOpen(true), [])
 
+  const openNewDrop = useCallback((mode: NewDropMode = "text") => {
+    setNewDropMode(mode)
+    setNewDropOpen(true)
+  }, [])
+
   const chrome = useMemo<AppChromeCtx>(
-    () => ({ openCompose, openSettings, openMobileCommand }),
-    [openCompose, openSettings, openMobileCommand],
+    () => ({ openCompose, openSettings, openMobileCommand, openNewDrop }),
+    [openCompose, openSettings, openMobileCommand, openNewDrop],
   )
 
   async function handleSend(data: { to: string; subject: string; body: string }) {
@@ -180,6 +202,15 @@ function AppLayout() {
         open={mobileCommandOpen}
         onOpenChange={setMobileCommandOpen}
         onOpenSettings={openSettings}
+      />
+      <NewDropSheet
+        open={newDropOpen}
+        mode={newDropMode}
+        onOpenChange={setNewDropOpen}
+        onSave={(items) => {
+          createDrop(items)
+          toast.success(t("drop.created"))
+        }}
       />
     </AppChromeContext.Provider>
   )

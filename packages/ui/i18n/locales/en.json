@@ -10,6 +10,7 @@
     },
     "compose": "Compose",
     "messages": "Messages",
+    "drop": "Drop",
     "navAriaLabel": "Folders"
   },
   "emailList": {
@@ -188,6 +189,41 @@
       "conversationsWillAppear": "Conversations you join will appear here.",
       "tryDifferentSearch": "Try a different search term.",
       "noMessagesYet": "No messages yet"
+    }
+  },
+  "drop": {
+    "created": "Drop saved",
+    "deleted": "Drop deleted",
+    "list": {
+      "title": "Drop",
+      "searchPlaceholder": "Search drops",
+      "searchAriaLabel": "Search drops",
+      "noDropsYet": "No drops yet",
+      "noResults": "No results",
+      "dropsWillAppear": "Your drops will appear here.",
+      "tryDifferentSearch": "Try a different search term."
+    },
+    "detail": {
+      "backToList": "Back to list",
+      "delete": "Delete drop",
+      "noDropSelected": "No drop selected",
+      "noDropSelectedHint": "Select a drop from the list to view it here."
+    },
+    "new": {
+      "title": "New drop",
+      "description": "Save files, images, text, or links for later",
+      "button": "New drop",
+      "cancel": "Cancel",
+      "save": "Save",
+      "dropZoneAriaLabel": "Drop files here or click to browse",
+      "dropFilesHere": "Drop files here",
+      "orClickToBrowse": "or click to browse",
+      "clipboardHint": "Read your clipboard or paste content below.",
+      "readClipboard": "Read clipboard",
+      "reading": "Reading…",
+      "clipboardPlaceholder": "Paste or type content here…",
+      "textBlockPlaceholder": "Write something…",
+      "addBlock": "Add block"
     }
   },
   "mobileCommand": {

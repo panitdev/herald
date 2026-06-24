@@ -1,7 +1,18 @@
 "use client"
 
 import * as React from "react"
-import { MessageSquare, User, UserMinus, UserPlus, Users } from "lucide-react"
+import {
+  ClipboardPaste,
+  FileUp,
+  MessageSquare,
+  Package,
+  Trash2,
+  Type,
+  User,
+  UserMinus,
+  UserPlus,
+  Users,
+} from "lucide-react"
 import { useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -19,6 +30,8 @@ import {
 } from "@/components/ui/command"
 import { contactsQuery, userSearchQuery } from "@/lib/queries"
 import { addContact, createChatConversation, removeContact } from "@/lib/api"
+import { useDropStore, dropTitle } from "@/lib/drop-store"
+import { useAppChrome } from "@/lib/app-chrome"
 import type { ContactUser } from "@/lib/api"
 import type { ChatConversation } from "@/lib/api"
 
@@ -38,6 +51,7 @@ export function CommandMenu({ open, onOpenChange }: Props) {
         <CommandInput placeholder="Type a command..." />
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
+          <DropCommandSection onClose={close} />
           <CommandGroup heading="Contacts">
             <CommandNest
               label="Add contact"
@@ -68,6 +82,118 @@ export function CommandMenu({ open, onOpenChange }: Props) {
         </CommandList>
       </Command>
     </CommandDialog>
+  )
+}
+
+// ─── Drop section ─────────────────────────────────────────────────────────────
+
+function DropCommandSection({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate()
+  const { drops, recentDrops, deleteDrop } = useDropStore()
+  const { openNewDrop } = useAppChrome()
+
+  function openDrop(id: string) {
+    onClose()
+    void navigate({ to: "/drop/$dropId", params: { dropId: id } })
+  }
+
+  return (
+    <CommandGroup heading="Drop">
+      {/* Recent three drops at the root level */}
+      {recentDrops.map((drop) => (
+        <CommandItem
+          key={drop.id}
+          value={`drop-recent-${drop.id}`}
+          keywords={[dropTitle(drop)]}
+          onSelect={() => openDrop(drop.id)}
+        >
+          <Package />
+          <span className="flex-1 truncate">{dropTitle(drop)}</span>
+        </CommandItem>
+      ))}
+
+      {/* List all drops */}
+      <CommandNest
+        label="List all drops"
+        icon={<Package />}
+        placeholder="Search drops..."
+        keywords={["drop", "list"]}
+      >
+        {drops.length === 0 ? (
+          <CommandGroup>
+            <CommandItem disabled>
+              <span className="text-muted-foreground">No drops yet</span>
+            </CommandItem>
+          </CommandGroup>
+        ) : (
+          <CommandGroup heading="Drops">
+            {drops.map((drop) => (
+              <CommandNest
+                key={drop.id}
+                label={dropTitle(drop)}
+                icon={<Package />}
+                placeholder="Choose action..."
+              >
+                <CommandGroup heading={dropTitle(drop)}>
+                  <CommandItem onSelect={() => openDrop(drop.id)}>
+                    <Package />
+                    <span>Open</span>
+                  </CommandItem>
+                  <CommandItem
+                    onSelect={() => {
+                      deleteDrop(drop.id)
+                      toast.success("Drop deleted")
+                      onClose()
+                    }}
+                  >
+                    <Trash2 />
+                    <span>Delete</span>
+                  </CommandItem>
+                </CommandGroup>
+              </CommandNest>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandNest>
+
+      {/* New drop */}
+      <CommandNest
+        label="New drop"
+        icon={<Package />}
+        placeholder="Choose type..."
+        keywords={["drop", "new", "create"]}
+      >
+        <CommandGroup heading="New drop">
+          <CommandItem
+            onSelect={() => {
+              openNewDrop("files")
+              onClose()
+            }}
+          >
+            <FileUp />
+            <span>Drop images or files</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              openNewDrop("clipboard")
+              onClose()
+            }}
+          >
+            <ClipboardPaste />
+            <span>Drop clipboard</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              openNewDrop("text")
+              onClose()
+            }}
+          >
+            <Type />
+            <span>Drop text</span>
+          </CommandItem>
+        </CommandGroup>
+      </CommandNest>
+    </CommandGroup>
   )
 }
 

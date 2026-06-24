@@ -10,6 +10,7 @@ import {
   Trash2,
   PenSquare,
   MessagesSquare,
+  Package,
   Plus,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -20,8 +21,8 @@ import { HeraldLogo } from "@/components/ui/logos"
 import { ProfileMenu } from "./profile-menu"
 import { ButtonGroup } from "../ui/button-group"
 
-/** Either a mail folder or the realtime messenger. */
-export type SidebarSection = Folder | "messages"
+/** Either a mail folder, the realtime messenger, or the drop store. */
+export type SidebarSection = Folder | "messages" | "drop"
 
 type FolderDef = {
   id: Folder
@@ -41,6 +42,7 @@ type Props = {
   active: SidebarSection
   onSelect: (folder: Folder) => void
   onOpenMessages: () => void
+  onOpenDrop?: () => void
   counts?: Partial<Record<Folder, number>>
   onCompose: () => void
   onOpenSettings: () => void
@@ -50,6 +52,7 @@ export function EmailSidebar({
   active,
   onSelect,
   onOpenMessages,
+  onOpenDrop,
   counts = {},
   onCompose,
   onOpenSettings,
@@ -122,6 +125,14 @@ export function EmailSidebar({
             isActive={active === "messages"}
             onClick={onOpenMessages}
           />
+          {onOpenDrop && (
+            <NavItem
+              label={t("sidebar.drop")}
+              icon={Package}
+              isActive={active === "drop"}
+              onClick={onOpenDrop}
+            />
+          )}
         </ul>
       </nav>
 

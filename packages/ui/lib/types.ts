@@ -22,3 +22,41 @@ export type Email = {
   labels?: string[]
   hasAttachment?: boolean
 }
+
+// ─── Drop types ───────────────────────────────────────────────────────────────
+
+export type TextDropItem = {
+  type: "text"
+  content: string
+}
+
+export type LinkDropItem = {
+  type: "link"
+  url: string
+}
+
+export type FileDropItem = {
+  type: "file"
+  name: string
+  mimeType: string
+  size: number
+  dataUrl: string
+}
+
+export type ImageDropItem = {
+  type: "image"
+  name: string
+  mimeType: string
+  size: number
+  dataUrl: string
+}
+
+export type DropItem = TextDropItem | LinkDropItem | FileDropItem | ImageDropItem
+
+export type Drop = {
+  id: string
+  createdAt: string // ISO
+  updatedAt: string // ISO
+  title?: string
+  items: DropItem[]
+}

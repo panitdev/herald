@@ -86,6 +86,7 @@ function MailboxRoute() {
       active={mailbox}
       onSelect={(f) => navigate({ to: "/$mailbox", params: { mailbox: f } })}
       onOpenMessages={() => navigate({ to: "/messages" })}
+      onOpenDrop={() => navigate({ to: "/drop" })}
       counts={counts}
       onCompose={() => openCompose()}
       onOpenSettings={openSettings}
