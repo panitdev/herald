@@ -8,16 +8,20 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  ClipboardPaste,
   FileText,
+  FileUp,
   Inbox,
   Mail,
   MessageSquare,
+  Package,
   Palette,
   PenLine,
   Send,
   Settings,
   Star,
   Trash2,
+  Type,
   User,
   UserMinus,
   UserPlus,
@@ -34,8 +38,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { contactsQuery, userSearchQuery } from "@/lib/queries"
 import { addContact, createChatConversation, removeContact } from "@/lib/api"
+import { useDropStore, dropTitle } from "@/lib/drop-store"
+import { useAppChrome } from "@/lib/app-chrome"
 import type { ContactUser, ChatConversation } from "@/lib/api"
-import type { Folder } from "@/lib/types"
+import type { Drop, Folder } from "@/lib/types"
+import type { NewDropMode } from "@/lib/app-chrome"
 import { cn } from "@/lib/utils"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -48,6 +55,9 @@ type Screen =
   | { id: "list-contacts" }
   | { id: "contact-actions"; contact: ContactUser }
   | { id: "settings" }
+  | { id: "drop" }
+  | { id: "new-drop" }
+  | { id: "drop-actions"; drop: Drop }
 
 type Props = {
   open: boolean
@@ -126,7 +136,9 @@ export function MobileCommandDrawer({ open, onOpenChange, onOpenSettings }: Prop
   const screenKey =
     current.id === "contact-actions"
       ? `contact-actions-${current.contact.id}`
-      : current.id
+      : current.id === "drop-actions"
+        ? `drop-actions-${current.drop.id}`
+        : current.id
 
   const title = getTitle(current, t)
 
@@ -263,6 +275,12 @@ function ScreenContent({ screen, onPush, onNavigateToFolder, onOpenSettings, onC
       )
     case "settings":
       return <SettingsScreen onOpenSettings={onOpenSettings} />
+    case "drop":
+      return <DropScreen onPush={onPush} onClose={onClose} />
+    case "new-drop":
+      return <NewDropScreen onClose={onClose} />
+    case "drop-actions":
+      return <DropActionsScreen drop={screen.drop} onClose={onClose} />
   }
 }
 
@@ -328,6 +346,12 @@ function RootScreen({ onPush }: { onPush: (s: Screen) => void }) {
           icon={<Mail className="h-4 w-4" />}
           label={t("mobileCommand.mailboxes")}
           onClick={() => onPush({ id: "mailboxes" })}
+          chevron
+        />
+        <MenuItem
+          icon={<Package className="h-4 w-4" />}
+          label={t("mobileCommand.drop")}
+          onClick={() => onPush({ id: "drop" })}
           chevron
         />
         <MenuItem
@@ -583,6 +607,145 @@ function ContactActionsScreen({
   )
 }
 
+// ─── Drop screen ─────────────────────────────────────────────────────────────
+
+function DropScreen({ onPush, onClose }: { onPush: (s: Screen) => void; onClose: () => void }) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { drops, recentDrops } = useDropStore()
+
+  function openDrop(id: string) {
+    onClose()
+    void navigate({ to: "/drop/$dropId", params: { dropId: id } })
+  }
+
+  return (
+    <div className="pb-6">
+      {recentDrops.length > 0 && (
+        <MenuGroup>
+          {recentDrops.map((drop) => (
+            <MenuItem
+              key={drop.id}
+              icon={<Package className="h-4 w-4" />}
+              label={dropTitle(drop)}
+              onClick={() => openDrop(drop.id)}
+            />
+          ))}
+        </MenuGroup>
+      )}
+      <MenuGroup>
+        {drops.length > 0 && (
+          <MenuItem
+            icon={<Package className="h-4 w-4" />}
+            label={t("mobileCommand.listAllDrops")}
+            onClick={() => {
+              onClose()
+              void navigate({ to: "/drop" })
+            }}
+          />
+        )}
+        <MenuItem
+          icon={<Package className="h-4 w-4" />}
+          iconClassName="bg-primary/10 text-primary"
+          label={t("mobileCommand.newDrop")}
+          onClick={() => onPush({ id: "new-drop" })}
+          chevron
+        />
+      </MenuGroup>
+    </div>
+  )
+}
+
+// ─── New drop screen ─────────────────────────────────────────────────────────
+
+function NewDropScreen({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
+  const { openNewDrop } = useAppChrome()
+
+  function handleDropFiles() {
+    onClose()
+    setTimeout(() => openNewDrop("files"), 200)
+  }
+
+  function handleDropText() {
+    onClose()
+    setTimeout(() => openNewDrop("text"), 200)
+  }
+
+  async function handleDropClipboard() {
+    try {
+      const text = await navigator.clipboard.readText()
+      if (!text.trim()) {
+        toast.error(t("mobileCommand.clipboardEmpty"))
+        return
+      }
+      onClose()
+      setTimeout(() => openNewDrop("clipboard"), 200)
+    } catch {
+      toast.error(t("mobileCommand.clipboardFailed"))
+    }
+  }
+
+  return (
+    <div className="pb-6">
+      <MenuGroup>
+        <MenuItem
+          icon={<FileUp className="h-4 w-4" />}
+          label={t("mobileCommand.dropFiles")}
+          description={t("mobileCommand.dropFilesDesc")}
+          onClick={handleDropFiles}
+        />
+        <MenuItem
+          icon={<ClipboardPaste className="h-4 w-4" />}
+          label={t("mobileCommand.dropClipboard")}
+          description={t("mobileCommand.dropClipboardDesc")}
+          onClick={handleDropClipboard}
+        />
+        <MenuItem
+          icon={<Type className="h-4 w-4" />}
+          label={t("mobileCommand.dropText")}
+          description={t("mobileCommand.dropTextDesc")}
+          onClick={handleDropText}
+        />
+      </MenuGroup>
+    </div>
+  )
+}
+
+// ─── Drop actions screen ─────────────────────────────────────────────────────
+
+function DropActionsScreen({ drop, onClose }: { drop: Drop; onClose: () => void }) {
+  const navigate = useNavigate()
+  const { t } = useTranslation()
+  const { deleteDrop } = useDropStore()
+
+  return (
+    <div className="pb-6">
+      <MenuGroup>
+        <MenuItem
+          icon={<Package className="h-4 w-4" />}
+          label={t("mobileCommand.openDrop")}
+          onClick={() => {
+            onClose()
+            void navigate({ to: "/drop/$dropId", params: { dropId: drop.id } })
+          }}
+        />
+        <MenuItem
+          icon={<Trash2 className="h-4 w-4" />}
+          iconClassName="bg-destructive/10 text-destructive"
+          label={t("mobileCommand.deleteDrop")}
+          onClick={() => {
+            deleteDrop(drop.id)
+            toast.success(t("drop.deleted"))
+            onClose()
+          }}
+          destructive
+        />
+      </MenuGroup>
+    </div>
+  )
+}
+
 // ─── Settings screen ──────────────────────────────────────────────────────────
 
 const SETTINGS_TABS: {
@@ -627,6 +790,9 @@ function getTitle(screen: Screen, t: (key: string) => string): string {
     case "list-contacts": return t("mobileCommand.listContacts")
     case "contact-actions": return screen.contact.displayName
     case "settings": return t("mobileCommand.settings")
+    case "drop": return t("mobileCommand.drop")
+    case "new-drop": return t("mobileCommand.newDrop")
+    case "drop-actions": return dropTitle(screen.drop)
   }
 }
 

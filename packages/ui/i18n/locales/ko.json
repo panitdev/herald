@@ -247,7 +247,20 @@
     "contactRemoved": "{{name}}을(를) 연락처에서 삭제했습니다",
     "contactAddFailed": "연락처 추가 실패",
     "contactRemoveFailed": "연락처 삭제 실패",
-    "openChatFailed": "채팅 열기 실패"
+    "openChatFailed": "채팅 열기 실패",
+    "drop": "드롭",
+    "newDrop": "새 드롭",
+    "listAllDrops": "모든 드롭 보기",
+    "openDrop": "열기",
+    "deleteDrop": "삭제",
+    "dropFiles": "파일 드롭",
+    "dropFilesDesc": "이미지 또는 파일 업로드",
+    "dropClipboard": "클립보드 드롭",
+    "dropClipboardDesc": "클립보드 내용 저장",
+    "dropText": "텍스트 드롭",
+    "dropTextDesc": "텍스트 또는 링크 작성",
+    "clipboardEmpty": "클립보드가 비어 있습니다",
+    "clipboardFailed": "클립보드를 읽을 수 없습니다"
   },
   "auth": {
     "restoringCachedMail": "캐시된 메일 복원 중",

@@ -247,7 +247,20 @@
     "contactRemoved": "Removed {{name}} from contacts",
     "contactAddFailed": "Failed to add contact",
     "contactRemoveFailed": "Failed to remove contact",
-    "openChatFailed": "Failed to open chat"
+    "openChatFailed": "Failed to open chat",
+    "drop": "Drop",
+    "newDrop": "New drop",
+    "listAllDrops": "List all drops",
+    "openDrop": "Open",
+    "deleteDrop": "Delete",
+    "dropFiles": "Drop files",
+    "dropFilesDesc": "Upload images or files",
+    "dropClipboard": "Drop clipboard",
+    "dropClipboardDesc": "Save clipboard contents",
+    "dropText": "Drop text",
+    "dropTextDesc": "Write text or links",
+    "clipboardEmpty": "Clipboard is empty",
+    "clipboardFailed": "Could not read clipboard"
   },
   "auth": {
     "restoringCachedMail": "Restoring cached mail",
