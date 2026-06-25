@@ -12,7 +12,7 @@ import { CommandMenu } from "@/components/email/command-menu"
 import { ComposePanel } from "@/components/email/compose-panel"
 import { MobileCommandDrawer } from "@/components/email/mobile-command-drawer"
 import { SettingsDialog } from "@/components/email/settings-dialog"
-import { NewDropSheet } from "@/components/drop/new-drop-sheet"
+import { NewDropDialog } from "@/components/drop/new-drop-dialog"
 import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
 import { useLocalOverrides } from "@/lib/local-overrides-store"
@@ -203,7 +203,7 @@ function AppLayoutInner() {
         onOpenChange={setMobileCommandOpen}
         onOpenSettings={openSettings}
       />
-      <NewDropSheet
+      <NewDropDialog
         open={newDropOpen}
         mode={newDropMode}
         onOpenChange={setNewDropOpen}
