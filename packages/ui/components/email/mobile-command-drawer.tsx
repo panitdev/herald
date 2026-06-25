@@ -87,6 +87,10 @@ const pageVariants = {
 
 const pageTrans = { duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] as const }
 
+// motion-enhanced Vaul content for smooth height transitions via FLIP layout animation.
+// Must be defined outside the component to avoid re-creating on every render.
+const MotionDrawerContent = motion.create(DrawerPrimitive.Content)
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function MobileCommandDrawer({ open, onOpenChange, onOpenSettings }: Props) {
@@ -143,14 +147,24 @@ export function MobileCommandDrawer({ open, onOpenChange, onOpenSettings }: Prop
   const title = getTitle(current, t)
 
   return (
-    <DrawerPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DrawerPrimitive.Root open={open} onOpenChange={onOpenChange} repositionInputs={false}>
       <DrawerPrimitive.Portal>
         {/* Backdrop with blur */}
         <DrawerPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200" />
 
-        <DrawerPrimitive.Content
+        {/*
+         * MotionDrawerContent uses Framer Motion's FLIP layout animation (`layout="size"`)
+         * to animate height when screens change. `layoutDependency={screenKey}` prevents
+         * spurious layout animations from unrelated re-renders (e.g. query refetches).
+         * `max-h-[82dvh]` uses dynamic viewport units so the drawer stays above the virtual
+         * keyboard on modern iOS/Android when an input is focused.
+         */}
+        <MotionDrawerContent
           aria-describedby={undefined}
-          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[82vh] flex-col rounded-t-[20px] border-t border-border bg-background outline-none"
+          layout="size"
+          layoutDependency={screenKey}
+          transition={{ layout: pageTrans }}
+          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[82dvh] flex-col rounded-t-[20px] border-t border-border bg-background outline-none"
         >
           <DrawerPrimitive.Title className="sr-only">{title}</DrawerPrimitive.Title>
 
@@ -212,9 +226,11 @@ export function MobileCommandDrawer({ open, onOpenChange, onOpenSettings }: Prop
             </DrawerPrimitive.Close>
           </div>
 
-          {/* Screen content with blur crossfade */}
+          {/* Screen content — popLayout removes the exiting screen from layout flow
+              immediately so the new screen's height is measured at once, letting the
+              outer layout animation animate to the correct target height without delay. */}
           <div className="relative flex-1 overflow-y-auto overflow-x-hidden">
-            <AnimatePresence mode="wait" custom={direction}>
+            <AnimatePresence mode="popLayout" custom={direction}>
               <motion.div
                 key={screenKey}
                 custom={direction}
@@ -236,7 +252,7 @@ export function MobileCommandDrawer({ open, onOpenChange, onOpenSettings }: Prop
               </motion.div>
             </AnimatePresence>
           </div>
-        </DrawerPrimitive.Content>
+        </MotionDrawerContent>
       </DrawerPrimitive.Portal>
     </DrawerPrimitive.Root>
   )
