@@ -28,6 +28,7 @@ use crate::{
 
 pub mod chat;
 pub mod contacts;
+pub mod drops;
 pub mod email_senders;
 pub mod internal;
 pub mod objects;
@@ -68,6 +69,8 @@ pub fn router() -> Router<AppState> {
             "/api/contacts/{user_id}",
             axum::routing::delete(contacts::remove_contact),
         )
+        .route("/drops", post(drops::create_drop))
+        .route("/drops/{id}", axum::routing::delete(drops::delete_drop))
         .route("/realtime", get(realtime_socket))
         .route("/internal/mail/inbound", post(internal::inbound_mail))
         .route("/sync/bootstrap", post(sync::bootstrap))
