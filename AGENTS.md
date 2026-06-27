@@ -63,6 +63,8 @@ Run locally with:
 bun dev:ui
 ```
 
+When you have updated routes, have routeTree.gen.ts regenerated and staged before committing.
+
 ## Browser interaction
 
 Use `https://localhost.panit.dev` instead of `http://localhost:3000` for real
