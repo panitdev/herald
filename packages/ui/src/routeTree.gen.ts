@@ -11,14 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AppDropRouteImport } from './routes/_app/drop'
 import { Route as AppMessagesRouteImport } from './routes/_app/messages'
+import { Route as AppDropRouteImport } from './routes/_app/drop'
 import { Route as AppMailboxRouteImport } from './routes/_app/$mailbox'
-import { Route as AppDropIndexRouteImport } from './routes/_app/drop.index'
 import { Route as AppMessagesIndexRouteImport } from './routes/_app/messages.index'
+import { Route as AppDropIndexRouteImport } from './routes/_app/drop.index'
 import { Route as AppMailboxIndexRouteImport } from './routes/_app/$mailbox.index'
-import { Route as AppDropDropIdRouteImport } from './routes/_app/drop.$dropId'
 import { Route as AppMessagesConversationIdRouteImport } from './routes/_app/messages.$conversationId'
+import { Route as AppDropDropIdRouteImport } from './routes/_app/drop.$dropId'
 import { Route as AppMailboxMessageIdRouteImport } from './routes/_app/$mailbox.$messageId'
 
 const AppRoute = AppRouteImport.update({
@@ -30,14 +30,14 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppDropRoute = AppDropRouteImport.update({
-  id: '/drop',
-  path: '/drop',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppMessagesRoute = AppMessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDropRoute = AppDropRouteImport.update({
+  id: '/drop',
+  path: '/drop',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMailboxRoute = AppMailboxRouteImport.update({
@@ -45,25 +45,20 @@ const AppMailboxRoute = AppMailboxRouteImport.update({
   path: '/$mailbox',
   getParentRoute: () => AppRoute,
 } as any)
-const AppDropIndexRoute = AppDropIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppDropRoute,
-} as any)
 const AppMessagesIndexRoute = AppMessagesIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppMessagesRoute,
 } as any)
+const AppDropIndexRoute = AppDropIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppDropRoute,
+} as any)
 const AppMailboxIndexRoute = AppMailboxIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppMailboxRoute,
-} as any)
-const AppDropDropIdRoute = AppDropDropIdRouteImport.update({
-  id: '/$dropId',
-  path: '/$dropId',
-  getParentRoute: () => AppDropRoute,
 } as any)
 const AppMessagesConversationIdRoute =
   AppMessagesConversationIdRouteImport.update({
@@ -71,6 +66,11 @@ const AppMessagesConversationIdRoute =
     path: '/$conversationId',
     getParentRoute: () => AppMessagesRoute,
   } as any)
+const AppDropDropIdRoute = AppDropDropIdRouteImport.update({
+  id: '/$dropId',
+  path: '/$dropId',
+  getParentRoute: () => AppDropRoute,
+} as any)
 const AppMailboxMessageIdRoute = AppMailboxMessageIdRouteImport.update({
   id: '/$messageId',
   path: '/$messageId',
@@ -80,73 +80,73 @@ const AppMailboxMessageIdRoute = AppMailboxMessageIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$mailbox': typeof AppMailboxRouteWithChildren
-  '/messages': typeof AppMessagesRouteWithChildren
   '/drop': typeof AppDropRouteWithChildren
+  '/messages': typeof AppMessagesRouteWithChildren
   '/$mailbox/$messageId': typeof AppMailboxMessageIdRoute
-  '/messages/$conversationId': typeof AppMessagesConversationIdRoute
   '/drop/$dropId': typeof AppDropDropIdRoute
+  '/messages/$conversationId': typeof AppMessagesConversationIdRoute
   '/$mailbox/': typeof AppMailboxIndexRoute
-  '/messages/': typeof AppMessagesIndexRoute
   '/drop/': typeof AppDropIndexRoute
+  '/messages/': typeof AppMessagesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$mailbox/$messageId': typeof AppMailboxMessageIdRoute
-  '/messages/$conversationId': typeof AppMessagesConversationIdRoute
   '/drop/$dropId': typeof AppDropDropIdRoute
+  '/messages/$conversationId': typeof AppMessagesConversationIdRoute
   '/$mailbox': typeof AppMailboxIndexRoute
-  '/messages': typeof AppMessagesIndexRoute
   '/drop': typeof AppDropIndexRoute
+  '/messages': typeof AppMessagesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/_app/$mailbox': typeof AppMailboxRouteWithChildren
-  '/_app/messages': typeof AppMessagesRouteWithChildren
   '/_app/drop': typeof AppDropRouteWithChildren
+  '/_app/messages': typeof AppMessagesRouteWithChildren
   '/_app/$mailbox/$messageId': typeof AppMailboxMessageIdRoute
-  '/_app/messages/$conversationId': typeof AppMessagesConversationIdRoute
   '/_app/drop/$dropId': typeof AppDropDropIdRoute
+  '/_app/messages/$conversationId': typeof AppMessagesConversationIdRoute
   '/_app/$mailbox/': typeof AppMailboxIndexRoute
-  '/_app/messages/': typeof AppMessagesIndexRoute
   '/_app/drop/': typeof AppDropIndexRoute
+  '/_app/messages/': typeof AppMessagesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/$mailbox'
-    | '/messages'
     | '/drop'
+    | '/messages'
     | '/$mailbox/$messageId'
-    | '/messages/$conversationId'
     | '/drop/$dropId'
+    | '/messages/$conversationId'
     | '/$mailbox/'
-    | '/messages/'
     | '/drop/'
+    | '/messages/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$mailbox/$messageId'
-    | '/messages/$conversationId'
     | '/drop/$dropId'
+    | '/messages/$conversationId'
     | '/$mailbox'
-    | '/messages'
     | '/drop'
+    | '/messages'
   id:
     | '__root__'
     | '/'
     | '/_app'
     | '/_app/$mailbox'
-    | '/_app/messages'
     | '/_app/drop'
+    | '/_app/messages'
     | '/_app/$mailbox/$messageId'
-    | '/_app/messages/$conversationId'
     | '/_app/drop/$dropId'
+    | '/_app/messages/$conversationId'
     | '/_app/$mailbox/'
-    | '/_app/messages/'
     | '/_app/drop/'
+    | '/_app/messages/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -170,18 +170,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/drop': {
-      id: '/_app/drop'
-      path: '/drop'
-      fullPath: '/drop'
-      preLoaderRoute: typeof AppDropRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/messages': {
       id: '/_app/messages'
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof AppMessagesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/drop': {
+      id: '/_app/drop'
+      path: '/drop'
+      fullPath: '/drop'
+      preLoaderRoute: typeof AppDropRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/$mailbox': {
@@ -191,19 +191,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMailboxRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/drop/': {
-      id: '/_app/drop/'
-      path: '/'
-      fullPath: '/drop/'
-      preLoaderRoute: typeof AppDropIndexRouteImport
-      parentRoute: typeof AppDropRoute
-    }
     '/_app/messages/': {
       id: '/_app/messages/'
       path: '/'
       fullPath: '/messages/'
       preLoaderRoute: typeof AppMessagesIndexRouteImport
       parentRoute: typeof AppMessagesRoute
+    }
+    '/_app/drop/': {
+      id: '/_app/drop/'
+      path: '/'
+      fullPath: '/drop/'
+      preLoaderRoute: typeof AppDropIndexRouteImport
+      parentRoute: typeof AppDropRoute
     }
     '/_app/$mailbox/': {
       id: '/_app/$mailbox/'
@@ -212,19 +212,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMailboxIndexRouteImport
       parentRoute: typeof AppMailboxRoute
     }
-    '/_app/drop/$dropId': {
-      id: '/_app/drop/$dropId'
-      path: '/$dropId'
-      fullPath: '/drop/$dropId'
-      preLoaderRoute: typeof AppDropDropIdRouteImport
-      parentRoute: typeof AppDropRoute
-    }
     '/_app/messages/$conversationId': {
       id: '/_app/messages/$conversationId'
       path: '/$conversationId'
       fullPath: '/messages/$conversationId'
       preLoaderRoute: typeof AppMessagesConversationIdRouteImport
       parentRoute: typeof AppMessagesRoute
+    }
+    '/_app/drop/$dropId': {
+      id: '/_app/drop/$dropId'
+      path: '/$dropId'
+      fullPath: '/drop/$dropId'
+      preLoaderRoute: typeof AppDropDropIdRouteImport
+      parentRoute: typeof AppDropRoute
     }
     '/_app/$mailbox/$messageId': {
       id: '/_app/$mailbox/$messageId'
@@ -250,6 +250,19 @@ const AppMailboxRouteWithChildren = AppMailboxRoute._addFileChildren(
   AppMailboxRouteChildren,
 )
 
+interface AppDropRouteChildren {
+  AppDropDropIdRoute: typeof AppDropDropIdRoute
+  AppDropIndexRoute: typeof AppDropIndexRoute
+}
+
+const AppDropRouteChildren: AppDropRouteChildren = {
+  AppDropDropIdRoute: AppDropDropIdRoute,
+  AppDropIndexRoute: AppDropIndexRoute,
+}
+
+const AppDropRouteWithChildren =
+  AppDropRoute._addFileChildren(AppDropRouteChildren)
+
 interface AppMessagesRouteChildren {
   AppMessagesConversationIdRoute: typeof AppMessagesConversationIdRoute
   AppMessagesIndexRoute: typeof AppMessagesIndexRoute
@@ -264,30 +277,16 @@ const AppMessagesRouteWithChildren = AppMessagesRoute._addFileChildren(
   AppMessagesRouteChildren,
 )
 
-interface AppDropRouteChildren {
-  AppDropDropIdRoute: typeof AppDropDropIdRoute
-  AppDropIndexRoute: typeof AppDropIndexRoute
-}
-
-const AppDropRouteChildren: AppDropRouteChildren = {
-  AppDropDropIdRoute: AppDropDropIdRoute,
-  AppDropIndexRoute: AppDropIndexRoute,
-}
-
-const AppDropRouteWithChildren = AppDropRoute._addFileChildren(
-  AppDropRouteChildren,
-)
-
 interface AppRouteChildren {
   AppMailboxRoute: typeof AppMailboxRouteWithChildren
-  AppMessagesRoute: typeof AppMessagesRouteWithChildren
   AppDropRoute: typeof AppDropRouteWithChildren
+  AppMessagesRoute: typeof AppMessagesRouteWithChildren
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppMailboxRoute: AppMailboxRouteWithChildren,
-  AppMessagesRoute: AppMessagesRouteWithChildren,
   AppDropRoute: AppDropRouteWithChildren,
+  AppMessagesRoute: AppMessagesRouteWithChildren,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
