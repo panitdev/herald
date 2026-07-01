@@ -36,6 +36,7 @@ import {
   CommandDrawerNest,
 } from "@/components/ui/command-drawer"
 import { Input } from "@/components/ui/input"
+import { useDialogHistory } from "@/hooks/use-dialog-history"
 import { contactsQuery, userSearchQuery } from "@/lib/queries"
 import { addContact, createChatConversation, removeContact } from "@/lib/api"
 import { useDropStore, dropTitle } from "@/lib/drop-store"
@@ -78,6 +79,9 @@ export function MobileCommandDrawer({ open, onOpenChange, onOpenSettings }: Prop
 
   const contactsQ = useQuery(contactsQuery())
   const contacts = contactsQ.data ?? []
+
+  // Mobile back action closes the drawer instead of leaving the app.
+  useDialogHistory(open, () => onOpenChange(false))
 
   const close = () => onOpenChange(false)
 

@@ -3,7 +3,9 @@ import { animate, motion, useMotionTemplate, useMotionValue } from "framer-motio
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Drawer } from "vaul"
 
+import { popDialog, pushDialog } from "@/lib/dialog-history"
 import { cn } from "@/lib/utils"
+import type { DialogEntry } from "@/lib/dialog-history"
 
 // ─── NestContext ──────────────────────────────────────────────────────────
 
@@ -37,17 +39,34 @@ function NestProvider({ children }: { children: React.ReactNode }) {
   const [direction, setDirection] = React.useState<"forward" | "back">("forward")
   const titles = React.useRef<Map<string, string | undefined>>(new Map())
 
-  const push = React.useCallback((id: string) => {
-    setDirection("forward")
-    setStack((s) => [...s, id])
-  }, [])
+  // Each nest level backed by its own dummy history entry, so the mobile
+  // back action steps out one sub-menu level at a time instead of closing
+  // the whole drawer immediately.
+  const historyEntries = React.useRef<DialogEntry[]>([])
 
   const pop = React.useCallback(() => {
+    popDialog(historyEntries.current.pop() ?? null)
     setDirection("back")
     setStack((s) => s.slice(0, -1))
   }, [])
 
+  const push = React.useCallback(
+    (id: string) => {
+      const entry = pushDialog(pop)
+      if (entry) historyEntries.current.push(entry)
+      setDirection("forward")
+      setStack((s) => [...s, id])
+    },
+    [pop],
+  )
+
   const reset = React.useCallback(() => {
+    // Flush any lingering nested history entries (e.g. the drawer was
+    // dismissed several sub-menu levels deep) without walking back through
+    // them one at a time.
+    while (historyEntries.current.length > 0) {
+      popDialog(historyEntries.current.pop() ?? null)
+    }
     setStack([])
     setDirection("forward")
   }, [])
@@ -118,13 +137,13 @@ function CommandDrawerInner({
 }: React.ComponentProps<typeof Drawer.Root>) {
   const ctx = useNestContext()
 
-  // Reset nest state when the drawer opens so it always starts at root.
+  // Reset nest state whenever the drawer opens (always start at root) or
+  // closes (flush any nested history entries left over from a close that
+  // skipped the back chevron, e.g. selecting an item deep in a sub-menu).
   const resetRef = React.useRef(ctx?.reset)
   resetRef.current = ctx?.reset
   React.useEffect(() => {
-    if (openProp) {
-      resetRef.current?.()
-    }
+    resetRef.current?.()
   }, [openProp])
 
   return (
