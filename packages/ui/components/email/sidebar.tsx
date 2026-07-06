@@ -81,7 +81,7 @@ export function EmailSidebar({
         </ButtonGroup>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 scrollbar-thin" aria-label={t("sidebar.navAriaLabel")}>
+      <nav className="flex-1 overflow-y-auto px-2 py-1 scrollbar-thin" aria-label={t("sidebar.navAriaLabel")}>
         <ul className="flex flex-col gap-0.5">
           {FOLDERS.map((folder) => {
             const isActive = active === folder.id
