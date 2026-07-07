@@ -13,13 +13,16 @@ declare const self: ServiceWorkerGlobalScope & {
   __SW_MANIFEST: Array<string | PrecacheEntry>
 }
 
-const kratosOrigin = import.meta.env.VITE_KRATOS_PUBLIC_URL
-  ? new URL(import.meta.env.VITE_KRATOS_PUBLIC_URL).origin
+const surgeAuthOrigin = import.meta.env.VITE_SURGE_AUTH_URL
+  ? new URL(import.meta.env.VITE_SURGE_AUTH_URL).origin
   : null
 const precacheEntries = Array.isArray(self.__SW_MANIFEST) ? self.__SW_MANIFEST : []
 
 function isPrivateRequest(url: URL): boolean {
-  return url.pathname.startsWith("/api/") || (kratosOrigin !== null && url.origin === kratosOrigin)
+  return (
+    url.pathname.startsWith("/api/") ||
+    (surgeAuthOrigin !== null && url.origin === surgeAuthOrigin)
+  )
 }
 
 const serwist = new Serwist({

@@ -11,7 +11,7 @@ declare global {
 export type PublicEnv = {
   apiUrl?: string
   mailDomain?: string
-  kratosUrl?: string
+  surgeAuthUrl?: string
 }
 
 function trimTrailingSlash(value: string): string {
@@ -30,7 +30,7 @@ function readRuntimeEnv(): PublicEnv {
   return {
     apiUrl: env?.VITE_API_URL ?? env?.API_URL,
     mailDomain: env?.VITE_MAIL_DOMAIN ?? env?.MAIL_DOMAIN,
-    kratosUrl: env?.VITE_KRATOS_PUBLIC_URL ?? env?.KRATOS_PUBLIC_URL,
+    surgeAuthUrl: env?.VITE_SURGE_AUTH_URL ?? env?.SURGE_AUTH_URL,
   }
 }
 
@@ -45,8 +45,8 @@ export const API_URL = trimTrailingSlash(
 export const MAIL_DOMAIN =
   runtimeEnv.mailDomain ?? import.meta.env.VITE_MAIL_DOMAIN ?? "panit.dev"
 
-export const KRATOS_URL = (
-  runtimeEnv.kratosUrl ??
-  import.meta.env.VITE_KRATOS_PUBLIC_URL ??
+export const SURGE_AUTH_URL = (
+  runtimeEnv.surgeAuthUrl ??
+  import.meta.env.VITE_SURGE_AUTH_URL ??
   ""
 ).replace(/\/$/, "")

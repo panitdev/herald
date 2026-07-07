@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
 
 import { AuthGuardDialog } from "@/components/auth/auth-guard-dialog"
-import type { AuthStatus } from "@/lib/kratos"
+import type { AuthStatus } from "@/lib/surge"
 
 const meta = {
   title: "Auth/AuthGuardDialog",

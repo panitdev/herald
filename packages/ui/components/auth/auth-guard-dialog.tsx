@@ -9,8 +9,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
-import { checkWhoami, initiateLogin } from "@/lib/kratos"
-import type { AuthStatus } from "@/lib/kratos"
+import { checkWhoami, initiateLogin } from "@/lib/surge"
+import type { AuthStatus } from "@/lib/surge"
 
 const POLL_INTERVAL_MS = 60_000
 const COUNTDOWN_MS = 5_000

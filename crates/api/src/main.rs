@@ -73,6 +73,16 @@ async fn main() {
 
     let system_email = build_system_email_sender(&config, &http);
 
+    let auth = surge::remote(surge::RemoteConfig {
+        base_url: config.surge_url.parse().expect("invalid SURGE_URL"),
+        service_token: secrecy::SecretString::from(config.surge_service_token.clone()),
+        cache_ttl: std::time::Duration::from_secs(30),
+        cache_max_entries: 10_000,
+        timeout: std::time::Duration::from_secs(3),
+    })
+    .await
+    .expect("failed to build surge auth provider");
+
     let state = AppState {
         db,
         config: config.clone(),
@@ -82,6 +92,7 @@ async fn main() {
         worker,
         realtime: realtime::RealtimeHub::default(),
         system_email,
+        auth,
     };
 
     tokio::spawn(requeue_pending_inbound_mail(state.clone()));

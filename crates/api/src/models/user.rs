@@ -10,7 +10,7 @@ use crate::schema::users;
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct User {
     pub id: i64,
-    pub kratos_id: Uuid,
+    pub identity_id: Uuid,
     pub username: String,
     pub address: String,
     pub display_name: String,
@@ -23,7 +23,7 @@ pub struct User {
 #[diesel(table_name = users)]
 pub struct NewUser<'a> {
     pub id: i64,
-    pub kratos_id: Uuid,
+    pub identity_id: Uuid,
     pub username: &'a str,
     pub address: &'a str,
     pub display_name: &'a str,

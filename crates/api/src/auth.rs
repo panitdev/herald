@@ -1,11 +1,11 @@
 use axum::{
     extract::FromRequestParts,
-    http::{header, request::Parts},
+    http::{header, request::Parts, HeaderMap},
 };
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl;
-use serde::Deserialize;
 use std::time::Instant;
+use surge::{AuthError, SessionToken};
 use uuid::Uuid;
 
 use crate::{
@@ -15,30 +15,30 @@ use crate::{
     state::AppState,
 };
 
-/// Verified Kratos session from the incoming request.
+/// Verified Surge session identity from the incoming request.
 #[derive(Debug, Clone)]
-pub struct KratosIdentity {
-    pub kratos_user_id: Uuid,
+pub struct SurgeIdentity {
+    pub identity_id: Uuid,
     pub username: String,
 }
 
-#[derive(Deserialize)]
-struct WhoAmIResponse {
-    identity: KratosIdentityPayload,
+/// Reads the raw session token out of the `surge_session` cookie, falling back to a
+/// `Bearer` token in `Authorization`. Mirrors `surge::extract::extract_token`.
+pub(crate) fn extract_token(headers: &HeaderMap) -> Option<String> {
+    if let Some(cookie_header) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) {
+        for cookie in cookie_header.split(';') {
+            let cookie = cookie.trim();
+            if let Some(value) = cookie.strip_prefix("surge_session=") {
+                return Some(value.to_owned());
+            }
+        }
+    }
+
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok())?;
+    auth_header.strip_prefix("Bearer ").map(str::to_owned)
 }
 
-#[derive(Deserialize)]
-struct KratosIdentityPayload {
-    id: Uuid,
-    traits: KratosTraits,
-}
-
-#[derive(Deserialize)]
-struct KratosTraits {
-    username: String,
-}
-
-impl FromRequestParts<AppState> for KratosIdentity {
+impl FromRequestParts<AppState> for SurgeIdentity {
     type Rejection = AppError;
 
     async fn from_request_parts(
@@ -47,85 +47,56 @@ impl FromRequestParts<AppState> for KratosIdentity {
     ) -> Result<Self, Self::Rejection> {
         let started_at = Instant::now();
 
-        let cookie_header = parts
-            .headers
-            .get(header::COOKIE)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned);
-
-        let auth_header = parts
-            .headers
-            .get(header::AUTHORIZATION)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned);
-
-        let has_session_cookie = cookie_header
-            .as_deref()
-            .map(|c| c.contains("ory_kratos_session"))
-            .unwrap_or(false);
-        let has_bearer = auth_header
-            .as_deref()
-            .map(|a| a.starts_with("Bearer "))
-            .unwrap_or(false);
-
-        if !has_session_cookie && !has_bearer {
+        let Some(raw_token) = extract_token(&parts.headers) else {
             tracing::info!(
                 elapsed_ms = started_at.elapsed().as_millis(),
-                "kratos auth rejected before whoami"
+                "surge auth rejected before verify: no session cookie or Bearer token"
             );
             return Err(AppError::Unauthorized(
                 "missing session cookie or Bearer token".into(),
             ));
-        }
+        };
 
-        let whoami_url = format!("{}/sessions/whoami", state.config.kratos_public_url);
-        let mut req = state.http.get(&whoami_url);
+        let Some(token) = SessionToken::from_raw(&raw_token) else {
+            return Err(AppError::Unauthorized("malformed session token".into()));
+        };
 
-        if let Some(cookies) = &cookie_header {
-            req = req.header(header::COOKIE, cookies);
-        }
-        if let Some(auth) = &auth_header {
-            req = req.header(header::AUTHORIZATION, auth);
-        }
-
-        let whoami_started = Instant::now();
-        let resp = req.send().await.map_err(AppError::Http)?;
+        let verify_started = Instant::now();
+        let session = state.auth.verify_session(&token).await;
         tracing::info!(
-            elapsed_ms = whoami_started.elapsed().as_millis(),
-            status = %resp.status(),
-            "kratos whoami"
+            elapsed_ms = verify_started.elapsed().as_millis(),
+            ok = session.is_ok(),
+            "surge verify_session"
         );
 
-        if resp.status() == reqwest::StatusCode::UNAUTHORIZED
-            || resp.status() == reqwest::StatusCode::FORBIDDEN
-        {
-            return Err(AppError::Unauthorized("invalid or expired session".into()));
-        }
-
-        if !resp.status().is_success() {
-            return Err(AppError::Unauthorized(
-                "identity provider session verification failed".into(),
-            ));
-        }
-
-        let payload: WhoAmIResponse = resp.json().await.map_err(|_| {
-            AppError::Unauthorized("unexpected response from identity provider".into())
+        let session = session.map_err(|err| match err {
+            AuthError::InvalidToken | AuthError::SessionExpired => {
+                AppError::Unauthorized("invalid or expired session".into())
+            }
+            AuthError::IdentityDisabled => AppError::Unauthorized("identity disabled".into()),
+            AuthError::Unavailable | AuthError::Timeout => {
+                AppError::ServiceUnavailable("identity provider unavailable".into())
+            }
+            other => {
+                tracing::error!(error = %other, "unexpected error verifying surge session");
+                AppError::ServiceUnavailable("identity provider session verification failed".into())
+            }
         })?;
 
         tracing::info!(
             elapsed_ms = started_at.elapsed().as_millis(),
-            username = %payload.identity.traits.username,
-            "kratos identity extracted"
+            username = %session.identity.username.as_str(),
+            "surge identity extracted"
         );
 
-        Ok(KratosIdentity {
-            kratos_user_id: payload.identity.id,
-            username: payload.identity.traits.username,
+        Ok(SurgeIdentity {
+            identity_id: session.identity.id.into(),
+            username: session.identity.username.as_str().to_owned(),
         })
     }
 }
 
-impl KratosIdentity {
+impl SurgeIdentity {
     /// Returns the local `User` row, provisioning it (with default mailboxes) on first login.
     /// Safe to call concurrently — uses ON CONFLICT DO NOTHING for idempotent inserts.
     pub async fn resolve_user(&self, state: &AppState) -> Result<User, AppError> {
@@ -134,7 +105,7 @@ impl KratosIdentity {
         let mut conn = state.db.get().await?;
 
         let existing: Option<User> = users
-            .filter(kratos_id.eq(self.kratos_user_id))
+            .filter(identity_id.eq(self.identity_id))
             .select(User::as_select())
             .first(&mut conn)
             .await
@@ -165,7 +136,7 @@ impl KratosIdentity {
 
         let new_user = NewUser {
             id: state.next_id(),
-            kratos_id: self.kratos_user_id,
+            identity_id: self.identity_id,
             username: &self.username,
             address: &email_address,
             display_name: &self.username,
@@ -185,7 +156,7 @@ impl KratosIdentity {
         let user = match inserted {
             Some(u) => u,
             None => users
-                .filter(kratos_id.eq(self.kratos_user_id))
+                .filter(identity_id.eq(self.identity_id))
                 .select(User::as_select())
                 .first(&mut conn)
                 .await
@@ -218,7 +189,7 @@ impl FromRequestParts<AppState> for AuthUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let identity = KratosIdentity::from_request_parts(parts, state).await?;
+        let identity = SurgeIdentity::from_request_parts(parts, state).await?;
         let user = identity.resolve_user(state).await?;
         Ok(AuthUser(user))
     }

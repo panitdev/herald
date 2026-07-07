@@ -13,7 +13,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
       HERALD_INTERNAL_SECRET: ${HERALD_INTERNAL_SECRET:?HERALD_INTERNAL_SECRET must be set}
       HERALD_WORKER_URL: ${HERALD_WORKER_URL:?HERALD_WORKER_URL must be set}
-      KRATOS_PUBLIC_URL: ${KRATOS_PUBLIC_URL:-http://localhost:4433}
+      SURGE_URL: ${SURGE_URL:-http://localhost:3000}
+      SURGE_SERVICE_TOKEN: ${SURGE_SERVICE_TOKEN:?SURGE_SERVICE_TOKEN must be set}
+      SURGE_COOKIE_DOMAIN: ${SURGE_COOKIE_DOMAIN:-.panit.dev}
       MAIL_DOMAIN: ${MAIL_DOMAIN:-panit.dev}
       SNOWFLAKE_MACHINE_ID: ${SNOWFLAKE_MACHINE_ID:-1}
       SNOWFLAKE_NODE_ID: ${SNOWFLAKE_NODE_ID:-1}
@@ -35,7 +37,7 @@ services:
       PORT: 3000
       VITE_API_URL: ${VITE_API_URL:-https://herald-api.panit.dev}
       VITE_MAIL_DOMAIN: ${VITE_MAIL_DOMAIN:-panit.dev}
-      VITE_KRATOS_PUBLIC_URL: ${VITE_KRATOS_PUBLIC_URL:-https://kratos.panit.dev}
+      VITE_SURGE_AUTH_URL: ${VITE_SURGE_AUTH_URL:-https://auth.panit.dev}
     ports:
       - "${UI_HOST_PORT:-3000}:3000"
 

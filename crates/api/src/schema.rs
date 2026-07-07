@@ -89,7 +89,7 @@ diesel::table! {
 diesel::table! {
     users (id) {
         id         -> Int8,
-        kratos_id  -> Uuid,
+        identity_id -> Uuid,
         username   -> Varchar,
         address    -> Varchar,
         display_name -> Text,

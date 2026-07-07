@@ -6,7 +6,9 @@ pub struct Config {
     pub database_url: String,
     pub internal_secret: String,
     pub worker_url: String,
-    pub kratos_public_url: String,
+    pub surge_url: String,
+    pub surge_service_token: String,
+    pub surge_cookie_domain: String,
     pub mail_domain: String,
     pub blob_store_root: PathBuf,
     pub api_port: u16,
@@ -72,8 +74,12 @@ impl Config {
             internal_secret: env::var("HERALD_INTERNAL_SECRET")
                 .expect("HERALD_INTERNAL_SECRET must be set"),
             worker_url: env::var("HERALD_WORKER_URL").expect("HERALD_WORKER_URL must be set"),
-            kratos_public_url: env::var("KRATOS_PUBLIC_URL")
-                .unwrap_or_else(|_| "http://localhost:4433".to_owned()),
+            surge_url: env::var("SURGE_URL")
+                .unwrap_or_else(|_| "http://localhost:3000".to_owned()),
+            surge_service_token: env::var("SURGE_SERVICE_TOKEN")
+                .expect("SURGE_SERVICE_TOKEN must be set"),
+            surge_cookie_domain: env::var("SURGE_COOKIE_DOMAIN")
+                .unwrap_or_else(|_| ".panit.dev".to_owned()),
             mail_domain: env::var("MAIL_DOMAIN").unwrap_or_else(|_| "panit.dev".to_owned()),
             blob_store_root: env::var("BLOB_STORE_ROOT")
                 .map(PathBuf::from)

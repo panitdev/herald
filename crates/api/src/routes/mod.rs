@@ -1,7 +1,7 @@
 use axum::{
     body::Body,
     extract::{ws::WebSocketUpgrade, State},
-    http::{header, Response, StatusCode},
+    http::{header, HeaderMap, Response, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -15,7 +15,7 @@ use serde_json::json;
 
 use crate::{
     addresses::{ensure_user_address, find_address, user_has_address},
-    auth::AuthUser,
+    auth::{extract_token, AuthUser},
     error::{ApiResult, AppError},
     models::{
         address::Address,
@@ -38,6 +38,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/health", get(|| async { Json(json!({ "ok": true })) }))
         .route("/api/me", get(me).patch(update_me))
+        .route("/api/logout", post(logout))
         .route("/api/me/addresses", post(create_address))
         .route("/api/me/avatar", get(me_avatar))
         .route(
@@ -77,6 +78,29 @@ pub fn router() -> Router<AppState> {
         .route("/sync/pull", get(sync::pull))
         .route("/objects/messages/{id}/raw", get(objects::raw_message))
         .route("/objects/messages/{id}/body", get(objects::message_body))
+}
+
+/// Revokes the caller's Surge session (best-effort) and clears the `surge_session` cookie
+/// for the configured cookie domain. Unauthenticated calls are a no-op success — logout
+/// should never itself require being logged in.
+async fn logout(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
+    if let Some(raw_token) = extract_token(&headers) {
+        if let Some(token) = surge::SessionToken::from_raw(&raw_token) {
+            if let Err(error) = state.auth.revoke_session(&token).await {
+                tracing::warn!(error = %error, "failed to revoke surge session during logout");
+            }
+        }
+    }
+
+    let clear_cookie = format!(
+        "surge_session=; Domain={}; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax",
+        state.config.surge_cookie_domain
+    );
+
+    (
+        StatusCode::NO_CONTENT,
+        [(header::SET_COOKIE, clear_cookie)],
+    )
 }
 
 async fn realtime_socket(

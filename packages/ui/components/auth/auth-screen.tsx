@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Mail } from "lucide-react"
-import { initiateLogin } from "@/lib/kratos"
+import { initiateLogin } from "@/lib/surge"
 
 type Props = {
   login?: () => void

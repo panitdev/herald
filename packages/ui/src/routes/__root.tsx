@@ -53,10 +53,10 @@ function getPublicEnv(): PublicEnv {
       env.MAIL_DOMAIN ??
       import.meta.env.VITE_MAIL_DOMAIN ??
       "panit.dev",
-    kratosUrl: trimTrailingSlash(
-      env.VITE_KRATOS_PUBLIC_URL ??
-        env.KRATOS_PUBLIC_URL ??
-        import.meta.env.VITE_KRATOS_PUBLIC_URL ??
+    surgeAuthUrl: trimTrailingSlash(
+      env.VITE_SURGE_AUTH_URL ??
+        env.SURGE_AUTH_URL ??
+        import.meta.env.VITE_SURGE_AUTH_URL ??
         ""
     ),
   }
@@ -304,7 +304,8 @@ function LanguageSyncer() {
 
 /**
  * Reproduces the old client-wrapper gate: blank while auth initializes,
- * AuthScreen (which redirects to Kratos) when signed out, app otherwise.
+ * AuthScreen (which redirects to the Surge auth UI) when signed out, app
+ * otherwise.
  */
 function AuthGate({ children }: { children: ReactNode }) {
   const { user, initialized, restoringCachedMail } = useAuth()

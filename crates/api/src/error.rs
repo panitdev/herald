@@ -11,6 +11,9 @@ pub enum AppError {
     #[error("unauthorized: {0}")]
     Unauthorized(String),
 
+    #[error("service unavailable: {0}")]
+    ServiceUnavailable(String),
+
     #[error("not found")]
     NotFound,
 
@@ -78,7 +81,10 @@ impl AppError {
             AppError::Internal => {
                 tracing::error!(status = %status, "request failed with internal error");
             }
-            AppError::Unauthorized(_) | AppError::NotFound | AppError::BadRequest(_) => {}
+            AppError::Unauthorized(_)
+            | AppError::ServiceUnavailable(_)
+            | AppError::NotFound
+            | AppError::BadRequest(_) => {}
         }
     }
 }
@@ -96,6 +102,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, msg): (StatusCode, String) = match &self {
             AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized".to_owned()),
+            AppError::ServiceUnavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg.clone()),
             AppError::NotFound => (StatusCode::NOT_FOUND, "not found".to_owned()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Db { source, .. } => {

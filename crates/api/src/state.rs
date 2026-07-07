@@ -18,6 +18,8 @@ pub struct AppState {
     /// Shared email sender built from the environment, if configured. Used as a
     /// fallback when a user has no sender of their own.
     pub system_email: Option<DynEmailSender>,
+    /// Surge session/identity provider (remote — talks to `surge-server` over HTTP).
+    pub auth: Arc<dyn surge::AuthProvider>,
 }
 
 impl AppState {

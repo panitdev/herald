@@ -16,13 +16,13 @@ import {
   setUnauthorizedHandler,
   updateMe,
 } from "@/lib/api"
-import { API_URL, MAIL_DOMAIN } from "@/lib/env"
+import { API_URL } from "@/lib/env"
 import {
   clearOfflineSession,
   loadPersistedAuthUser,
   persistAuthUser,
 } from "@/lib/offline-cache"
-import { getWhoami, initiateLogout, type KratosSession } from "./kratos"
+import { initiateLogout } from "./surge"
 
 export type AuthUser = {
   id: string
@@ -50,49 +50,12 @@ type AuthCtx = AuthState & {
 
 const AuthContext = createContext<AuthCtx | null>(null)
 
-function traitString(
-  traits: Record<string, unknown> | undefined,
-  key: string,
-): string | null {
-  const value = traits?.[key]
-  return typeof value === "string" && value.trim() ? value.trim() : null
-}
-
-function usernameFromSession(session: KratosSession | null): string | null {
-  const username = traitString(session?.identity?.traits, "username")?.toLowerCase()
-  if (!username || !/^[a-z0-9._-]{1,64}$/.test(username)) return null
-  return username
-}
-
-function formatDisplayName(username: string): string {
-  return username
-    .split(/[\s._-]+/)
-    .filter(Boolean)
-    .map((part) => part[0]!.toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ")
-}
-
 function resolveAvatarUrl(value: string | null): string | null {
   if (!value) return null
   if (value.startsWith("data:")) return value
   if (/^https?:\/\//.test(value)) return value
   if (value.startsWith("/")) return `${API_URL}${value}`
   return value
-}
-
-function userFromSession(session: KratosSession | null): AuthUser | null {
-  const identity = session?.identity
-  const username = usernameFromSession(session)
-  if (!username) return null
-
-  return {
-    id: identity?.id ?? session?.id ?? `${username}@${MAIL_DOMAIN}`,
-    address: `${username}@${MAIL_DOMAIN}`,
-    addresses: [`${username}@${MAIL_DOMAIN}`],
-    username,
-    displayName: formatDisplayName(username) || `${username}@${MAIL_DOMAIN}`,
-    avatarUrl: null,
-  }
 }
 
 async function fetchMe(): Promise<{ user: AuthUser | null; offline: boolean }> {
@@ -162,39 +125,35 @@ export function AuthProvider({
       await restoreOfflineData(persisted.user)
     }
 
-    const { status, session } = await getWhoami()
+    // `/api/me` is Herald's own whoami: the `surge_session` cookie is HttpOnly, so
+    // there's nothing for the browser to introspect directly — Herald validates it
+    // against Surge on our behalf and this is the single source of truth.
+    const me = await fetchMe()
 
-    if (status === "unauthed") {
-      await clearForUser(currentUserIdRef.current)
-      setState({ user: null, initialized: true, restoringCachedMail: false })
-      return
-    }
-
-    if (status === "offline") {
+    if (me.offline) {
       await restoreOfflineData(persisted?.user ?? null)
       return
     }
 
-    const sessionUser = userFromSession(session)
-    const me = await fetchMe()
-    if (me.offline) {
-      await restoreOfflineData(persisted?.user ?? sessionUser ?? null)
+    const user = me.user
+
+    if (!user) {
+      await clearForUser(currentUserIdRef.current)
+      currentUserIdRef.current = null
+      setState({ user: null, initialized: true, restoringCachedMail: false })
       return
     }
 
-    const user = me.user ?? sessionUser
     const previousUserId = currentUserIdRef.current
-    if (previousUserId && user?.id !== previousUserId) {
+    if (previousUserId && user.id !== previousUserId) {
       setOfflineSyncUser(null)
     }
 
-    currentUserIdRef.current = user?.id ?? null
-    setOfflineSyncUser(user?.id ?? null)
+    currentUserIdRef.current = user.id
+    setOfflineSyncUser(user.id)
 
-    if (user) {
-      await persistAuthUser(user)
-      await hydrateSyncStateFromCache(user.id)
-    }
+    await persistAuthUser(user)
+    await hydrateSyncStateFromCache(user.id)
 
     setState({ user, initialized: true, restoringCachedMail: false })
   }, [clearForUser, restoreOfflineData])

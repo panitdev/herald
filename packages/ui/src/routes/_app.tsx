@@ -28,7 +28,7 @@ import {
 import { useOnlineStatus } from "@/lib/network-store"
 
 export const Route = createFileRoute("/_app")({
-  // The authenticated tree is client-only (cookie auth + Kratos redirects need
+  // The authenticated tree is client-only (cookie auth + Surge redirects need
   // the browser); the static shell in __root still SSRs.
   ssr: false,
   component: AppLayout,
