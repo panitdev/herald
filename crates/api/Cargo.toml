@@ -13,7 +13,12 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 async-trait = "0.1"
-diesel = { version = "2.2", features = ["postgres", "chrono", "uuid", "serde_json"] }
+diesel = { version = "2.2", features = [
+  "postgres",
+  "chrono",
+  "uuid",
+  "serde_json",
+] }
 uuid = { version = "1", features = ["serde"] }
 diesel-async = { version = "0.5", features = ["postgres", "bb8"] }
 diesel_migrations = "2"
@@ -32,4 +37,4 @@ sha2 = "0.10"
 base64 = "0.22"
 secrecy = "0.10"
 url = "2"
-surge = { path = "../../surge/surge" }
+surge = { git = "https://github.com/panitdev/surge", rev = "5447a26fe4fd8ca5d485e90061f5762557e37f9a" }
