@@ -4,7 +4,10 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.985 0.012 85);
+  /* Ambient palette: cool blue-white neutrals aligned with the AmbientBackground
+     mesh base (#F7FAFF ≈ oklch(0.984 0.007 259)) and auth.panit.dev, replacing
+     the former warm ivory (hue 85) neutrals. */
+  --background: oklch(0.984 0.007 259);
   --foreground: oklch(0.18 0.06 264);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.06 264);
@@ -12,16 +15,16 @@
   --popover-foreground: oklch(0.18 0.06 264);
   --primary: oklch(0.48 0.24 264);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.965 0.014 85);
+  --secondary: oklch(0.965 0.012 259);
   --secondary-foreground: oklch(0.18 0.06 264);
-  --muted: oklch(0.955 0.015 85);
+  --muted: oklch(0.955 0.013 259);
   --muted-foreground: oklch(0.55 0.04 264);
-  --accent: oklch(0.965 0.014 85);
+  --accent: oklch(0.965 0.012 259);
   --accent-foreground: oklch(0.38 0.05 264);
   --destructive: oklch(0.55 0.20 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.90 0.015 85);
-  --input: oklch(0.90 0.015 85);
+  --border: oklch(0.90 0.013 259);
+  --input: oklch(0.90 0.013 259);
   --ring: oklch(0.48 0.24 264);
   --chart-1: oklch(0.48 0.24 264);
   --chart-2: oklch(0.65 0.14 200);
@@ -29,13 +32,13 @@
   --chart-4: oklch(0.6 0.18 30);
   --chart-5: oklch(0.55 0.14 330);
   --radius: 0.75rem;
-  --sidebar: oklch(0.965 0.014 85);
+  --sidebar: oklch(0.965 0.012 259);
   --sidebar-foreground: oklch(0.18 0.06 264);
   --sidebar-primary: oklch(0.48 0.24 264);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.945 0.016 85);
+  --sidebar-accent: oklch(0.945 0.014 259);
   --sidebar-accent-foreground: oklch(0.38 0.05 264);
-  --sidebar-border: oklch(0.90 0.015 85);
+  --sidebar-border: oklch(0.90 0.013 259);
   --sidebar-ring: oklch(0.48 0.24 264);
 }
 
