@@ -1,6 +1,5 @@
 "use client"
 
-import { motion } from "framer-motion"
 import {
   Inbox,
   Star,
@@ -18,6 +17,7 @@ import { cn } from "@/lib/utils"
 import type { Folder } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { HeraldLogo } from "@/components/ui/logos"
+import { SidebarNav } from "@/components/ui/sidebar-nav"
 import { ProfileMenu } from "./profile-menu"
 import { ButtonGroup } from "../ui/button-group"
 
@@ -81,19 +81,20 @@ export function EmailSidebar({
         </ButtonGroup>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 py-1 scrollbar-thin" aria-label={t("sidebar.navAriaLabel")}>
-        <ul className="flex flex-col gap-0.5">
-          {FOLDERS.map((folder) => {
-            const isActive = active === folder.id
-            const count = counts[folder.id] ?? 0
-            return (
-              <NavItem
-                key={folder.id}
-                label={t(`sidebar.folders.${folder.id}`)}
-                icon={folder.icon}
-                isActive={isActive}
-                onClick={() => onSelect(folder.id)}
-                badge={
+      <SidebarNav
+        ariaLabel={t("sidebar.navAriaLabel")}
+        className="flex-1 overflow-y-auto rounded-none border-none bg-transparent p-0 px-2 py-1 scrollbar-thin"
+        sections={[
+          {
+            items: FOLDERS.map((folder) => {
+              const isActive = active === folder.id
+              const count = counts[folder.id] ?? 0
+              return {
+                label: t(`sidebar.folders.${folder.id}`),
+                icon: folder.icon,
+                active: isActive,
+                onClick: () => onSelect(folder.id),
+                badge:
                   count > 0 ? (
                     <span
                       className={cn(
@@ -109,99 +110,37 @@ export function EmailSidebar({
                     >
                       {count}
                     </span>
-                  ) : null
-                }
-              />
-            )
-          })}
-        </ul>
-
-        <div className="my-2 border-t border-sidebar-border/60" />
-
-        <ul className="flex flex-col gap-0.5">
-          <NavItem
-            label={t("sidebar.messages")}
-            icon={MessagesSquare}
-            isActive={active === "messages"}
-            onClick={onOpenMessages}
-          />
-          {onOpenDrop && (
-            <NavItem
-              label={t("sidebar.drop")}
-              icon={Package}
-              isActive={active === "drop"}
-              onClick={onOpenDrop}
-            />
-          )}
-        </ul>
-      </nav>
+                  ) : null,
+              }
+            }),
+          },
+          {
+            separator: true,
+            items: [
+              {
+                label: t("sidebar.messages"),
+                icon: MessagesSquare,
+                active: active === "messages",
+                onClick: onOpenMessages,
+              },
+              ...(onOpenDrop
+                ? [
+                  {
+                    label: t("sidebar.drop"),
+                    icon: Package,
+                    active: active === "drop",
+                    onClick: onOpenDrop,
+                  },
+                ]
+                : []),
+            ],
+          },
+        ]}
+      />
 
       <div className="border-t border-sidebar-border p-2">
         <ProfileMenu onOpenSettings={onOpenSettings} />
       </div>
     </aside>
-  )
-}
-
-function NavItem({
-  label,
-  icon: Icon,
-  isActive,
-  onClick,
-  badge,
-}: {
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  isActive: boolean
-  onClick: () => void
-  badge?: React.ReactNode
-}) {
-  return (
-    <li>
-      <button
-        onClick={onClick}
-        className={cn(
-          "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-          // Distinguish hover from selected:
-          // - hover: subtle neutral wash
-          // - selected: accent background (set via motion layout pill below)
-          !isActive &&
-          "font-medium text-sidebar-foreground/75 hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground",
-          isActive && "font-semibold text-sidebar-accent-foreground",
-        )}
-        aria-current={isActive ? "page" : undefined}
-      >
-        {isActive && (
-          <motion.span
-            layoutId="sidebar-active"
-            className="absolute inset-0 rounded-lg bg-sidebar-accent ring-1 ring-sidebar-accent-foreground/10"
-            initial={false}
-            transition={{ type: "spring", stiffness: 500, damping: 40 }}
-          />
-        )}
-        {isActive && (
-          <motion.span
-            layoutId="sidebar-active-bar"
-            aria-hidden
-            className="absolute left-1 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-primary"
-            initial={false}
-            transition={{ type: "spring", stiffness: 500, damping: 40 }}
-          />
-        )}
-        <span className="relative z-10 flex flex-1 items-center gap-3">
-          <Icon
-            className={cn(
-              "h-4 w-4 shrink-0 transition-colors",
-              isActive
-                ? "text-sidebar-accent-foreground"
-                : "text-muted-foreground group-hover:text-sidebar-foreground",
-            )}
-            aria-hidden
-          />
-          <span className="flex-1 text-left">{label}</span>
-          {badge}
-        </span>
-      </button>
-    </li>
   )
 }
