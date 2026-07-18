@@ -59,7 +59,7 @@ export function EmailSidebar({
 }: Props) {
   const { t } = useTranslation()
   return (
-    <aside className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
+    <aside className="flex h-full w-full flex-col bg-sidebar/60 text-sidebar-foreground">
       <div className="flex items-center gap-2 px-5 pt-5 pb-4">
         <HeraldLogo size={32} aria-hidden />
         <span className="text-[15px] font-semibold tracking-tight">Herald</span>

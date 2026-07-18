@@ -11,11 +11,9 @@ type Blob = {
   delay: string
 }
 
-const MESH_BASE = "#F7FAFF"
-
 const BLOBS: Blob[] = [
   {
-    color: "#F8FBFF",
+    color: "var(--mesh-blob-1)",
     size: "68vw",
     top: "-8%",
     left: "-6%",
@@ -24,7 +22,7 @@ const BLOBS: Blob[] = [
     delay: "0s",
   },
   {
-    color: "#F3F8FF",
+    color: "var(--mesh-blob-2)",
     size: "60vw",
     top: "20%",
     left: "55%",
@@ -33,7 +31,7 @@ const BLOBS: Blob[] = [
     delay: "-6s",
   },
   {
-    color: "#EDF4FF",
+    color: "var(--mesh-blob-3)",
     size: "56vw",
     top: "50%",
     left: "8%",
@@ -42,7 +40,7 @@ const BLOBS: Blob[] = [
     delay: "-12s",
   },
   {
-    color: "#E4EFFF",
+    color: "var(--mesh-blob-4)",
     size: "50vw",
     top: "55%",
     left: "60%",
@@ -51,7 +49,7 @@ const BLOBS: Blob[] = [
     delay: "-3s",
   },
   {
-    color: "#DBEAFF",
+    color: "var(--mesh-blob-5)",
     size: "48vw",
     top: "10%",
     left: "28%",
@@ -60,6 +58,9 @@ const BLOBS: Blob[] = [
     delay: "-18s",
   },
 ]
+
+const fade = (color: string, pct: number) =>
+  `color-mix(in oklab, ${color} ${pct}%, transparent)`
 
 export type AmbientBackgroundProps = {
   debug?: boolean
@@ -102,7 +103,7 @@ export function AmbientBackground({ debug = false, className }: AmbientBackgroun
       <div
         aria-hidden={!debug}
         className={cn("pointer-events-none absolute inset-0 -z-10 overflow-hidden", className)}
-        style={{ backgroundColor: MESH_BASE }}
+        style={{ backgroundColor: "var(--mesh-base)" }}
       >
         {BLOBS.map((blob, i) => {
           const style: CSSProperties = {
@@ -110,7 +111,7 @@ export function AmbientBackground({ debug = false, className }: AmbientBackgroun
             height: blob.size,
             top: blob.top,
             left: blob.left,
-            background: `radial-gradient(circle closest-side at 50% 50%, ${blob.color} 0%, ${blob.color}b3 25%, ${blob.color}66 50%, ${blob.color}1a 75%, ${blob.color}00 100%)`,
+            background: `radial-gradient(circle closest-side at 50% 50%, ${blob.color} 0%, ${fade(blob.color, 70)} 25%, ${fade(blob.color, 40)} 50%, ${fade(blob.color, 10)} 75%, transparent 100%)`,
             animationName: blob.animation,
             animationDuration: blob.duration,
             animationDelay: blob.delay,

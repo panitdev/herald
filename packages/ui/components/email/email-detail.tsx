@@ -75,7 +75,7 @@ export function EmailDetail({
   }
 
   return (
-    <div className="relative h-full bg-background">
+    <div className="relative h-full">
       <AnimatePresence initial={false}>
         {email ? (
           <motion.div
@@ -84,7 +84,7 @@ export function EmailDetail({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute inset-0 flex h-full flex-col bg-background"
+            className="absolute inset-0 flex h-full flex-col"
           >
             {/* Toolbar */}
             <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5 md:px-5">

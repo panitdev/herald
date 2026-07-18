@@ -57,7 +57,7 @@ export function ChatScreen({
     : (others[0]?.username ? `@${others[0].username}` : t("chat.directMessage"))
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5 md:px-5">
         <Button

@@ -184,7 +184,10 @@ function AppLayoutInner() {
           </div>
         </div>
       ) : (
-        <Outlet />
+        <div className="relative isolate h-dvh w-full overflow-hidden">
+          <AmbientBackground />
+          <Outlet />
+        </div>
       )}
       <ComposePanel
         open={composeOpen}

@@ -92,7 +92,7 @@ function MessagesRoute() {
   }, [queryClient])
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-background">
+    <div className="flex h-dvh w-full overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden w-64 shrink-0 border-r border-border md:block lg:w-72">
         {sidebarNode}
@@ -184,7 +184,7 @@ function MessagesRoute() {
 function ConversationListFallback() {
   const { t } = useTranslation()
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col">
       <div className="border-b border-border px-4 pt-4 pb-3">
         <h2 className="text-lg font-semibold tracking-tight">{t("chat.list.title")}</h2>
         <div className="mt-3 h-9 rounded-lg bg-muted" />

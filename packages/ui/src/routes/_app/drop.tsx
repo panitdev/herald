@@ -56,7 +56,7 @@ function DropRoute() {
   )
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-background">
+    <div className="flex h-dvh w-full overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden w-64 shrink-0 border-r border-border md:block lg:w-72">
         {sidebarNode}
