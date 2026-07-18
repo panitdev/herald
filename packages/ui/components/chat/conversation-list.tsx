@@ -24,7 +24,7 @@ export function ConversationList({
 }: Props) {
   const { t } = useTranslation()
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col">
       <ListSearchHeader
         title={t("chat.list.title")}
         search={search}

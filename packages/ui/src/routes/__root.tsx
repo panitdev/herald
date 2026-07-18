@@ -19,6 +19,7 @@ import {
 import { LocalOverridesProvider } from "@/lib/local-overrides-store"
 import { AuthScreen } from "@/components/auth/auth-screen"
 import { AuthGuardDialog } from "@/components/auth/auth-guard-dialog"
+import { AmbientBackground } from "@/components/ui/ambient-background"
 import { Toaster } from "@/components/ui/sonner"
 import { ErrorBoundary } from "@/components/error-boundary"
 import type { PublicEnv } from "@/lib/env"
@@ -111,7 +112,7 @@ function getThemeBootScript(): string {
         : theme;
       const palette = resolved === "dark"
         ? { background: "oklch(0.16 0.06 264)", foreground: "oklch(0.96 0.01 85)" }
-        : { background: "oklch(0.985 0.012 85)", foreground: "oklch(0.18 0.06 264)" };
+        : { background: "oklch(0.984 0.007 259)", foreground: "oklch(0.18 0.06 264)" };
 
       root.dataset.theme = theme;
       root.classList.toggle("dark", resolved === "dark");
@@ -127,7 +128,7 @@ function getThemeBootScript(): string {
 function getCriticalBootStyles(): string {
   return `
     html {
-      background: var(--boot-bg, oklch(0.985 0.012 85));
+      background: var(--boot-bg, oklch(0.984 0.007 259));
       color: var(--boot-fg, oklch(0.18 0.06 264));
     }
 
@@ -193,7 +194,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         content:
           "A minimal, fast email client with smooth animations and a distraction-free interface.",
       },
-      { name: "theme-color", content: "#ece6dc" },
+      { name: "theme-color", content: "#f7faff" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "Herald" },
@@ -314,9 +315,10 @@ function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div
         data-auth-splash
-        className="flex h-dvh w-full items-center justify-center bg-background px-6 text-center"
+        className="relative flex h-dvh w-full items-center justify-center overflow-hidden bg-background px-6 text-center"
       >
-        <div data-auth-splash-copy className="space-y-2">
+        <AmbientBackground />
+        <div data-auth-splash-copy className="relative z-10 space-y-2">
           <p data-auth-splash-title className="text-sm font-medium text-foreground">
             {restoringCachedMail ? t("auth.restoringCachedMail") : t("auth.loadingHerald")}
           </p>

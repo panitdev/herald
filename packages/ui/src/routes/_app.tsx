@@ -8,6 +8,7 @@ import { Outlet, createFileRoute } from "@tanstack/react-router"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
+import { AmbientBackground } from "@/components/ui/ambient-background"
 import { CommandMenu } from "@/components/email/command-menu"
 import { ComposePanel } from "@/components/email/compose-panel"
 import { MobileCommandDrawer } from "@/components/email/mobile-command-drawer"
@@ -173,8 +174,9 @@ function AppLayoutInner() {
         </div>
       ) : null}
       {!overridesInitialized ? (
-        <div className="flex h-dvh items-center justify-center bg-background px-6 text-center">
-          <div className="space-y-2">
+        <div className="relative flex h-dvh items-center justify-center overflow-hidden bg-background px-6 text-center">
+          <AmbientBackground />
+          <div className="relative z-10 space-y-2">
             <p className="text-sm font-medium text-foreground">{t("app.restoringCachedMail")}</p>
             <p className="text-sm text-muted-foreground">
               {t("app.restoringCachedMailBody")}
@@ -182,7 +184,10 @@ function AppLayoutInner() {
           </div>
         </div>
       ) : (
-        <Outlet />
+        <div className="relative isolate h-dvh w-full overflow-hidden">
+          <AmbientBackground />
+          <Outlet />
+        </div>
       )}
       <ComposePanel
         open={composeOpen}

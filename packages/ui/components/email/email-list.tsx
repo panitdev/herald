@@ -38,7 +38,7 @@ export function EmailList({
 }: Props) {
   const { t } = useTranslation()
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col">
       <ListSearchHeader
         title={t(`sidebar.folders.${folder}`)}
         annotation={

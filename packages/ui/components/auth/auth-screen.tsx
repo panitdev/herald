@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { motion } from "framer-motion"
 import { Mail } from "lucide-react"
 import { initiateLogin } from "@/lib/surge"
+import { AmbientBackground } from "@/components/ui/ambient-background"
 
 type Props = {
   login?: () => void
@@ -16,10 +17,7 @@ export function AuthScreen({ login = initiateLogin }: Props) {
 
   return (
     <div className="relative flex h-dvh w-full items-center justify-center overflow-hidden bg-background">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-50 [background-image:radial-gradient(var(--border)_1px,transparent_1px)] [background-size:24px_24px] [mask-image:radial-gradient(ellipse_at_center,black_10%,transparent_68%)]"
-      />
+      <AmbientBackground />
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}

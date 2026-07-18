@@ -76,7 +76,7 @@ export function DropList({
   const groups = groupDrops(filtered)
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col">
       <ListSearchHeader
         title={t("drop.list.title")}
         search={search}
