@@ -34,5 +34,8 @@
   },
   "workspaces": [
     "packages/ui"
-  ]
+  ],
+  "overrides": {
+    "@radix-ui/react-dismissable-layer": "1.1.15"
+  }
 }

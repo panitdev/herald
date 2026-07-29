@@ -1,6 +1,9 @@
 import * as React from "react"
 import { XIcon } from "lucide-react"
-import { Dialog as DialogPrimitive } from "radix-ui"
+// Import the individual package, not the unified `radix-ui` barrel: mixing the
+// two makes Vite pre-bundle two copies of @radix-ui/react-dismissable-layer,
+// whose module-scoped body pointer-events bookkeeping then clobbers itself.
+import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
