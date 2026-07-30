@@ -12,6 +12,7 @@ import {
   CopyCheck,
   FolderInput,
   Forward,
+  Tags,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { Email } from "@/lib/types"
@@ -195,13 +196,13 @@ export function EmailListItem({
           {t("emailListItem.menu.reply")}
           <ContextMenuShortcut>R</ContextMenuShortcut>
         </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() =>
-            navigator.clipboard?.writeText(email.from.email).catch(() => {})
-          }
-        >
-          <Forward className="h-4 w-4" />
-          {t("emailListItem.menu.copySender")}
+          <ContextMenuItem
+            onSelect={() =>
+              navigator.clipboard?.writeText(email.from.email).catch(() => {})
+            }
+          >
+            <Tags className="h-4 w-4" />
+            {t("emailListItem.menu.copySender")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={onToggleRead}>
