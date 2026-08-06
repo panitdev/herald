@@ -7,6 +7,9 @@ edition = "2021"
 name = "herald-api"
 path = "src/main.rs"
 
+[features]
+test-provider = ["surge/test-provider"]
+
 [dependencies]
 axum = { version = "0.8", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
@@ -37,4 +40,4 @@ sha2 = "0.10"
 base64 = "0.22"
 secrecy = "0.10"
 url = "2"
-surge = { git = "https://github.com/panitdev/surge", rev = "5447a26fe4fd8ca5d485e90061f5762557e37f9a" }
+surge = { git = "https://github.com/panitdev/surge", rev = "cbc8350cb0e84c75dcb90c511947980e2c85467c" }

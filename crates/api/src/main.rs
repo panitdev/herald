@@ -73,15 +73,7 @@ async fn main() {
 
     let system_email = build_system_email_sender(&config, &http);
 
-    let auth = surge::remote(surge::RemoteConfig {
-        base_url: config.surge_url.parse().expect("invalid SURGE_URL"),
-        service_token: secrecy::SecretString::from(config.surge_service_token.clone()),
-        cache_ttl: std::time::Duration::from_secs(30),
-        cache_max_entries: 10_000,
-        timeout: std::time::Duration::from_secs(3),
-    })
-    .await
-    .expect("failed to build surge auth provider");
+    let auth: Arc<dyn surge::AuthProvider> = build_auth_provider(&config, &http).await;
 
     let state = AppState {
         db,
@@ -132,6 +124,42 @@ async fn main() {
         .expect("failed to bind");
     tracing::info!("listening on {addr}");
     axum::serve(listener, app).await.unwrap();
+}
+
+/// Build the Surge auth provider — uses `TestProvider` when the `test-provider`
+/// feature is enabled and `SURGE_TEST_PROVIDER=true` is set, otherwise a remote
+/// provider that talks to a Surge server.
+#[cfg(feature = "test-provider")]
+async fn build_auth_provider(config: &Config, _http: &reqwest::Client) -> Arc<dyn surge::AuthProvider> {
+    if std::env::var("SURGE_TEST_PROVIDER").as_deref() == Ok("true") {
+        surge::test(surge::TestConfig::default())
+            .expect("failed to build test auth provider")
+    } else {
+        surge::remote(surge::RemoteConfig {
+            base_url: config.surge_url.parse().expect("invalid SURGE_URL"),
+            service_token: secrecy::SecretString::from(
+                config.surge_service_token.clone(),
+            ),
+            cache_ttl: std::time::Duration::from_secs(30),
+            cache_max_entries: 10_000,
+            timeout: std::time::Duration::from_secs(3),
+        })
+        .await
+        .expect("failed to build surge auth provider")
+    }
+}
+
+#[cfg(not(feature = "test-provider"))]
+async fn build_auth_provider(config: &Config, _http: &reqwest::Client) -> Arc<dyn surge::AuthProvider> {
+    surge::remote(surge::RemoteConfig {
+        base_url: config.surge_url.parse().expect("invalid SURGE_URL"),
+        service_token: secrecy::SecretString::from(config.surge_service_token.clone()),
+        cache_ttl: std::time::Duration::from_secs(30),
+        cache_max_entries: 10_000,
+        timeout: std::time::Duration::from_secs(3),
+    })
+    .await
+    .expect("failed to build surge auth provider")
 }
 
 /// Build the optional shared email sender from environment configuration.
