@@ -4,8 +4,7 @@ use axum::{
 };
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl;
-use std::time::Instant;
-use surge::{AuthError, SessionToken};
+use surge::{AuthRejection, AuthSession};
 use uuid::Uuid;
 
 use crate::{
@@ -23,7 +22,7 @@ pub struct SurgeIdentity {
 }
 
 /// Reads the raw session token out of the `surge_session` cookie, falling back to a
-/// `Bearer` token in `Authorization`. Mirrors `surge::extract::extract_token`.
+/// `Bearer` token in `Authorization`.
 pub(crate) fn extract_token(headers: &HeaderMap) -> Option<String> {
     if let Some(cookie_header) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) {
         for cookie in cookie_header.split(';') {
@@ -45,49 +44,12 @@ impl FromRequestParts<AppState> for SurgeIdentity {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let started_at = Instant::now();
-
-        let Some(raw_token) = extract_token(&parts.headers) else {
-            tracing::info!(
-                elapsed_ms = started_at.elapsed().as_millis(),
-                "surge auth rejected before verify: no session cookie or Bearer token"
-            );
-            return Err(AppError::Unauthorized(
-                "missing session cookie or Bearer token".into(),
-            ));
-        };
-
-        let Some(token) = SessionToken::from_raw(&raw_token) else {
-            return Err(AppError::Unauthorized("malformed session token".into()));
-        };
-
-        let verify_started = Instant::now();
-        let session = state.auth.verify_session(&token).await;
-        tracing::info!(
-            elapsed_ms = verify_started.elapsed().as_millis(),
-            ok = session.is_ok(),
-            "surge verify_session"
-        );
-
-        let session = session.map_err(|err| match err {
-            AuthError::InvalidToken | AuthError::SessionExpired => {
-                AppError::Unauthorized("invalid or expired session".into())
-            }
-            AuthError::IdentityDisabled => AppError::Unauthorized("identity disabled".into()),
-            AuthError::Unavailable | AuthError::Timeout => {
-                AppError::ServiceUnavailable("identity provider unavailable".into())
-            }
-            other => {
-                tracing::error!(error = %other, "unexpected error verifying surge session");
-                AppError::ServiceUnavailable("identity provider session verification failed".into())
-            }
-        })?;
-
-        tracing::info!(
-            elapsed_ms = started_at.elapsed().as_millis(),
-            username = %session.identity.username.as_str(),
-            "surge identity extracted"
-        );
+        let AuthSession(session) = AuthSession::from_request_parts(parts, state)
+            .await
+            .map_err(|rejection| match rejection {
+                AuthRejection::Unauthorized(message) => AppError::Unauthorized(message),
+                AuthRejection::ServiceUnavailable(message) => AppError::ServiceUnavailable(message),
+            })?;
 
         Ok(SurgeIdentity {
             identity_id: session.identity.id.into(),

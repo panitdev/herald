@@ -28,6 +28,12 @@ impl AppState {
     }
 }
 
+impl AsRef<Arc<dyn surge::AuthProvider>> for AppState {
+    fn as_ref(&self) -> &Arc<dyn surge::AuthProvider> {
+        &self.auth
+    }
+}
+
 impl FromRef<AppState> for DbPool {
     fn from_ref(s: &AppState) -> Self {
         s.db.clone()
