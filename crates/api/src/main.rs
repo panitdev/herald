@@ -1,6 +1,7 @@
 use diesel::Connection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use std::sync::Arc;
+use surge::AuthProvider;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -73,7 +74,7 @@ async fn main() {
 
     let system_email = build_system_email_sender(&config, &http);
 
-    let auth: Arc<dyn surge::AuthProvider> = build_auth_provider(&config, &http).await;
+    let auth_setup = build_auth(&config).await;
 
     let state = AppState {
         db,
@@ -84,7 +85,7 @@ async fn main() {
         worker,
         realtime: realtime::RealtimeHub::default(),
         system_email,
-        auth,
+        auth: auth_setup.provider,
     };
 
     tokio::spawn(requeue_pending_inbound_mail(state.clone()));
@@ -110,56 +111,138 @@ async fn main() {
         .allow_headers([
             axum::http::header::CONTENT_TYPE,
             axum::http::header::AUTHORIZATION,
+            // BrowserRouter's CSRF-guarded mutations (logout, factor management)
+            // send this header; the outer CORS layer must allow it in preflights.
+            axum::http::HeaderName::from_static("x-surge-csrf"),
         ])
         .allow_credentials(true);
 
     let app = routes::router()
+        .with_state(state)
+        .merge(auth_setup.surge_router)
         .layer(TraceLayer::new_for_http())
-        .layer(cors)
-        .with_state(state);
+        .layer(cors);
 
     let addr = format!("0.0.0.0:{}", config.api_port);
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .expect("failed to bind");
     tracing::info!("listening on {addr}");
-    axum::serve(listener, app).await.unwrap();
+    // Surge's browser router keys rate limits on the peer address, and in
+    // remote mode forwards it upstream as `X-Surge-Client-Ip`; neither works
+    // without ConnectInfo in the request extensions.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
-/// Build the Surge auth provider — uses `TestProvider` when the `test-provider`
-/// feature is enabled and `SURGE_TEST_PROVIDER=true` is set, otherwise a remote
-/// provider that talks to a Surge server.
-#[cfg(feature = "test-provider")]
-async fn build_auth_provider(config: &Config, _http: &reqwest::Client) -> Arc<dyn surge::AuthProvider> {
+struct AuthSetup {
+    provider: Arc<dyn surge::AuthProvider>,
+    /// Browser-facing `/v1` perimeter. Every provider builds one now: embedded
+    /// runs the handlers locally, remote reverse-proxies them to the upstream
+    /// surge-server, and the test provider falls back to Surge's 501 stub.
+    surge_router: axum::Router,
+}
+
+async fn build_auth(config: &Config) -> AuthSetup {
+    let session_ttl = std::time::Duration::from_secs(config.surge_session_ttl_hours * 3600);
+
+    #[cfg(feature = "test-provider")]
     if std::env::var("SURGE_TEST_PROVIDER").as_deref() == Ok("true") {
-        surge::test(surge::TestConfig::default())
-            .expect("failed to build test auth provider")
-    } else {
-        surge::remote(surge::RemoteConfig {
-            base_url: config.surge_url.parse().expect("invalid SURGE_URL"),
-            service_token: secrecy::SecretString::from(
-                config.surge_service_token.clone(),
-            ),
-            cache_ttl: std::time::Duration::from_secs(30),
-            cache_max_entries: 10_000,
-            timeout: std::time::Duration::from_secs(3),
-        })
-        .await
-        .expect("failed to build surge auth provider")
+        let provider =
+            surge::test(surge::TestConfig::default()).expect("failed to build test auth provider");
+        let surge_router = Arc::clone(&provider).browser_router(browser_config(config, session_ttl));
+
+        return AuthSetup { provider, surge_router };
+    }
+
+    match &config.surge_mode {
+        config::SurgeMode::Remote { url, service_token } => {
+            let provider = surge::remote(surge::RemoteConfig {
+                base_url: url.parse().expect("invalid SURGE_URL"),
+                service_token: secrecy::SecretString::from(service_token.clone()),
+                cache_ttl: std::time::Duration::from_secs(30),
+                cache_max_entries: 10_000,
+                timeout: std::time::Duration::from_secs(3),
+            })
+            .await
+            .expect("failed to build surge remote provider");
+
+            // Reverse proxy onto upstream's perimeter. Requires the service
+            // token to carry the `browser_proxy` grant alongside `introspect`,
+            // otherwise upstream rejects the `X-Surge-Client-Ip` this states
+            // and rate-limits our whole user base under herald's own address.
+            let surge_router =
+                Arc::clone(&provider).browser_router(browser_config(config, session_ttl));
+
+            tracing::info!("surge remote provider with proxied browser router mounted");
+
+            AuthSetup { provider, surge_router }
+        }
+        config::SurgeMode::Embedded { pepper } => {
+            let embedded = surge::EmbeddedProvider::new(surge::EmbeddedConfig {
+                database_url: secrecy::SecretString::from(config.database_url.clone()),
+                pepper: secrecy::SecretString::from(pepper.clone()),
+                session_ttl,
+            })
+            .await
+            .expect("failed to build surge embedded provider");
+
+            let engine = embedded.engine();
+            let embedded = Arc::new(embedded);
+
+            let rate_limiter = Arc::new(surge::router::PostgresRateLimiter::new(
+                engine,
+                surge::router::RateLimitConfig::default(),
+            ));
+
+            // Mounting this also starts Surge's 15-minute maintenance sweep.
+            let surge_router = Arc::clone(&embedded).browser_router(
+                surge::router::BrowserRouterConfig {
+                    rate_limiter: Some(rate_limiter),
+                    return_origins: Some(config.cors_origins.clone()),
+                    registration: Some(surge::router::RegistrationMode::Open),
+                    factor_policy: Some(surge::router::FactorPolicy::None),
+                    allow_inline: Some(true),
+                    ..browser_config(config, session_ttl)
+                },
+            );
+
+            tracing::info!("surge embedded provider with browser router mounted");
+
+            AuthSetup { provider: embedded, surge_router }
+        }
     }
 }
 
-#[cfg(not(feature = "test-provider"))]
-async fn build_auth_provider(config: &Config, _http: &reqwest::Client) -> Arc<dyn surge::AuthProvider> {
-    surge::remote(surge::RemoteConfig {
-        base_url: config.surge_url.parse().expect("invalid SURGE_URL"),
-        service_token: secrecy::SecretString::from(config.surge_service_token.clone()),
-        cache_ttl: std::time::Duration::from_secs(30),
-        cache_max_entries: 10_000,
-        timeout: std::time::Duration::from_secs(3),
-    })
-    .await
-    .expect("failed to build surge auth provider")
+/// The fields every mode shares. Embedded-only knobs are left `None` here and
+/// filled in by the embedded branch; `RemoteProvider` ignores them entirely.
+fn browser_config(
+    config: &Config,
+    session_ttl: std::time::Duration,
+) -> surge::router::BrowserRouterConfig {
+    let auth_ui_origin = config
+        .cors_origins
+        .first()
+        .cloned()
+        .expect("CORS_ORIGIN must be set to mount the surge browser router");
+
+    surge::router::BrowserRouterConfig {
+        cookie_domain: config.surge_cookie_domain.clone(),
+        session_ttl,
+        auth_ui_origin,
+        session_cors_origins: config.cors_origins.clone(),
+        rate_limiter: None,
+        return_origins: None,
+        registration: None,
+        factor_policy: None,
+        allow_inline: None,
+        oauth_bridge: None,
+        maintenance_interval: None,
+    }
 }
 
 /// Build the optional shared email sender from environment configuration.

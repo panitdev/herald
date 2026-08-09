@@ -6,9 +6,12 @@ pub struct Config {
     pub database_url: String,
     pub internal_secret: String,
     pub worker_url: String,
-    pub surge_url: String,
-    pub surge_service_token: String,
+    pub surge_mode: SurgeMode,
     pub surge_cookie_domain: String,
+    /// Session lifetime handed to the browser router. Embedded mode also uses
+    /// it as the engine's session TTL; in remote mode the upstream
+    /// surge-server owns expiry and this only describes it.
+    pub surge_session_ttl_hours: u64,
     pub mail_domain: String,
     pub blob_store_root: PathBuf,
     pub api_port: u16,
@@ -19,6 +22,33 @@ pub struct Config {
     /// When unset, herald-api ships with no provider key and relies entirely on
     /// senders that end users register themselves.
     pub system_email: Option<SystemEmailConfig>,
+}
+
+#[derive(Clone, Debug)]
+pub enum SurgeMode {
+    Remote {
+        url: String,
+        service_token: String,
+    },
+    Embedded {
+        pepper: String,
+    },
+}
+
+impl SurgeMode {
+    fn from_env() -> Self {
+        match env::var("SURGE_MODE").as_deref() {
+            Ok("embedded") => Self::Embedded {
+                pepper: env::var("SURGE_PEPPER").expect("SURGE_PEPPER must be set in embedded mode"),
+            },
+            _ => Self::Remote {
+                url: env::var("SURGE_URL")
+                    .unwrap_or_else(|_| "http://localhost:3000".to_owned()),
+                service_token: env::var("SURGE_SERVICE_TOKEN")
+                    .expect("SURGE_SERVICE_TOKEN must be set in remote mode"),
+            },
+        }
+    }
 }
 
 /// Environment-provided system email sender. Resend takes precedence when both
@@ -74,12 +104,13 @@ impl Config {
             internal_secret: env::var("HERALD_INTERNAL_SECRET")
                 .expect("HERALD_INTERNAL_SECRET must be set"),
             worker_url: env::var("HERALD_WORKER_URL").expect("HERALD_WORKER_URL must be set"),
-            surge_url: env::var("SURGE_URL")
-                .unwrap_or_else(|_| "http://localhost:3000".to_owned()),
-            surge_service_token: env::var("SURGE_SERVICE_TOKEN")
-                .expect("SURGE_SERVICE_TOKEN must be set"),
+            surge_mode: SurgeMode::from_env(),
             surge_cookie_domain: env::var("SURGE_COOKIE_DOMAIN")
                 .unwrap_or_else(|_| ".panit.dev".to_owned()),
+            surge_session_ttl_hours: env::var("SURGE_SESSION_TTL_HOURS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(720),
             mail_domain: env::var("MAIL_DOMAIN").unwrap_or_else(|_| "panit.dev".to_owned()),
             blob_store_root: env::var("BLOB_STORE_ROOT")
                 .map(PathBuf::from)

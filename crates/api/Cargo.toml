@@ -40,4 +40,5 @@ sha2 = "0.10"
 base64 = "0.22"
 secrecy = "0.10"
 url = "2"
-surge = { git = "https://github.com/panitdev/surge", rev = "53e18caab28555f3f71fe817f1bccfdd66f4dff3" }
+surge = { git = "https://github.com/panitdev/surge", rev = "98097a38ff8f6a33aa5165d64703a205f66dcd7c", features = ["embedded", "router"] }
+anyhow = "1"
