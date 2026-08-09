@@ -14,8 +14,19 @@ services:
       HERALD_INTERNAL_SECRET: ${HERALD_INTERNAL_SECRET:?HERALD_INTERNAL_SECRET must be set}
       HERALD_WORKER_URL: ${HERALD_WORKER_URL:?HERALD_WORKER_URL must be set}
       SURGE_URL: ${SURGE_URL:-http://localhost:3000}
+      # Needs the `introspect` and `browser_proxy` grants:
+      #   surge-server svc create --name herald \
+      #     --grant introspect --grant browser_proxy
+      # Without browser_proxy, Surge refuses the end-user address herald
+      # forwards and keys login rate limits on this container instead, so a
+      # handful of failed logins locks out every user.
       SURGE_SERVICE_TOKEN: ${SURGE_SERVICE_TOKEN:?SURGE_SERVICE_TOKEN must be set}
       SURGE_COOKIE_DOMAIN: ${SURGE_COOKIE_DOMAIN:-.panit.dev}
+      SURGE_SESSION_TTL_HOURS: ${SURGE_SESSION_TTL_HOURS:-720}
+      # Origin the UI is served from. Required — herald mounts Surge's browser
+      # perimeter at /v1 and uses this as its allowed origin, so the API
+      # refuses to start without it. Comma-separated for multiple origins.
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://herald.panit.dev}
       MAIL_DOMAIN: ${MAIL_DOMAIN:-panit.dev}
       SNOWFLAKE_MACHINE_ID: ${SNOWFLAKE_MACHINE_ID:-1}
       SNOWFLAKE_NODE_ID: ${SNOWFLAKE_NODE_ID:-1}
@@ -37,7 +48,9 @@ services:
       PORT: 3000
       VITE_API_URL: ${VITE_API_URL:-https://herald-api.panit.dev}
       VITE_MAIL_DOMAIN: ${VITE_MAIL_DOMAIN:-panit.dev}
-      VITE_SURGE_AUTH_URL: ${VITE_SURGE_AUTH_URL:-https://auth.panit.dev}
+      # "inline" renders the auth dialog in-app; "redirect" navigates to the
+      # API's /v1/login. Both are served by herald itself.
+      VITE_AUTH_MODE: ${VITE_AUTH_MODE:-inline}
     ports:
       - "${UI_HOST_PORT:-3000}:3000"
 
