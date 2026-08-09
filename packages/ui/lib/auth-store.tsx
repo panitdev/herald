@@ -73,7 +73,10 @@ async function fetchMe(): Promise<{ user: AuthUser | null; offline: boolean }> {
       offline: false,
     }
   } catch (error) {
-    if (error instanceof APIError) {
+    // A 401 is the only response that means "signed out". Herald returns 503
+    // when Surge is unreachable; treating that as signed-out would run
+    // `clearForUser` and wipe the offline mail cache over a transient blip.
+    if (error instanceof APIError && error.status === 401) {
       return { user: null, offline: false }
     }
     return { user: null, offline: true }

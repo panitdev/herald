@@ -17,12 +17,12 @@ import {
   useSettings,
 } from "@/lib/settings-store"
 import { LocalOverridesProvider } from "@/lib/local-overrides-store"
-import { AuthScreen } from "@/components/auth/auth-screen"
-import { AuthGuardDialog } from "@/components/auth/auth-guard-dialog"
+import { Reauth } from "@/components/auth/reauth"
+import { useSessionWatch } from "@/lib/use-session-watch"
 import { AmbientBackground } from "@/components/ui/ambient-background"
 import { Toaster } from "@/components/ui/sonner"
 import { ErrorBoundary } from "@/components/error-boundary"
-import type { PublicEnv } from "@/lib/env"
+import type { AuthMode, PublicEnv } from "@/lib/env"
 import i18n from "@/i18n/config"
 import appCss from "../globals.css?url"
 
@@ -54,12 +54,11 @@ function getPublicEnv(): PublicEnv {
       env.MAIL_DOMAIN ??
       import.meta.env.VITE_MAIL_DOMAIN ??
       "panit.dev",
-    surgeAuthUrl: trimTrailingSlash(
-      env.VITE_SURGE_AUTH_URL ??
-        env.SURGE_AUTH_URL ??
-        import.meta.env.VITE_SURGE_AUTH_URL ??
-        ""
-    ),
+    authMode: (
+      env.VITE_AUTH_MODE ??
+      env.AUTH_MODE ??
+      import.meta.env.VITE_AUTH_MODE
+    ) as AuthMode | undefined,
   }
 }
 
@@ -279,7 +278,6 @@ function RootComponent() {
                   </AuthGate>
                 </ErrorBoundary>
                 <Toaster position="bottom-right" richColors closeButton />
-                <AuthGuardDialog />
               </LocalOverridesProvider>
             </SettingsProvider>
           </AuthProvider>
@@ -304,35 +302,56 @@ function LanguageSyncer() {
 }
 
 /**
- * Reproduces the old client-wrapper gate: blank while auth initializes,
- * AuthScreen (which redirects to the Surge auth UI) when signed out, app
- * otherwise.
+ * Sole owner of the three auth states: splash while initializing, sign-in when
+ * signed out, app otherwise — plus an overlay when a live session expires.
+ *
+ * Keeping all of them in one branch chain is deliberate. This used to be two
+ * sibling components (a full-screen `AuthScreen` and a mid-session
+ * `AuthGuardDialog`) whose conditions had to stay complements of each other by
+ * convention; once both grew to render the same dialog, they opened together
+ * and stacked two modals.
  */
 function AuthGate({ children }: { children: ReactNode }) {
   const { user, initialized, restoringCachedMail } = useAuth()
   const { t } = useTranslation()
-  if (!initialized) {
-    return (
-      <div
-        data-auth-splash
-        className="relative flex h-dvh w-full items-center justify-center overflow-hidden bg-background px-6 text-center"
-      >
-        <AmbientBackground />
-        <div data-auth-splash-copy className="relative z-10 space-y-2">
-          <p data-auth-splash-title className="text-sm font-medium text-foreground">
-            {restoringCachedMail ? t("auth.restoringCachedMail") : t("auth.loadingHerald")}
-          </p>
-          <p data-auth-splash-body className="text-sm text-muted-foreground">
-            {restoringCachedMail
-              ? t("auth.restoringCachedMailBody")
-              : t("auth.checkingSession")}
-          </p>
-        </div>
+  const { expired, markResolved } = useSessionWatch(user?.id ?? null)
+
+  const splash = (
+    <div
+      data-auth-splash
+      className="relative flex h-dvh w-full items-center justify-center overflow-hidden bg-background px-6 text-center"
+    >
+      <AmbientBackground />
+      <div data-auth-splash-copy className="relative z-10 space-y-2">
+        <p data-auth-splash-title className="text-sm font-medium text-foreground">
+          {restoringCachedMail ? t("auth.restoringCachedMail") : t("auth.loadingHerald")}
+        </p>
+        <p data-auth-splash-body className="text-sm text-muted-foreground">
+          {restoringCachedMail
+            ? t("auth.restoringCachedMailBody")
+            : t("auth.checkingSession")}
+        </p>
       </div>
-    )
-  }
-  if (!user) return <AuthScreen />
-  return <>{children}</>
+    </div>
+  )
+
+  // Signed out, the app never mounts — there is nothing in flight to protect.
+  // Expired mid-use, it stays mounted behind the overlay so an in-progress
+  // compose draft, scroll position, and open thread survive re-authentication.
+  const content = !initialized ? splash : user ? children : null
+
+  // `Reauth` sits outside that chain, mounted at all times and driven by a
+  // single `open` expression. Conditionally rendering it would tear it out on
+  // the frame sign-in succeeds, skipping its close animation.
+  return (
+    <>
+      {content}
+      <Reauth
+        open={initialized && (!user || expired)}
+        onAuthenticated={markResolved}
+      />
+    </>
+  )
 }
 
 function RootDocument({ children }: { children: ReactNode }) {

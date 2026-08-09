@@ -8,10 +8,12 @@ declare global {
   }
 }
 
+export type AuthMode = "inline" | "redirect"
+
 export type PublicEnv = {
   apiUrl?: string
   mailDomain?: string
-  surgeAuthUrl?: string
+  authMode?: AuthMode
 }
 
 function trimTrailingSlash(value: string): string {
@@ -30,7 +32,7 @@ function readRuntimeEnv(): PublicEnv {
   return {
     apiUrl: env?.VITE_API_URL ?? env?.API_URL,
     mailDomain: env?.VITE_MAIL_DOMAIN ?? env?.MAIL_DOMAIN,
-    surgeAuthUrl: env?.VITE_SURGE_AUTH_URL ?? env?.SURGE_AUTH_URL,
+    authMode: (env?.VITE_AUTH_MODE ?? env?.AUTH_MODE) as AuthMode | undefined,
   }
 }
 
@@ -45,8 +47,7 @@ export const API_URL = trimTrailingSlash(
 export const MAIL_DOMAIN =
   runtimeEnv.mailDomain ?? import.meta.env.VITE_MAIL_DOMAIN ?? "panit.dev"
 
-export const SURGE_AUTH_URL = (
-  runtimeEnv.surgeAuthUrl ??
-  import.meta.env.VITE_SURGE_AUTH_URL ??
-  ""
-).replace(/\/$/, "")
+export const AUTH_MODE: AuthMode =
+  runtimeEnv.authMode ??
+  (import.meta.env.VITE_AUTH_MODE as AuthMode | undefined) ??
+  "inline"

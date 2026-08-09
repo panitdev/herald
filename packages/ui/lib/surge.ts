@@ -1,5 +1,6 @@
-import { API_URL, SURGE_AUTH_URL } from "./env"
-import { APIError, getMe } from "./api"
+import { SurgeClient } from "@panit/surge-client"
+import { API_URL } from "./env"
+import { APIError, probeMe } from "./api"
 
 export type AuthStatus = "loading" | "authed" | "unauthed" | "offline"
 
@@ -7,16 +8,25 @@ export type WhoamiResult = {
   status: AuthStatus
 }
 
-/// The `surge_session` cookie is HttpOnly, so the browser can't read it (or
-/// the identity payload) directly. Herald's own `/api/me` — backed by the
-/// `AuthUser` extractor, which introspects the cookie against Surge — is the
-/// whoami equivalent for this app.
+let surgeClientSingleton: SurgeClient | null = null
+
+export function getSurgeClient(): SurgeClient {
+  if (!surgeClientSingleton) {
+    surgeClientSingleton = new SurgeClient({ baseUrl: API_URL })
+  }
+  return surgeClientSingleton
+}
+
 export async function getWhoami(): Promise<WhoamiResult> {
   try {
-    await getMe()
+    await probeMe()
     return { status: "authed" }
   } catch (error) {
-    if (error instanceof APIError) {
+    // Only a 401 proves the session is gone. Herald answers 503 when it can't
+    // reach Surge itself, and any other status is a Herald-side fault — none of
+    // those are evidence of being signed out, so they degrade to "offline"
+    // rather than tearing the session down.
+    if (error instanceof APIError && error.status === 401) {
       return { status: "unauthed" }
     }
     return { status: "offline" }
@@ -29,20 +39,15 @@ export async function checkWhoami(): Promise<AuthStatus> {
 }
 
 export function initiateLogin(): void {
-  if (!SURGE_AUTH_URL) return
   const returnTo = encodeURIComponent(window.location.href)
-  window.location.href = `${SURGE_AUTH_URL}/v1/login?return_to=${returnTo}`
+  window.location.href = `${API_URL}/v1/login?return_to=${returnTo}`
 }
 
 export async function initiateLogout(): Promise<void> {
   try {
-    await fetch(`${API_URL}/api/logout`, {
-      method: "POST",
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    })
+    await getSurgeClient().logout()
   } catch {
-    // fall through to login redirect regardless of network state
+    // fall through
   }
-  initiateLogin()
+  window.location.reload()
 }

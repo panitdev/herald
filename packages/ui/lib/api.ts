@@ -304,7 +304,8 @@ export async function refreshSyncStateNow(): Promise<void> {
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  { notifyUnauthorized = true }: { notifyUnauthorized?: boolean } = {}
 ): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -316,7 +317,7 @@ export async function apiFetch<T>(
   })
 
   if (response.status === 401) {
-    void unauthorizedHandler?.()
+    if (notifyUnauthorized) void unauthorizedHandler?.()
     throw new APIError(401, "Session expired")
   }
 
@@ -330,6 +331,16 @@ export async function apiFetch<T>(
 
 export function getMe(): Promise<MeResponse> {
   return apiFetch<MeResponse>("/api/me")
+}
+
+/**
+ * Session probe for the mid-session watchdog. Deliberately skips the global
+ * unauthorized handler: the caller re-authenticates in place, and letting the
+ * handler fire would tear down the session (and the offline mail cache) out
+ * from under the dialog that is about to fix it.
+ */
+export function probeMe(): Promise<MeResponse> {
+  return apiFetch<MeResponse>("/api/me", {}, { notifyUnauthorized: false })
 }
 
 export function updateMe(input: {
