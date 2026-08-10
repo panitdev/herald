@@ -17,12 +17,17 @@ import {
   useSettings,
 } from "@/lib/settings-store"
 import { LocalOverridesProvider } from "@/lib/local-overrides-store"
-import { Reauth } from "@/components/auth/reauth"
-import { useSessionWatch } from "@/lib/use-session-watch"
+import {
+  AuthGate,
+  SurgeAuthProvider,
+  type AuthGateStatus,
+} from "@/components/ui/surge-auth"
+import { getSurgeClient } from "@/lib/surge"
 import { AmbientBackground } from "@/components/ui/ambient-background"
+import { HeraldLogo } from "@/components/ui/logos"
 import { Toaster } from "@/components/ui/sonner"
 import { ErrorBoundary } from "@/components/error-boundary"
-import type { AuthMode, PublicEnv } from "@/lib/env"
+import { AUTH_MODE, type AuthMode, type PublicEnv } from "@/lib/env"
 import i18n from "@/i18n/config"
 import appCss from "../globals.css?url"
 
@@ -268,19 +273,25 @@ function RootComponent() {
     <RootDocument>
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <SettingsProvider>
-              <LocalOverridesProvider>
-                <LanguageSyncer />
-                <ErrorBoundary>
-                  <AuthGate>
-                    <Outlet />
-                  </AuthGate>
-                </ErrorBoundary>
-                <Toaster position="bottom-right" richColors closeButton />
-              </LocalOverridesProvider>
-            </SettingsProvider>
-          </AuthProvider>
+          <SurgeAuthProvider
+            client={getSurgeClient()}
+            mode={AUTH_MODE}
+            mark={<HeraldLogo size={28} />}
+          >
+            <AuthProvider>
+              <SettingsProvider>
+                <LocalOverridesProvider>
+                  <LanguageSyncer />
+                  <ErrorBoundary>
+                    <HeraldAuthGate>
+                      <Outlet />
+                    </HeraldAuthGate>
+                  </ErrorBoundary>
+                  <Toaster position="bottom-right" richColors closeButton />
+                </LocalOverridesProvider>
+              </SettingsProvider>
+            </AuthProvider>
+          </SurgeAuthProvider>
         </QueryClientProvider>
       </I18nextProvider>
     </RootDocument>
@@ -302,19 +313,21 @@ function LanguageSyncer() {
 }
 
 /**
- * Sole owner of the three auth states: splash while initializing, sign-in when
- * signed out, app otherwise — plus an overlay when a live session expires.
- *
- * Keeping all of them in one branch chain is deliberate. This used to be two
- * sibling components (a full-screen `AuthScreen` and a mid-session
- * `AuthGuardDialog`) whose conditions had to stay complements of each other by
- * convention; once both grew to render the same dialog, they opened together
- * and stacked two modals.
+ * Herald's binding to the generic `AuthGate`. `GET /v1/whoami` decides whether
+ * there is a session; this only delays the mount until Herald's own profile
+ * and offline mail cache have hydrated on top of it. A signed-in-but-no-
+ * profile state resolves to the sign-in surface rather than a splash that
+ * never ends — the request that failed is then visible in the dialog.
  */
-function AuthGate({ children }: { children: ReactNode }) {
-  const { user, initialized, restoringCachedMail } = useAuth()
+function HeraldAuthGate({ children }: { children: ReactNode }) {
+  const { user, initialized, restoringCachedMail, refresh } = useAuth()
   const { t } = useTranslation()
-  const { expired, markResolved } = useSessionWatch(user?.id ?? null)
+
+  const status: AuthGateStatus = !initialized
+    ? "loading"
+    : user
+      ? "authed"
+      : "unauthed"
 
   const splash = (
     <div
@@ -335,22 +348,12 @@ function AuthGate({ children }: { children: ReactNode }) {
     </div>
   )
 
-  // Signed out, the app never mounts — there is nothing in flight to protect.
-  // Expired mid-use, it stays mounted behind the overlay so an in-progress
-  // compose draft, scroll position, and open thread survive re-authentication.
-  const content = !initialized ? splash : user ? children : null
-
-  // `Reauth` sits outside that chain, mounted at all times and driven by a
-  // single `open` expression. Conditionally rendering it would tear it out on
-  // the frame sign-in succeeds, skipping its close animation.
+  // Re-fetch `/api/me` after a sign-in through the gate: the Surge session is
+  // live at that point, but Herald's own profile and mail cache are not.
   return (
-    <>
-      {content}
-      <Reauth
-        open={initialized && (!user || expired)}
-        onAuthenticated={markResolved}
-      />
-    </>
+    <AuthGate status={status} fallback={splash} onAuthenticated={() => void refresh()}>
+      {children}
+    </AuthGate>
   )
 }
 

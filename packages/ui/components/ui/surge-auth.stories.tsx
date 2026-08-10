@@ -1,16 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
 
-import { Reauth } from "@/components/auth/reauth"
-import { AuthProvider, type AuthUser } from "@/lib/auth-store"
-
-const signedIn: AuthUser = {
-  id: "1",
-  address: "ada@panit.dev",
-  addresses: ["ada@panit.dev"],
-  username: "ada",
-  displayName: "Ada",
-  avatarUrl: null,
-}
+import { Reauth, SurgeAuthProvider } from "@/components/ui/surge-auth"
+import { HeraldLogo } from "@/components/ui/logos"
+import { API_URL } from "@/lib/env"
 
 const meta = {
   title: "Auth/Reauth",
@@ -21,13 +13,18 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      // `autoRefresh={false}` keeps the story off the network; the user only
-      // matters because Reauth calls `refresh()` after a successful sign-in.
-      <AuthProvider initialUser={signedIn} autoRefresh={false}>
+      // `autoRefresh={false}` keeps the story off the whoami request; the flow
+      // itself still talks to the perimeter when submitted.
+      <SurgeAuthProvider
+        baseUrl={API_URL}
+        mode="inline"
+        mark={<HeraldLogo size={28} />}
+        autoRefresh={false}
+      >
         <div className="h-[320px]">
           <Story />
         </div>
-      </AuthProvider>
+      </SurgeAuthProvider>
     ),
   ],
 } satisfies Meta<typeof Reauth>

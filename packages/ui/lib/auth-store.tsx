@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from "react"
 import {
-  APIError,
   clearOfflineMailCache,
   getMe,
   hydrateSyncStateFromCache,
@@ -22,6 +21,7 @@ import {
   loadPersistedAuthUser,
   persistAuthUser,
 } from "@/lib/offline-cache"
+import { useOptionalSurgeAuth } from "@/components/ui/surge-auth"
 import { initiateLogout } from "./surge"
 
 export type AuthUser = {
@@ -58,6 +58,11 @@ function resolveAvatarUrl(value: string | null): string | null {
   return value
 }
 
+/**
+ * Herald's *profile*, not its authentication. `GET /v1/whoami` decides whether
+ * there is a session; this only adds the mail identity on top, so any failure
+ * — 401, 404, 503 — degrades to "no profile yet" and never signs anyone out.
+ */
 async function fetchMe(): Promise<{ user: AuthUser | null; offline: boolean }> {
   try {
     const data = await getMe()
@@ -72,13 +77,10 @@ async function fetchMe(): Promise<{ user: AuthUser | null; offline: boolean }> {
       },
       offline: false,
     }
-  } catch (error) {
-    // A 401 is the only response that means "signed out". Herald returns 503
-    // when Surge is unreachable; treating that as signed-out would run
-    // `clearForUser` and wipe the offline mail cache over a transient blip.
-    if (error instanceof APIError && error.status === 401) {
-      return { user: null, offline: false }
-    }
+  } catch {
+    // A 401 here means the profile route rejected a session Surge just
+    // vouched for — a Herald-side fault, same as a 404 or a 503, and equally
+    // not grounds for wiping the offline mail cache.
     return { user: null, offline: true }
   }
 }
@@ -94,6 +96,7 @@ export function AuthProvider({
   initialUser = null,
   autoRefresh = true,
 }: AuthProviderProps) {
+  const surgeStatus = useOptionalSurgeAuth()?.status ?? null
   const [state, setState] = useState<AuthState>({
     user: initialUser,
     initialized: !autoRefresh,
@@ -121,6 +124,12 @@ export function AuthProvider({
     setState({ user, initialized: true, restoringCachedMail: false })
   }, [])
 
+  const signOutLocally = useCallback(async () => {
+    await clearForUser(currentUserIdRef.current)
+    currentUserIdRef.current = null
+    setState({ user: null, initialized: true, restoringCachedMail: false })
+  }, [clearForUser])
+
   const refresh = useCallback(async () => {
     const persisted = await loadPersistedAuthUser()
 
@@ -128,25 +137,17 @@ export function AuthProvider({
       await restoreOfflineData(persisted.user)
     }
 
-    // `/api/me` is Herald's own whoami: the `surge_session` cookie is HttpOnly, so
-    // there's nothing for the browser to introspect directly — Herald validates it
-    // against Surge on our behalf and this is the single source of truth.
+    // Profile only — `SurgeAuthProvider` has already settled whether there is
+    // a session. A failure here leaves the app on cached mail rather than
+    // pretending the user is signed out.
     const me = await fetchMe()
 
-    if (me.offline) {
+    if (me.offline || !me.user) {
       await restoreOfflineData(persisted?.user ?? null)
       return
     }
 
     const user = me.user
-
-    if (!user) {
-      await clearForUser(currentUserIdRef.current)
-      currentUserIdRef.current = null
-      setState({ user: null, initialized: true, restoringCachedMail: false })
-      return
-    }
-
     const previousUserId = currentUserIdRef.current
     if (previousUserId && user.id !== previousUserId) {
       setOfflineSyncUser(null)
@@ -159,23 +160,34 @@ export function AuthProvider({
     await hydrateSyncStateFromCache(user.id)
 
     setState({ user, initialized: true, restoringCachedMail: false })
-  }, [clearForUser, restoreOfflineData])
+  }, [restoreOfflineData])
 
   useEffect(() => {
-    setUnauthorizedHandler(async () => {
-      const userId = currentUserIdRef.current
-      await clearForUser(userId)
-      currentUserIdRef.current = null
-      setState({ user: null, initialized: true, restoringCachedMail: false })
-    })
-
+    setUnauthorizedHandler(signOutLocally)
     return () => setUnauthorizedHandler(null)
-  }, [clearForUser])
+  }, [signOutLocally])
 
+  // The Surge session drives everything: the profile fetch only runs once
+  // `/v1/whoami` says there is one, and a `unauthed` answer is the single
+  // signal that clears local state. `offline` keeps whatever was cached.
   useEffect(() => {
     if (!autoRefresh) return
+
+    // No session layer above us (stories, isolated tests): fall back to
+    // fetching the profile directly.
+    if (!surgeStatus) {
+      void refresh()
+      return
+    }
+
+    if (surgeStatus === "loading") return
+    if (surgeStatus === "unauthed") {
+      void signOutLocally()
+      return
+    }
+
     void refresh()
-  }, [autoRefresh, refresh])
+  }, [autoRefresh, surgeStatus, refresh, signOutLocally])
 
   const logout = useCallback(() => {
     void clearForUser(currentUserIdRef.current)
