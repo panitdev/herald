@@ -20,3 +20,5 @@ node_modules
 # Vite / TanStack Start build output
 .output
 dist
+
+internal-docs/
