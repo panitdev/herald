@@ -27,6 +27,7 @@ import {
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
+  ContextMenuPortal,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 
@@ -230,20 +231,22 @@ export function EmailListItem({
           <ContextMenuShortcut>S</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuSub>
-          <ContextMenuSubTrigger>
+          <ContextMenuSubTrigger className="gap-2">
             <FolderInput className="h-4 w-4" />
             {t("emailListItem.menu.moveTo")}
           </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-44">
-            <ContextMenuItem onSelect={onArchive}>
-              <Archive className="h-4 w-4" />
-              {t("emailListItem.menu.archive")}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={onDelete}>
-              <Trash2 className="h-4 w-4" />
-              {t("emailListItem.menu.trash")}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
+          <ContextMenuPortal>
+            <ContextMenuSubContent className="max-h-(--radix-context-menu-content-available-height) w-44 overflow-y-auto">
+              <ContextMenuItem onSelect={onArchive}>
+                <Archive className="h-4 w-4" />
+                {t("emailListItem.menu.archive")}
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={onDelete}>
+                <Trash2 className="h-4 w-4" />
+                {t("emailListItem.menu.trash")}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuPortal>
         </ContextMenuSub>
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onSelect={onDelete}>
