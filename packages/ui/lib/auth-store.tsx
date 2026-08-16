@@ -129,7 +129,11 @@ export function AuthProvider({
   }, [clearForUser])
 
   const refresh = useCallback(async () => {
-    const persisted = await loadPersistedAuthUser()
+    // These are independent startup reads. Start the network check while the
+    // browser is opening IndexedDB instead of making auth wait on local I/O.
+    const persistedPromise = loadPersistedAuthUser()
+    const mePromise = fetchMe()
+    const persisted = await persistedPromise
 
     if (persisted?.user) {
       await restoreOfflineData(persisted.user)
@@ -138,7 +142,7 @@ export function AuthProvider({
     // Profile only — `SurgeAuthProvider` has already settled whether there is
     // a session. A failure here leaves the app on cached mail rather than
     // pretending the user is signed out.
-    const me = await fetchMe()
+    const me = await mePromise
 
     if (me.offline || !me.user) {
       await restoreOfflineData(persisted?.user ?? null)
@@ -154,8 +158,10 @@ export function AuthProvider({
     currentUserIdRef.current = user.id
     setOfflineSyncUser(user.id)
 
-    await persistAuthUser(user)
-    await hydrateSyncStateFromCache(user.id)
+    void persistAuthUser(user)
+    if (user.id !== persisted?.user.id) {
+      await hydrateSyncStateFromCache(user.id)
+    }
 
     setState({ user, initialized: true, restoringCachedMail: false })
   }, [restoreOfflineData])

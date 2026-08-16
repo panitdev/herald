@@ -49,7 +49,7 @@ function AppLayout() {
 function AppLayoutInner() {
   const { settings } = useSettings()
   const { user } = useAuth()
-  const { addLocalEmail, initialized: overridesInitialized } = useLocalOverrides()
+  const { addLocalEmail } = useLocalOverrides()
   const online = useOnlineStatus()
   const { t } = useTranslation()
   const { createDrop } = useDropStore()
@@ -173,22 +173,10 @@ function AppLayoutInner() {
           {t("app.offline")}
         </div>
       ) : null}
-      {!overridesInitialized ? (
-        <div className="relative flex h-dvh items-center justify-center overflow-hidden bg-background px-6 text-center">
-          <AmbientBackground />
-          <div className="relative z-10 space-y-2">
-            <p className="text-sm font-medium text-foreground">{t("app.restoringCachedMail")}</p>
-            <p className="text-sm text-muted-foreground">
-              {t("app.restoringCachedMailBody")}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="relative isolate h-dvh w-full overflow-hidden">
-          <AmbientBackground />
-          <Outlet />
-        </div>
-      )}
+      <div className="relative isolate h-dvh w-full overflow-hidden">
+        <AmbientBackground />
+        <Outlet />
+      </div>
       <ComposePanel
         open={composeOpen}
         onClose={() => setComposeOpen(false)}
