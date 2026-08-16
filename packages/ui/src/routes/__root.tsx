@@ -20,7 +20,6 @@ import { LocalOverridesProvider } from "@/lib/local-overrides-store"
 import {
   AuthGate,
   SurgeAuthProvider,
-  type AuthGateStatus,
 } from "@/components/ui/surge-auth"
 import { getSurgeClient } from "@/lib/surge"
 import { AmbientBackground } from "@/components/ui/ambient-background"
@@ -312,22 +311,10 @@ function LanguageSyncer() {
   return null
 }
 
-/**
- * Herald's binding to the generic `AuthGate`. `GET /v1/whoami` decides whether
- * there is a session; this only delays the mount until Herald's own profile
- * and offline mail cache have hydrated on top of it. A signed-in-but-no-
- * profile state resolves to the sign-in surface rather than a splash that
- * never ends — the request that failed is then visible in the dialog.
- */
+/** Herald's profile hydration layered onto the Surge session gate. */
 function HeraldAuthGate({ children }: { children: ReactNode }) {
-  const { user, initialized, restoringCachedMail, refresh } = useAuth()
+  const { restoringCachedMail, refresh } = useAuth()
   const { t } = useTranslation()
-
-  const status: AuthGateStatus = !initialized
-    ? "loading"
-    : user
-      ? "authed"
-      : "unauthed"
 
   const splash = (
     <div
@@ -348,10 +335,10 @@ function HeraldAuthGate({ children }: { children: ReactNode }) {
     </div>
   )
 
-  // Re-fetch `/api/me` after a sign-in through the gate: the Surge session is
-  // live at that point, but Herald's own profile and mail cache are not.
+  // Refresh Herald's profile after a sign-in. AuthDialog visibility is owned
+  // by the Surge session and must not wait for `/api/me`.
   return (
-    <AuthGate status={status} fallback={splash} onAuthenticated={() => void refresh()}>
+    <AuthGate fallback={splash} onAuthenticated={() => void refresh()}>
       {children}
     </AuthGate>
   )

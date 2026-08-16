@@ -32,6 +32,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
+import { useSurgeAuth } from "@/components/ui/surge-auth"
 import { toast } from "sonner"
 
 const LANGUAGE_OPTIONS = [
@@ -46,7 +47,8 @@ type Props = {
 
 export function ProfileMenu({ onOpenSettings }: Props) {
   const { settings, updateSettings, resolvedTheme } = useSettings()
-  const { logout, user } = useAuth()
+  const { user } = useAuth()
+  const { logout } = useSurgeAuth()
   const { t } = useTranslation()
 
   const ThemeIcon =

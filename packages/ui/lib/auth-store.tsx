@@ -22,7 +22,6 @@ import {
   persistAuthUser,
 } from "@/lib/offline-cache"
 import { useOptionalSurgeAuth } from "@/components/ui/surge-auth"
-import { initiateLogout } from "./surge"
 
 export type AuthUser = {
   id: string
@@ -40,7 +39,6 @@ type AuthState = {
 }
 
 type AuthCtx = AuthState & {
-  logout: () => void
   refresh: () => Promise<void>
   updateProfile: (patch: {
     displayName?: string
@@ -189,13 +187,6 @@ export function AuthProvider({
     void refresh()
   }, [autoRefresh, surgeStatus, refresh, signOutLocally])
 
-  const logout = useCallback(() => {
-    void clearForUser(currentUserIdRef.current)
-    currentUserIdRef.current = null
-    setState({ user: null, initialized: true, restoringCachedMail: false })
-    void initiateLogout()
-  }, [clearForUser])
-
   const updateProfile = useCallback(
     async (patch: { displayName?: string; avatarUrl?: string | null }) => {
       const currentUser = currentUserIdRef.current
@@ -225,7 +216,7 @@ export function AuthProvider({
   )
 
   return (
-    <AuthContext.Provider value={{ ...state, logout, refresh, updateProfile }}>
+    <AuthContext.Provider value={{ ...state, refresh, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )
