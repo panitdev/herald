@@ -9,27 +9,38 @@
 //! resolver simply relies on whatever the user has registered. Equally, a
 //! deployment can ship a shared key and users need register nothing.
 
-use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, SelectableHelper};
-use diesel_async::RunQueryDsl;
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
+};
+use diesel_async::{AsyncPgConnection, RunQueryDsl};
 
 use super::{build_sender, DynEmailSender, EmailProvider};
 use crate::{
-    error::AppError, models::email_sender::EmailSenderRecord, schema::email_senders,
+    error::AppError,
+    models::email_sender::EmailSenderRecord,
+    receivers::Access,
+    schema::{addresses, email_sender_members, email_senders},
     state::AppState,
 };
 
-/// Load every sender a user is allowed to use: their own rows plus system rows.
+/// Load every sender a user is allowed to use: their own rows, rows shared with
+/// them, plus system rows.
 pub async fn list_available(
     state: &AppState,
     user_id: i64,
 ) -> Result<Vec<EmailSenderRecord>, AppError> {
     let mut conn = state.db.get().await?;
+    let member_ids = email_sender_members::table
+        .filter(email_sender_members::user_id.eq(user_id))
+        .select(email_sender_members::sender_id);
+
     let rows = email_senders::table
         .filter(email_senders::is_active.eq(true))
         .filter(
             email_senders::scope
                 .eq("system")
-                .or(email_senders::owner_user_id.eq(user_id)),
+                .or(email_senders::owner_user_id.eq(user_id))
+                .or(email_senders::id.eq_any(member_ids)),
         )
         .order(email_senders::created_at.desc())
         .select(EmailSenderRecord::as_select())
@@ -98,4 +109,108 @@ fn eligibility_score(record: &EmailSenderRecord, from_domain: Option<&str>) -> O
     }
 
     Some(score)
+}
+
+pub async fn load_with_conn(
+    conn: &mut AsyncPgConnection,
+    sender_id: i64,
+) -> Result<EmailSenderRecord, AppError> {
+    email_senders::table
+        .find(sender_id)
+        .select(EmailSenderRecord::as_select())
+        .first(conn)
+        .await
+        .optional()
+        .map_err(|err| AppError::db(err, "email.registry.load.lookup"))?
+        .ok_or(AppError::NotFound)
+}
+
+/// What `user_id` may do with `sender`. Mirrors receiver membership: system
+/// senders are usable by everyone and administered by nobody.
+pub async fn access_for(
+    conn: &mut AsyncPgConnection,
+    sender: &EmailSenderRecord,
+    user_id: i64,
+) -> Result<Option<Access>, AppError> {
+    if sender.owner_user_id == Some(user_id) {
+        return Ok(Some(Access::Admin));
+    }
+
+    let role: Option<String> = email_sender_members::table
+        .find((sender.id, user_id))
+        .select(email_sender_members::role)
+        .first(conn)
+        .await
+        .optional()
+        .map_err(|err| AppError::db(err, "email.registry.access_for.lookup_member"))?;
+
+    if let Some(role) = role {
+        return Ok(Access::parse(&role));
+    }
+
+    if sender.scope == "system" {
+        return Ok(Some(Access::Member));
+    }
+
+    Ok(None)
+}
+
+pub async fn require_member(
+    conn: &mut AsyncPgConnection,
+    sender: &EmailSenderRecord,
+    user_id: i64,
+) -> Result<Access, AppError> {
+    access_for(conn, sender, user_id)
+        .await?
+        .ok_or_else(|| AppError::Forbidden("you do not have access to this email sender".into()))
+}
+
+pub async fn require_admin(
+    conn: &mut AsyncPgConnection,
+    sender: &EmailSenderRecord,
+    user_id: i64,
+) -> Result<(), AppError> {
+    match require_member(conn, sender, user_id).await? {
+        Access::Admin => Ok(()),
+        Access::Member => Err(AppError::Forbidden(
+            "only an administrator of this email sender may do that".into(),
+        )),
+    }
+}
+
+/// Resolve the sender for a specific `From` address.
+///
+/// An address bound to a sender unit always uses it — that binding is the
+/// "exactly one sender per address" rule. Everything else falls through to
+/// domain-scored resolution, which is what unbound addresses (the majority
+/// right after migration) rely on.
+pub async fn resolve_sender_for_address(
+    state: &AppState,
+    user_id: i64,
+    from_address: &str,
+) -> Result<DynEmailSender, AppError> {
+    let normalized = from_address.trim().to_lowercase();
+    let mut conn = state.db.get().await?;
+
+    let bound_sender_id: Option<Option<i64>> = addresses::table
+        .filter(addresses::address.eq(&normalized))
+        .select(addresses::sender_id)
+        .first(&mut conn)
+        .await
+        .optional()
+        .map_err(|err| AppError::db(err, "email.registry.resolve_for_address.lookup_address"))?;
+
+    if let Some(Some(sender_id)) = bound_sender_id {
+        let record = load_with_conn(&mut conn, sender_id).await?;
+        require_member(&mut conn, &record, user_id).await?;
+        if !record.is_active {
+            return Err(AppError::BadRequest(
+                "the sender bound to this address is disabled".into(),
+            ));
+        }
+        return build_from_record(state.http.clone(), &record);
+    }
+
+    let from_domain = normalized.split_once('@').map(|(_, domain)| domain.to_owned());
+    resolve_sender(state, user_id, from_domain.as_deref()).await
 }

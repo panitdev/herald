@@ -46,6 +46,11 @@ The inbound email entry point lives in `packages/workers-receiver/` and runs as 
 the Rust API at `/internal/mail/inbound`. On failure it stages the raw email in
 **R2** under `inbound/`; the Rust API replays these on startup via a recovery scan.
 
+Receivers and senders are registrable units: a worker authenticates as a row in
+`email_receivers` and may only deliver to addresses bound to it. The bundled
+worker authenticates as the deployment's system receiver, provisioned on startup
+from `HERALD_INTERNAL_SECRET`. See `internal-docs/email-units.md`.
+
 Run locally with:
 
 ```

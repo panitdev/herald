@@ -18,12 +18,19 @@ use crate::{
     auth::AuthUser,
     email::{registry, EmailAddress, EmailProvider, OutboundEmail},
     error::{ApiResult, AppError},
-    models::email_sender::{EmailSenderRecord, NewEmailSender},
-    schema::email_senders,
+    models::{
+        email_sender::{EmailSenderMember, EmailSenderRecord, NewEmailSender, NewEmailSenderMember},
+        user::User,
+    },
+    receivers::Access,
+    schema::{email_sender_members, email_senders, users},
     state::AppState,
 };
 
+use super::units::{normalize_domain, parse_id, MemberResponse, OkResponse};
+
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EmailSenderResponse {
     id: String,
     provider: String,
@@ -35,6 +42,8 @@ pub struct EmailSenderResponse {
     is_system: bool,
     /// True when the requesting user owns this sender.
     is_owned: bool,
+    /// What the requesting user may do with this sender.
+    access: String,
     /// Whether a secret credential is stored (the secret itself is never returned).
     has_secret: bool,
     is_active: bool,
@@ -42,6 +51,7 @@ pub struct EmailSenderResponse {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateEmailSenderRequest {
     provider: String,
     display_name: String,
@@ -59,12 +69,15 @@ pub async fn list_email_senders(
     AuthUser(user): AuthUser,
 ) -> ApiResult<Json<Vec<EmailSenderResponse>>> {
     let records = registry::list_available(&state, user.id).await?;
-    Ok(Json(
-        records
-            .iter()
-            .map(|record| sender_response(record, user.id))
-            .collect(),
-    ))
+
+    let mut conn = state.db.get().await?;
+    let mut out = Vec::with_capacity(records.len());
+    for record in &records {
+        let access = registry::access_for(&mut conn, record, user.id).await?;
+        out.push(sender_response(record, user.id, access));
+    }
+
+    Ok(Json(out))
 }
 
 pub async fn create_email_sender(
@@ -123,33 +136,136 @@ pub async fn create_email_sender(
         .get_result(&mut conn)
         .await?;
 
-    Ok(Json(sender_response(&inserted, user.id)))
+    // The owner is an admin by ownership; recording the membership too keeps
+    // the sharing list honest about who has access.
+    diesel::insert_into(email_sender_members::table)
+        .values(&NewEmailSenderMember {
+            sender_id: inserted.id,
+            user_id: user.id,
+            role: Access::Admin.as_str(),
+        })
+        .on_conflict_do_nothing()
+        .execute(&mut conn)
+        .await
+        .map_err(|err| AppError::db(err, "email_senders.create.insert_owner_member"))?;
+
+    Ok(Json(sender_response(&inserted, user.id, Some(Access::Admin))))
 }
 
 pub async fn delete_email_sender(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
     Path(id): Path<i64>,
-) -> ApiResult<Json<serde_json::Value>> {
+) -> ApiResult<Json<OkResponse>> {
     let mut conn = state.db.get().await?;
+    let record = registry::load_with_conn(&mut conn, id).await?;
+    registry::require_admin(&mut conn, &record, user.id).await?;
 
-    // Only the owner may delete; system/group senders are never owned by a user.
-    let deleted = diesel::delete(
-        email_senders::table
-            .filter(email_senders::id.eq(id))
-            .filter(email_senders::owner_user_id.eq(user.id)),
-    )
-    .execute(&mut conn)
-    .await?;
+    diesel::delete(email_senders::table.find(record.id))
+        .execute(&mut conn)
+        .await
+        .map_err(|err| AppError::db(err, "email_senders.delete.execute"))?;
+
+    Ok(Json(OkResponse { ok: true }))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddMemberRequest {
+    user_id: String,
+    /// `member` (default) or `admin`.
+    role: Option<String>,
+}
+
+pub async fn list_email_sender_members(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<Vec<MemberResponse>>> {
+    let mut conn = state.db.get().await?;
+    let record = registry::load_with_conn(&mut conn, id).await?;
+    registry::require_member(&mut conn, &record, user.id).await?;
+
+    let rows: Vec<(EmailSenderMember, User)> = email_sender_members::table
+        .inner_join(users::table)
+        .filter(email_sender_members::sender_id.eq(record.id))
+        .select((EmailSenderMember::as_select(), User::as_select()))
+        .load(&mut conn)
+        .await
+        .map_err(|err| AppError::db(err, "email_senders.list_members.load"))?;
+
+    Ok(Json(
+        rows.iter()
+            .map(|(member, member_user)| {
+                MemberResponse::new(member.user_id, &member.role, member_user)
+            })
+            .collect(),
+    ))
+}
+
+pub async fn add_email_sender_member(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(id): Path<i64>,
+    Json(input): Json<AddMemberRequest>,
+) -> ApiResult<Json<MemberResponse>> {
+    let mut conn = state.db.get().await?;
+    let record = registry::load_with_conn(&mut conn, id).await?;
+    registry::require_admin(&mut conn, &record, user.id).await?;
+
+    let member_user_id = parse_id(&input.user_id)?;
+    let role = Access::parse(input.role.as_deref().unwrap_or("member"))
+        .ok_or_else(|| AppError::BadRequest("role must be one of: member, admin".into()))?;
+
+    let member: User = users::table
+        .find(member_user_id)
+        .select(User::as_select())
+        .first(&mut conn)
+        .await
+        .map_err(|err| AppError::db(err, "email_senders.add_member.lookup_user"))?;
+
+    diesel::insert_into(email_sender_members::table)
+        .values(&NewEmailSenderMember {
+            sender_id: record.id,
+            user_id: member.id,
+            role: role.as_str(),
+        })
+        .on_conflict((
+            email_sender_members::sender_id,
+            email_sender_members::user_id,
+        ))
+        .do_update()
+        .set(email_sender_members::role.eq(role.as_str()))
+        .execute(&mut conn)
+        .await
+        .map_err(|err| AppError::db(err, "email_senders.add_member.insert"))?;
+
+    Ok(Json(MemberResponse::new(member.id, role.as_str(), &member)))
+}
+
+pub async fn remove_email_sender_member(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path((id, member_user_id)): Path<(i64, i64)>,
+) -> ApiResult<Json<OkResponse>> {
+    let mut conn = state.db.get().await?;
+    let record = registry::load_with_conn(&mut conn, id).await?;
+    registry::require_admin(&mut conn, &record, user.id).await?;
+
+    let deleted = diesel::delete(email_sender_members::table.find((record.id, member_user_id)))
+        .execute(&mut conn)
+        .await
+        .map_err(|err| AppError::db(err, "email_senders.remove_member.delete"))?;
 
     if deleted == 0 {
         return Err(AppError::NotFound);
     }
 
-    Ok(Json(serde_json::json!({ "ok": true })))
+    Ok(Json(OkResponse { ok: true }))
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TestSendRequest {
     /// Address to send the test message to.
     to: String,
@@ -160,6 +276,7 @@ pub struct TestSendRequest {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TestSendResponse {
     provider: String,
     message_id: Option<String>,
@@ -191,8 +308,7 @@ pub async fn send_test_email(
         return Err(AppError::BadRequest("from must be a valid email address".into()));
     }
 
-    let from_domain = from.split_once('@').map(|(_, domain)| domain.to_lowercase());
-    let sender = registry::resolve_sender(&state, user.id, from_domain.as_deref()).await?;
+    let sender = registry::resolve_sender_for_address(&state, user.id, &from).await?;
 
     let subject = input
         .subject
@@ -227,7 +343,11 @@ fn looks_like_email(value: &str) -> bool {
     }
 }
 
-fn sender_response(record: &EmailSenderRecord, user_id: i64) -> EmailSenderResponse {
+fn sender_response(
+    record: &EmailSenderRecord,
+    user_id: i64,
+    access: Option<Access>,
+) -> EmailSenderResponse {
     EmailSenderResponse {
         id: record.id.to_string(),
         provider: record.provider.clone(),
@@ -237,28 +357,9 @@ fn sender_response(record: &EmailSenderRecord, user_id: i64) -> EmailSenderRespo
         from_address: record.from_address.clone(),
         is_system: record.scope == "system",
         is_owned: record.owner_user_id == Some(user_id),
+        access: access.map(Access::as_str).unwrap_or("none").to_owned(),
         has_secret: record.secret.is_some(),
         is_active: record.is_active,
         created_at: record.created_at.to_rfc3339(),
     }
-}
-
-fn normalize_domain(value: Option<&str>) -> Result<Option<String>, AppError> {
-    let Some(raw) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Ok(None);
-    };
-
-    let domain = raw.to_lowercase();
-    let valid = domain.contains('.')
-        && !domain.starts_with('.')
-        && !domain.ends_with('.')
-        && domain
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'));
-
-    if !valid {
-        return Err(AppError::BadRequest("mail_domain must be a valid domain".into()));
-    }
-
-    Ok(Some(domain))
 }

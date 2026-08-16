@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde::Deserialize;
+use std::sync::Arc;
 #[cfg(test)]
 use std::{collections::HashMap, sync::Mutex};
 
@@ -16,6 +17,40 @@ pub trait InboundWorkerClient: Send + Sync {
     async fn list_unprocessed(&self) -> Result<Vec<UnprocessedItem>, AppError>;
     async fn get_unprocessed(&self, key: &str) -> Result<Bytes, AppError>;
     async fn delete_unprocessed(&self, key: &str) -> Result<(), AppError>;
+}
+
+/// Where a receiver stages mail it could not hand to herald directly, and the
+/// credential herald uses to drain that staging area.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct WorkerEndpoint {
+    pub url: String,
+    pub token: String,
+}
+
+/// Builds a staging client per receiver. Receivers are registrable units now,
+/// so there is no single worker to hold in `AppState` any more.
+pub trait InboundWorkerFactory: Send + Sync {
+    fn client_for(&self, endpoint: &WorkerEndpoint) -> Arc<dyn InboundWorkerClient>;
+}
+
+pub struct HttpWorkerFactory {
+    http: reqwest::Client,
+}
+
+impl HttpWorkerFactory {
+    pub fn new(http: reqwest::Client) -> Self {
+        Self { http }
+    }
+}
+
+impl InboundWorkerFactory for HttpWorkerFactory {
+    fn client_for(&self, endpoint: &WorkerEndpoint) -> Arc<dyn InboundWorkerClient> {
+        Arc::new(HttpWorkerClient::new(
+            self.http.clone(),
+            endpoint.url.clone(),
+            endpoint.token.clone(),
+        ))
+    }
 }
 
 pub struct HttpWorkerClient {

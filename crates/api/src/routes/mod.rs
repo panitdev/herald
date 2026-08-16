@@ -15,6 +15,8 @@ use serde_json::json;
 
 use crate::{
     addresses::{ensure_user_address, find_address, user_has_address},
+    email::registry,
+    receivers,
     auth::{extract_token, AuthUser},
     error::{ApiResult, AppError},
     models::{
@@ -29,10 +31,12 @@ use crate::{
 pub mod chat;
 pub mod contacts;
 pub mod drops;
+pub mod email_receivers;
 pub mod email_senders;
 pub mod internal;
 pub mod objects;
 pub mod sync;
+pub mod units;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -40,6 +44,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/me", get(me).patch(update_me))
         .route("/api/logout", post(logout))
         .route("/api/me/addresses", post(create_address))
+        .route("/api/me/addresses/{id}/units", axum::routing::patch(bind_address_units))
         .route("/api/me/avatar", get(me_avatar))
         .route(
             "/api/me/email-senders",
@@ -52,6 +57,38 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/me/email-senders/test",
             post(email_senders::send_test_email),
+        )
+        .route(
+            "/api/me/email-senders/{id}/members",
+            get(email_senders::list_email_sender_members)
+                .post(email_senders::add_email_sender_member),
+        )
+        .route(
+            "/api/me/email-senders/{id}/members/{user_id}",
+            axum::routing::delete(email_senders::remove_email_sender_member),
+        )
+        .route(
+            "/api/me/email-receivers",
+            get(email_receivers::list_email_receivers)
+                .post(email_receivers::create_email_receiver),
+        )
+        .route(
+            "/api/me/email-receivers/{id}",
+            axum::routing::patch(email_receivers::update_email_receiver)
+                .delete(email_receivers::delete_email_receiver),
+        )
+        .route(
+            "/api/me/email-receivers/{id}/token",
+            post(email_receivers::rotate_email_receiver_token),
+        )
+        .route(
+            "/api/me/email-receivers/{id}/members",
+            get(email_receivers::list_email_receiver_members)
+                .post(email_receivers::add_email_receiver_member),
+        )
+        .route(
+            "/api/me/email-receivers/{id}/members/{user_id}",
+            axum::routing::delete(email_receivers::remove_email_receiver_member),
         )
         .route(
             "/chat/conversations",
@@ -123,10 +160,15 @@ struct MeResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AddressResponse {
     id: String,
     address: String,
     created_at: String,
+    /// Receiver unit that delivers inbound mail for this address.
+    receiver_id: Option<String>,
+    /// Sender unit used when sending from this address.
+    sender_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -144,6 +186,27 @@ struct UpdateMeRequest {
 #[derive(Deserialize)]
 struct CreateAddressRequest {
     address: String,
+}
+
+/// Distinguishing "bind to nothing" (`null`) from "leave alone" (absent) needs
+/// key presence, which `Option<Option<T>>` cannot express through serde — so
+/// the body is read as raw JSON and the two fields are pulled out by hand.
+fn unit_field(body: &serde_json::Value, key: &str) -> Result<Option<Option<i64>>, AppError> {
+    let object = body
+        .as_object()
+        .ok_or_else(|| AppError::BadRequest("body must be a JSON object".into()))?;
+
+    let Some(value) = object.get(key) else {
+        return Ok(None);
+    };
+
+    match value {
+        serde_json::Value::Null => Ok(Some(None)),
+        serde_json::Value::String(raw) => Ok(Some(Some(units::parse_id(raw)?))),
+        _ => Err(AppError::BadRequest(format!(
+            "{key} must be an id string or null"
+        ))),
+    }
 }
 
 async fn me(
@@ -234,6 +297,12 @@ async fn update_me(
     Ok(Json(me_response(&updated, addresses)))
 }
 
+/// Claim an address.
+///
+/// With user-registered receivers, claiming is an authority question: an
+/// address may only be claimed under a domain whose receiver the caller is a
+/// member of. The system receiver keeps `MAIL_DOMAIN` open to everyone, which
+/// is what preserves the previous behaviour.
 async fn create_address(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -241,6 +310,16 @@ async fn create_address(
 ) -> ApiResult<Json<CreateAddressResponse>> {
     let normalized = normalize_address_input(&input.address, &state.config.mail_domain)?;
     let mut conn = state.db.get().await?;
+
+    let (_, domain) = normalized
+        .split_once('@')
+        .ok_or_else(|| AppError::BadRequest("address must be a valid email address".into()))?;
+    let receiver = receivers::find_for_domain(&mut conn, domain)
+        .await?
+        .ok_or_else(|| {
+            AppError::BadRequest(format!("no email receiver is registered for `{domain}`"))
+        })?;
+    receivers::require_member(&mut conn, &receiver, user.id).await?;
 
     let (created, addresses) = conn
         .transaction::<_, AppError, _>(|conn| {
@@ -293,6 +372,87 @@ async fn create_address(
     }))
 }
 
+/// Bind (or unbind) the receiver and sender units of one of the caller's
+/// addresses. An address has exactly one of each; passing `null` clears the
+/// binding, omitting a field leaves it untouched.
+async fn bind_address_units(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    axum::extract::Path(address_id): axum::extract::Path<i64>,
+    Json(input): Json<serde_json::Value>,
+) -> ApiResult<Json<AddressResponse>> {
+    let mut conn = state.db.get().await?;
+
+    if !user_has_address(&mut conn, user.id, address_id).await? {
+        return Err(AppError::NotFound);
+    }
+
+    let address: Address = addresses::table
+        .find(address_id)
+        .select(Address::as_select())
+        .first(&mut conn)
+        .await
+        .map_err(|err| AppError::db(err, "routes.bind_address_units.lookup_address"))?;
+    let address_domain = address
+        .address
+        .split_once('@')
+        .map(|(_, domain)| domain.to_owned());
+
+    let mut receiver_id = unit_field(&input, "receiverId")?;
+    if let Some(Some(id)) = receiver_id {
+        let receiver = receivers::load_with_conn(&mut conn, id).await?;
+        receivers::require_member(&mut conn, &receiver, user.id).await?;
+
+        // A domain-pinned receiver will never be routed mail for another
+        // domain, so binding it there would only look like it works.
+        if let (Some(pinned), Some(domain)) = (receiver.mail_domain.as_deref(), address_domain.as_deref())
+        {
+            if !pinned.eq_ignore_ascii_case(domain) {
+                return Err(AppError::BadRequest(format!(
+                    "this receiver only accepts mail for `{pinned}`"
+                )));
+            }
+        }
+
+        receiver_id = Some(Some(receiver.id));
+    }
+
+    let mut sender_id = unit_field(&input, "senderId")?;
+    if let Some(Some(id)) = sender_id {
+        let sender = registry::load_with_conn(&mut conn, id).await?;
+        registry::require_member(&mut conn, &sender, user.id).await?;
+
+        if let (Some(pinned), Some(domain)) = (sender.mail_domain.as_deref(), address_domain.as_deref())
+        {
+            if !pinned.eq_ignore_ascii_case(domain) {
+                return Err(AppError::BadRequest(format!(
+                    "this sender only sends from `{pinned}`"
+                )));
+            }
+        }
+
+        sender_id = Some(Some(sender.id));
+    }
+
+    if receiver_id.is_none() && sender_id.is_none() {
+        return Err(AppError::BadRequest(
+            "provide receiverId and/or senderId".into(),
+        ));
+    }
+
+    let updated: Address = diesel::update(addresses::table.find(address_id))
+        .set((
+            receiver_id.map(|value| addresses::receiver_id.eq(value)),
+            sender_id.map(|value| addresses::sender_id.eq(value)),
+        ))
+        .returning(Address::as_returning())
+        .get_result(&mut conn)
+        .await
+        .map_err(|err| AppError::db(err, "routes.bind_address_units.update"))?;
+
+    Ok(Json(address_response(&updated)))
+}
+
 fn me_response(user: &User, addresses: Vec<Address>) -> MeResponse {
     MeResponse {
         id: user.id.to_string(),
@@ -339,9 +499,14 @@ fn address_response(address: &Address) -> AddressResponse {
         id: address.id.to_string(),
         address: address.address.clone(),
         created_at: address.created_at.to_rfc3339(),
+        receiver_id: address.receiver_id.map(|id| id.to_string()),
+        sender_id: address.sender_id.map(|id| id.to_string()),
     }
 }
 
+/// Normalize a claimed address. A bare local part is completed with the
+/// deployment domain; a full address may name any domain, because which domains
+/// are claimable is decided by receiver membership rather than by config.
 fn normalize_address_input(value: &str, mail_domain: &str) -> Result<String, AppError> {
     let trimmed = value.trim().to_lowercase();
     if trimmed.is_empty() {
@@ -360,11 +525,22 @@ fn normalize_address_input(value: &str, mail_domain: &str) -> Result<String, App
         ));
     };
 
-    if local.is_empty() || local.len() > 64 || domain != mail_domain.to_lowercase() {
-        return Err(AppError::BadRequest(format!(
-            "address must be under {}",
-            mail_domain
-        )));
+    if local.is_empty() || local.len() > 64 {
+        return Err(AppError::BadRequest(
+            "address local part must be between 1 and 64 characters".into(),
+        ));
+    }
+
+    let domain_valid = domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && domain
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'));
+    if !domain_valid {
+        return Err(AppError::BadRequest(
+            "address must have a valid domain".into(),
+        ));
     }
 
     if !local

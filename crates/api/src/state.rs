@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::{
     blob_store::BlobStore, config::Config, db::DbPool, email::DynEmailSender, ids::IdGen,
-    realtime::RealtimeHub, worker_client::InboundWorkerClient,
+    realtime::RealtimeHub, worker_client::InboundWorkerFactory,
 };
 
 #[derive(Clone)]
@@ -13,7 +13,9 @@ pub struct AppState {
     pub ids: IdGen,
     pub http: reqwest::Client,
     pub blob_store: Arc<dyn BlobStore>,
-    pub worker: Arc<dyn InboundWorkerClient>,
+    /// Builds a staging client per receiver — each registered receiver has its
+    /// own endpoint and credential.
+    pub workers: Arc<dyn InboundWorkerFactory>,
     pub realtime: RealtimeHub,
     /// Shared email sender built from the environment, if configured. Used as a
     /// fallback when a user has no sender of their own.

@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use serde_json::Value;
 
-use crate::schema::email_senders;
+use crate::schema::{email_sender_members, email_senders};
 
 /// A stored outbound email sender credential.
 ///
@@ -36,6 +36,28 @@ pub struct EmailSenderRecord {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Membership grants administration of a sender and the right to bind
+/// addresses to it, so a sender can be shared across several users.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Queryable, Selectable)]
+#[diesel(table_name = email_sender_members)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct EmailSenderMember {
+    pub sender_id: i64,
+    pub user_id: i64,
+    /// `admin` | `member`.
+    pub role: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Insertable)]
+#[diesel(table_name = email_sender_members)]
+pub struct NewEmailSenderMember<'a> {
+    pub sender_id: i64,
+    pub user_id: i64,
+    pub role: &'a str,
 }
 
 #[derive(Debug, Insertable)]

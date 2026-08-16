@@ -5,7 +5,12 @@ import type { Context } from 'hono'
 type WorkerBindings = {
   R2: R2Bucket
   HERALD_API_URL: string
+  // Authenticates herald -> this worker (the /internal/* staging endpoints).
   HERALD_INTERNAL_SECRET: string
+  // Authenticates this worker -> herald, identifying which registered receiver
+  // is delivering. Falls back to HERALD_INTERNAL_SECRET, which is what the
+  // deployment's built-in system receiver uses.
+  HERALD_INBOUND_TOKEN?: string
 }
 
 type AppEnv = { Bindings: WorkerBindings }
@@ -103,7 +108,7 @@ export default {
         method: 'POST',
         headers: {
           'Content-Type': 'message/rfc822',
-          Authorization: `Bearer ${env.HERALD_INTERNAL_SECRET}`,
+          Authorization: `Bearer ${env.HERALD_INBOUND_TOKEN ?? env.HERALD_INTERNAL_SECRET}`,
         },
         body: raw,
       })

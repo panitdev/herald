@@ -15,6 +15,7 @@ use crate::{
     models::{
         address::Address,
         attachment::{Attachment, NewAttachment},
+        email_receiver::EmailReceiverRecord,
         mailbox::Mailbox,
         message::{Message, NewMessage},
         message_mailbox::{MessageMailbox, NewMessageMailbox},
@@ -31,10 +32,16 @@ use crate::{
 
 const RAW_MIME_CONTENT_TYPE: &str = "message/rfc822";
 
+/// Persist a raw message under the receiver that accepted it.
+///
+/// Deduplication is keyed on `(raw_sha256, receiver_id)`: identical bytes
+/// reaching two receivers are two deliveries, and collapsing them would make
+/// whichever arrived second vanish.
 pub async fn ingest_raw_mail(
     state: &AppState,
     raw: Bytes,
     r2_key: Option<&str>,
+    receiver_id: Option<i64>,
 ) -> Result<i64, AppError> {
     let raw_sha256 = sha256_hex(&raw);
     let raw_size = raw.len() as i64;
@@ -51,6 +58,7 @@ pub async fn ingest_raw_mail(
         raw_sha256: &raw_sha256,
         raw_size,
         r2_key,
+        receiver_id,
     };
 
     let mut conn = state.db.get().await?;
@@ -58,7 +66,7 @@ pub async fn ingest_raw_mail(
     let saved = if r2_key.is_some() {
         diesel::insert_into(raw_inbound_mails::table)
             .values(&new_mail)
-            .on_conflict(raw_inbound_mails::raw_sha256)
+            .on_conflict((raw_inbound_mails::raw_sha256, raw_inbound_mails::receiver_id))
             .do_update()
             .set((
                 raw_inbound_mails::blob_key.eq(excluded(raw_inbound_mails::blob_key)),
@@ -72,7 +80,7 @@ pub async fn ingest_raw_mail(
     } else {
         diesel::insert_into(raw_inbound_mails::table)
             .values(&new_mail)
-            .on_conflict(raw_inbound_mails::raw_sha256)
+            .on_conflict((raw_inbound_mails::raw_sha256, raw_inbound_mails::receiver_id))
             .do_update()
             .set((
                 raw_inbound_mails::blob_key.eq(excluded(raw_inbound_mails::blob_key)),
@@ -166,8 +174,24 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
             .await?
     };
 
+    // Which receiver accepted this message decides where it may be delivered.
+    // Rows ingested before receivers existed carry no id and fall back to the
+    // system receiver, which is also the only receiver allowed to deliver into
+    // addresses that are not bound to anything yet.
+    let receiver = match mail.receiver_id {
+        Some(receiver_id) => crate::receivers::load(state, receiver_id).await?,
+        None => {
+            let mut conn = state.db.get().await?;
+            crate::receivers::system_receiver(&mut conn).await?.ok_or_else(|| {
+                AppError::BadRequest("no receiver is configured for this message".into())
+            })?
+        }
+    };
+    let receiver_id = receiver.id;
+    let receiver_domain = receiver.mail_domain.clone().filter(|_| receiver.is_system());
+
     if mail.processed_at.is_some() {
-        cleanup_worker_staging(state, mail_id, mail.r2_key.as_deref()).await;
+        cleanup_worker_staging(state, mail_id, mail.r2_key.as_deref(), &receiver).await;
         return Ok(());
     }
 
@@ -188,15 +212,29 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
         let parsed = parsed.clone();
         let recipient_addresses = recipient_addresses.clone();
         Box::pin(async move {
-            let target_addresses: Vec<Address> = addresses::table
+            let matched_addresses: Vec<Address> = addresses::table
                 .filter(addresses::address.eq_any(&recipient_addresses))
                 .select(Address::as_select())
                 .load(conn)
                 .await?;
 
+            // A receiver may only deliver to addresses bound to it. Without
+            // this, any registered receiver could inject mail into any inbox.
+            let target_addresses: Vec<Address> = matched_addresses
+                .into_iter()
+                .filter(|address| {
+                    is_deliverable(
+                        &address.address,
+                        address.receiver_id,
+                        receiver_id,
+                        receiver_domain.as_deref(),
+                    )
+                })
+                .collect();
+
             if target_addresses.is_empty() {
                 return Err(AppError::BadRequest(
-                    "no local addresses matched recipients".into(),
+                    "no local addresses bound to this receiver matched recipients".into(),
                 ));
             }
 
@@ -323,7 +361,7 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
     })
     .await?;
 
-    cleanup_worker_staging(state, mail.id, mail.r2_key.as_deref()).await;
+    cleanup_worker_staging(state, mail.id, mail.r2_key.as_deref(), &receiver).await;
 
     Ok(())
 }
@@ -482,12 +520,26 @@ fn sync_event(
     }
 }
 
-async fn cleanup_worker_staging(state: &AppState, mail_id: i64, r2_key: Option<&str>) {
+async fn cleanup_worker_staging(
+    state: &AppState,
+    mail_id: i64,
+    r2_key: Option<&str>,
+    receiver: &EmailReceiverRecord,
+) {
     let Some(key) = r2_key else {
         return;
     };
 
-    match state.worker.delete_unprocessed(key).await {
+    let Some(worker) = crate::receivers::worker_client(state, receiver) else {
+        tracing::warn!(
+            mail_id,
+            receiver_id = receiver.id,
+            "receiver has no staging endpoint; leaving staged object in place"
+        );
+        return;
+    };
+
+    match worker.delete_unprocessed(key).await {
         Ok(()) => {
             if let Ok(mut conn) = state.db.get().await {
                 let _ = diesel::update(raw_inbound_mails::table.find(mail_id))
@@ -553,6 +605,28 @@ fn recipient_addresses_for_delivery(recipients: &[ParsedRecipient]) -> Vec<Strin
         .collect()
 }
 
+/// May a message accepted by `receiver_id` be delivered to `address`?
+///
+/// A bound address only accepts its own receiver. An unbound address — one that
+/// predates receivers, or whose receiver was deleted — is reachable only by the
+/// system receiver, and only under the system receiver's own domain
+/// (`system_domain`, `None` for any other receiver). Without that domain check,
+/// deleting a receiver would hand its addresses to the deployment worker.
+fn is_deliverable(
+    address: &str,
+    address_receiver_id: Option<i64>,
+    receiver_id: i64,
+    system_domain: Option<&str>,
+) -> bool {
+    match address_receiver_id {
+        Some(bound) => bound == receiver_id,
+        None => match (address.split_once('@'), system_domain) {
+            (Some((_, domain)), Some(system_domain)) => domain.eq_ignore_ascii_case(system_domain),
+            _ => false,
+        },
+    }
+}
+
 fn canonical_blob_key(raw_sha256: &str) -> String {
     format!("raw/{raw_sha256}.eml")
 }
@@ -561,4 +635,29 @@ fn sha256_hex(raw: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(raw);
     hex::encode(hasher.finalize())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn delivery_is_confined_to_the_receiver_that_accepted_the_mail() {
+        // A receiver delivers only to its own addresses...
+        assert!(is_deliverable("ada@panit.dev", Some(7), 7, None));
+        // ...never into an inbox belonging to another receiver, even when it is
+        // the system receiver holding the broadest privileges.
+        assert!(!is_deliverable("ada@panit.dev", Some(9), 7, None));
+        assert!(!is_deliverable("ada@panit.dev", Some(9), 1, Some("panit.dev")));
+    }
+
+    #[test]
+    fn unbound_addresses_are_reachable_only_by_the_system_receiver_under_its_own_domain() {
+        assert!(is_deliverable("ada@panit.dev", None, 1, Some("panit.dev")));
+        // A user-registered receiver never reaches an unbound address...
+        assert!(!is_deliverable("ada@panit.dev", None, 7, None));
+        // ...and an address orphaned by a deleted receiver does not fall into
+        // the deployment worker's scope just because it lost its binding.
+        assert!(!is_deliverable("ada@alice.dev", None, 1, Some("panit.dev")));
+    }
 }

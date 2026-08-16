@@ -19,6 +19,7 @@ mod mail_parser;
 mod mailboxes;
 mod models;
 mod realtime;
+mod receivers;
 mod routes;
 mod schema;
 mod state;
@@ -30,7 +31,7 @@ use email::{build_sender, DynEmailSender, EmailProvider};
 use mail::{ingest_raw_mail, process_inbound_mail, requeue_pending_inbound_mail};
 use serde_json::json;
 use state::AppState;
-use worker_client::{HttpWorkerClient, InboundWorkerClient};
+use worker_client::{HttpWorkerFactory, InboundWorkerFactory};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
@@ -66,11 +67,7 @@ async fn main() {
         .build()
         .expect("failed to build HTTP client");
 
-    let worker: Arc<dyn InboundWorkerClient> = Arc::new(HttpWorkerClient::new(
-        http.clone(),
-        config.worker_url.clone(),
-        config.internal_secret.clone(),
-    ));
+    let workers: Arc<dyn InboundWorkerFactory> = Arc::new(HttpWorkerFactory::new(http.clone()));
 
     let system_email = build_system_email_sender(&config, &http);
 
@@ -82,11 +79,24 @@ async fn main() {
         ids,
         http,
         blob_store,
-        worker,
+        workers,
         realtime: realtime::RealtimeHub::default(),
         system_email,
         auth: auth_setup.provider,
     };
+
+    // The deployment-wide receiver must exist before anything replays mail:
+    // legacy raw rows and the bundled Cloudflare worker both resolve to it.
+    // Fatal like migrations: without it, legacy mail and the bundled worker have
+    // no receiver to resolve to and inbound delivery silently stops.
+    let system_receiver = receivers::ensure_system_receiver(&state)
+        .await
+        .expect("failed to provision the system email receiver");
+    tracing::info!(
+        receiver_id = system_receiver.id,
+        mail_domain = ?system_receiver.mail_domain,
+        "system email receiver ready"
+    );
 
     tokio::spawn(requeue_pending_inbound_mail(state.clone()));
 
@@ -281,27 +291,63 @@ fn build_system_email_sender(config: &Config, http: &reqwest::Client) -> Option<
 }
 
 /// On startup: fetch any fallback-staged R2 objects that Axum may have missed
-/// during downtime and replay them.
+/// during downtime and replay them. Every registered receiver stages into its
+/// own bucket, so the scan runs once per receiver that exposes an endpoint.
 async fn recover_from_r2(state: AppState) {
-    tracing::info!("starting R2 recovery scan");
+    use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+    use diesel_async::RunQueryDsl;
 
-    let items = match state.worker.list_unprocessed().await {
+    let receivers_to_scan = {
+        let Ok(mut conn) = state.db.get().await else {
+            tracing::warn!("recovery: no database connection; skipping scan");
+            return;
+        };
+        match schema::email_receivers::table
+            .filter(schema::email_receivers::is_active.eq(true))
+            .select(models::email_receiver::EmailReceiverRecord::as_select())
+            .load(&mut conn)
+            .await
+        {
+            Ok(rows) => rows,
+            Err(error) => {
+                tracing::warn!(error = %error, "recovery: failed to list receivers");
+                return;
+            }
+        }
+    };
+
+    for receiver in receivers_to_scan {
+        let Some(worker) = receivers::worker_client(&state, &receiver) else {
+            continue;
+        };
+        recover_receiver_from_r2(&state, &receiver, worker.as_ref()).await;
+    }
+}
+
+async fn recover_receiver_from_r2(
+    state: &AppState,
+    receiver: &models::email_receiver::EmailReceiverRecord,
+    worker: &dyn worker_client::InboundWorkerClient,
+) {
+    tracing::info!(receiver_id = receiver.id, "starting R2 recovery scan");
+
+    let items = match worker.list_unprocessed().await {
         Ok(items) => items,
         Err(e) => {
-            tracing::warn!(error = %e, "recovery: failed to list R2 items");
+            tracing::warn!(receiver_id = receiver.id, error = %e, "recovery: failed to list R2 items");
             return;
         }
     };
 
-    tracing::info!(count = items.len(), "recovery: found R2 items");
+    tracing::info!(receiver_id = receiver.id, count = items.len(), "recovery: found R2 items");
 
     for item in items {
-        let exists = exists_by_r2_key(&state, &item.key).await;
+        let exists = exists_by_r2_key(state, &item.key).await;
 
         if exists {
             // Mail is already persisted locally, so the fallback R2 object can be removed.
             // This covers both delete retries and restart races after recovery inserted the row.
-            if let Err(e) = state.worker.delete_unprocessed(&item.key).await {
+            if let Err(e) = worker.delete_unprocessed(&item.key).await {
                 tracing::warn!(
                     key = %item.key,
                     error = %e,
@@ -314,7 +360,7 @@ async fn recover_from_r2(state: AppState) {
         }
 
         // POST to Axum failed during original delivery — fetch and replay.
-        let raw = match state.worker.get_unprocessed(&item.key).await {
+        let raw = match worker.get_unprocessed(&item.key).await {
             Ok(raw) => raw,
             Err(e) => {
                 tracing::warn!(key = %item.key, error = %e, "recovery: failed to fetch R2 object");
@@ -322,7 +368,7 @@ async fn recover_from_r2(state: AppState) {
             }
         };
 
-        let mail_id = match insert_recovered(&state, &raw, &item.key).await {
+        let mail_id = match insert_recovered(state, &raw, &item.key, receiver.id).await {
             Ok(id) => id,
             Err(e) => {
                 tracing::error!(key = %item.key, error = %e, "recovery: failed to insert mail");
@@ -334,7 +380,7 @@ async fn recover_from_r2(state: AppState) {
         tokio::spawn(process_inbound_mail(state.clone(), mail_id));
     }
 
-    tracing::info!("R2 recovery scan complete");
+    tracing::info!(receiver_id = receiver.id, "R2 recovery scan complete");
 }
 
 async fn exists_by_r2_key(state: &AppState, key: &str) -> bool {
@@ -357,6 +403,13 @@ async fn insert_recovered(
     state: &AppState,
     raw: &[u8],
     r2_key: &str,
+    receiver_id: i64,
 ) -> Result<i64, error::AppError> {
-    ingest_raw_mail(state, bytes::Bytes::copy_from_slice(raw), Some(r2_key)).await
+    ingest_raw_mail(
+        state,
+        bytes::Bytes::copy_from_slice(raw),
+        Some(r2_key),
+        Some(receiver_id),
+    )
+    .await
 }

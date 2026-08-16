@@ -11,6 +11,10 @@ pub struct Address {
     pub id: i64,
     pub address: String,
     pub created_at: DateTime<Utc>,
+    /// Receiver unit that accepts inbound mail for this address.
+    pub receiver_id: Option<i64>,
+    /// Sender unit used when sending from this address.
+    pub sender_id: Option<i64>,
 }
 
 #[derive(Insertable)]
@@ -18,4 +22,6 @@ pub struct Address {
 pub struct NewAddress<'a> {
     pub id: i64,
     pub address: &'a str,
+    pub receiver_id: Option<i64>,
+    pub sender_id: Option<i64>,
 }

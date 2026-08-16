@@ -14,6 +14,9 @@ pub enum AppError {
     #[error("service unavailable: {0}")]
     ServiceUnavailable(String),
 
+    #[error("forbidden: {0}")]
+    Forbidden(String),
+
     #[error("not found")]
     NotFound,
 
@@ -83,6 +86,7 @@ impl AppError {
             }
             AppError::Unauthorized(_)
             | AppError::ServiceUnavailable(_)
+            | AppError::Forbidden(_)
             | AppError::NotFound
             | AppError::BadRequest(_) => {}
         }
@@ -103,6 +107,7 @@ impl IntoResponse for AppError {
         let (status, msg): (StatusCode, String) = match &self {
             AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized".to_owned()),
             AppError::ServiceUnavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg.clone()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
             AppError::NotFound => (StatusCode::NOT_FOUND, "not found".to_owned()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Db { source, .. } => {

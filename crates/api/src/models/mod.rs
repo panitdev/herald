@@ -4,6 +4,7 @@ pub mod drop;
 pub mod chat_message;
 pub mod conversation;
 pub mod conversation_participant;
+pub mod email_receiver;
 pub mod email_sender;
 pub mod mailbox;
 pub mod message;

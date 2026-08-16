@@ -9,6 +9,7 @@ use crate::{
         address::{Address, NewAddress},
         user_address::NewUserAddress,
     },
+    receivers,
     schema::{addresses, user_addresses},
 };
 
@@ -80,14 +81,27 @@ pub async fn find_address(
     Ok(address)
 }
 
+/// Look up (or create) an address row, binding it to the receiver registered
+/// for its domain. An address with no receiver cannot be delivered to by
+/// anything except the system receiver, so the binding is resolved eagerly —
+/// including for rows created before their domain had a receiver.
 async fn ensure_address(
     conn: &mut AsyncPgConnection,
     ids: &IdGen,
     address_value: &str,
 ) -> Result<Address, AppError> {
+    let receiver_id = match address_value.split_once('@') {
+        Some((_, domain)) => receivers::find_for_domain(conn, domain)
+            .await?
+            .map(|receiver| receiver.id),
+        None => None,
+    };
+
     let new_address = NewAddress {
         id: ids.next(),
         address: address_value,
+        receiver_id,
+        sender_id: None,
     };
 
     let inserted = diesel::insert_into(addresses::table)
@@ -103,10 +117,21 @@ async fn ensure_address(
         return Ok(address);
     }
 
-    addresses::table
+    let existing: Address = addresses::table
         .filter(addresses::address.eq(address_value))
         .select(Address::as_select())
         .first(conn)
         .await
-        .map_err(|err| AppError::db(err, "addresses.ensure_address.lookup_existing"))
+        .map_err(|err| AppError::db(err, "addresses.ensure_address.lookup_existing"))?;
+
+    if existing.receiver_id.is_none() && receiver_id.is_some() {
+        return diesel::update(addresses::table.find(existing.id))
+            .set(addresses::receiver_id.eq(receiver_id))
+            .returning(Address::as_returning())
+            .get_result(conn)
+            .await
+            .map_err(|err| AppError::db(err, "addresses.ensure_address.bind_receiver"));
+    }
+
+    Ok(existing)
 }

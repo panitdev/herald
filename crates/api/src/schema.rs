@@ -35,9 +35,11 @@ diesel::table! {
 
 diesel::table! {
     addresses (id) {
-        id         -> Int8,
-        address    -> Varchar,
-        created_at -> Timestamptz,
+        id          -> Int8,
+        address     -> Varchar,
+        created_at  -> Timestamptz,
+        receiver_id -> Nullable<Int8>,
+        sender_id   -> Nullable<Int8>,
     }
 }
 
@@ -74,6 +76,42 @@ diesel::table! {
 }
 
 diesel::table! {
+    email_receivers (id) {
+        id                 -> Int8,
+        scope              -> Text,
+        owner_user_id      -> Nullable<Int8>,
+        owner_group_id     -> Nullable<Int8>,
+        display_name       -> Text,
+        mail_domain        -> Nullable<Text>,
+        config             -> Jsonb,
+        secret             -> Nullable<Jsonb>,
+        inbound_token_hash -> Text,
+        inbound_token_hint -> Text,
+        is_active          -> Bool,
+        created_at         -> Timestamptz,
+        updated_at         -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    email_receiver_members (receiver_id, user_id) {
+        receiver_id -> Int8,
+        user_id     -> Int8,
+        role        -> Text,
+        created_at  -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    email_sender_members (sender_id, user_id) {
+        sender_id  -> Int8,
+        user_id    -> Int8,
+        role       -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     raw_inbound_mails (id) {
         id           -> Int8,
         blob_key     -> Text,
@@ -83,6 +121,7 @@ diesel::table! {
         received_at  -> Timestamptz,
         processed_at -> Nullable<Timestamptz>,
         error        -> Nullable<Text>,
+        receiver_id  -> Nullable<Int8>,
     }
 }
 
@@ -184,8 +223,15 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(addresses -> email_receivers (receiver_id));
+diesel::joinable!(addresses -> email_senders (sender_id));
 diesel::joinable!(drops -> users (user_id));
+diesel::joinable!(email_receiver_members -> email_receivers (receiver_id));
+diesel::joinable!(email_receiver_members -> users (user_id));
+diesel::joinable!(email_sender_members -> email_senders (sender_id));
+diesel::joinable!(email_sender_members -> users (user_id));
 diesel::joinable!(email_senders -> users (owner_user_id));
+diesel::joinable!(raw_inbound_mails -> email_receivers (receiver_id));
 diesel::joinable!(mailboxes -> addresses (address_id));
 diesel::joinable!(attachments -> messages (message_id));
 diesel::joinable!(chat_messages -> conversations (conversation_id));
@@ -209,6 +255,9 @@ diesel::allow_tables_to_appear_in_same_query!(
     conversation_participants,
     conversations,
     drops,
+    email_receiver_members,
+    email_receivers,
+    email_sender_members,
     email_senders,
     mailboxes,
     message_mailboxes,
