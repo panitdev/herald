@@ -26,6 +26,8 @@ pub struct Config {
 
 #[derive(Clone, Debug)]
 pub enum SurgeMode {
+    #[cfg(feature = "test-provider")]
+    Test,
     Remote {
         url: String,
         service_token: String,
@@ -37,6 +39,11 @@ pub enum SurgeMode {
 
 impl SurgeMode {
     fn from_env() -> Self {
+        #[cfg(feature = "test-provider")]
+        if env::var("SURGE_TEST_PROVIDER").as_deref() == Ok("true") {
+            return Self::Test;
+        }
+
         match env::var("SURGE_MODE").as_deref() {
             Ok("embedded") => Self::Embedded {
                 pepper: env::var("SURGE_PEPPER").expect("SURGE_PEPPER must be set in embedded mode"),

@@ -150,16 +150,16 @@ struct AuthSetup {
 async fn build_auth(config: &Config) -> AuthSetup {
     let session_ttl = std::time::Duration::from_secs(config.surge_session_ttl_hours * 3600);
 
-    #[cfg(feature = "test-provider")]
-    if std::env::var("SURGE_TEST_PROVIDER").as_deref() == Ok("true") {
-        let provider =
-            surge::test(surge::TestConfig::default()).expect("failed to build test auth provider");
-        let surge_router = Arc::clone(&provider).browser_router(browser_config(config, session_ttl));
-
-        return AuthSetup { provider, surge_router };
-    }
-
     match &config.surge_mode {
+        #[cfg(feature = "test-provider")]
+        config::SurgeMode::Test => {
+            let provider = surge::test(surge::TestConfig::default())
+                .expect("failed to build test auth provider");
+            let surge_router =
+                Arc::clone(&provider).browser_router(browser_config(config, session_ttl));
+
+            AuthSetup { provider, surge_router }
+        }
         config::SurgeMode::Remote { url, service_token } => {
             let provider = surge::remote(surge::RemoteConfig {
                 base_url: url.parse().expect("invalid SURGE_URL"),
