@@ -152,6 +152,17 @@ function useHeightMeasurement() {
   return { ref, height }
 }
 
+/**
+ * Animates its container's height to the measured content height.
+ *
+ * The `overflow: hidden` has to sit on the animated element itself — it is what
+ * hides the excess while the box is mid-tween — so it clips at exactly the box
+ * being animated. That makes the wrapper's width a contract: **the dialog's
+ * padding belongs inside this element, not on an ancestor.** Fields paint a
+ * `ring-4` focus ring outside their border box, and with the padding outside the
+ * clip the box hugs the fields and shaves every ring. `display: flow-root` on
+ * the measured child keeps that inner inset inside `scrollHeight`.
+ */
 function HeightAnimationWrapper({
   children,
   className,
@@ -1417,9 +1428,15 @@ export function AuthDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
+      {/*
+        `p-0` hands the dialog's inset to the padded div below, inside the
+        height animation's clip box — see `HeightAnimationWrapper`. The
+        breakpoint here matches `useIsMobile`'s 640px, so the padding tracks
+        which surface (dialog or drawer) is actually rendering.
+      */}
       <DialogContent
         showCloseButton={dismissible}
-        className="sm:max-w-[440px]"
+        className="p-0 sm:max-w-[440px]"
         onEscapeKeyDown={dismissible ? undefined : (e) => e.preventDefault()}
         onPointerDownOutside={
           dismissible ? undefined : (e) => e.preventDefault()
@@ -1429,17 +1446,19 @@ export function AuthDialog({
         }
       >
         <DialogTitle className="sr-only">Authentication</DialogTitle>
-        <ErrorBanner message={initError} />
         <HeightAnimationWrapper>
-          <CrossFade viewKey={currentView}>
-            {currentView === "login" ? (
-              <LoginView {...viewProps} />
-            ) : currentView === "register" ? (
-              <RegisterView {...viewProps} />
-            ) : (
-              <ResetPasswordView {...viewProps} />
-            )}
-          </CrossFade>
+          <div className="px-6 pb-6 pt-4 sm:pt-6">
+            <ErrorBanner message={initError} />
+            <CrossFade viewKey={currentView}>
+              {currentView === "login" ? (
+                <LoginView {...viewProps} />
+              ) : currentView === "register" ? (
+                <RegisterView {...viewProps} />
+              ) : (
+                <ResetPasswordView {...viewProps} />
+              )}
+            </CrossFade>
+          </div>
         </HeightAnimationWrapper>
       </DialogContent>
     </Dialog>
