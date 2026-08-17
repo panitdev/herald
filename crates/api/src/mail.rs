@@ -188,7 +188,11 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
         }
     };
     let receiver_id = receiver.id;
-    let receiver_domain = receiver.mail_domain.clone().filter(|_| receiver.is_system());
+    let receiver_domain = {
+        let mut conn = state.db.get().await?;
+        let is_system = crate::receivers::is_system(&mut conn, &receiver).await?;
+        receiver.mail_domain.clone().filter(|_| is_system)
+    };
 
     if mail.processed_at.is_some() {
         cleanup_worker_staging(state, mail_id, mail.r2_key.as_deref(), &receiver).await;

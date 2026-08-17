@@ -47,9 +47,12 @@ the Rust API at `/internal/mail/inbound`. On failure it stages the raw email in
 **R2** under `inbound/`; the Rust API replays these on startup via a recovery scan.
 
 Receivers and senders are registrable units: a worker authenticates as a row in
-`email_receivers` and may only deliver to addresses bound to it. The bundled
-worker authenticates as the deployment's system receiver, provisioned on startup
-from `HERALD_INTERNAL_SECRET`. See `internal-docs/email-units.md`.
+`email_receivers` and may only deliver to addresses bound to it. Both kinds of
+unit are owned by a **workspace**, whose membership decides who may administer
+them and bind addresses to them. The bundled worker authenticates as the
+deployment's system receiver, which lives in the system workspace and is
+provisioned on startup from `HERALD_INTERNAL_SECRET`. See
+`internal-docs/email-units.md`.
 
 Run locally with:
 

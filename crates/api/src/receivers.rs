@@ -9,12 +9,12 @@
 //!
 //! Two access axes exist and must not be conflated:
 //!   * `user_addresses` — who receives the mail delivered to an address.
-//!   * `email_receiver_members` — who may administer a receiver and bind
-//!     addresses to it.
+//!   * the receiver's workspace — who may administer it and bind addresses to
+//!     it. See [`crate::workspaces`], which owns that question for both kinds
+//!     of unit.
 
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
-    TextExpressionMethods,
+    ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper, TextExpressionMethods,
 };
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 use serde_json::json;
@@ -24,36 +24,11 @@ use uuid::Uuid;
 use crate::{
     error::AppError,
     models::email_receiver::{EmailReceiverRecord, NewEmailReceiver},
-    schema::{addresses, email_receiver_members, email_receivers},
+    schema::{addresses, email_receivers},
     state::AppState,
     worker_client::{InboundWorkerClient, WorkerEndpoint},
+    workspaces::{self, Access},
 };
-
-/// What a user may do with a unit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Access {
-    /// May bind addresses to the unit, but not reconfigure or share it.
-    Member,
-    /// May reconfigure, rotate credentials, share and delete the unit.
-    Admin,
-}
-
-impl Access {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Access::Member => "member",
-            Access::Admin => "admin",
-        }
-    }
-
-    pub fn parse(value: &str) -> Option<Self> {
-        match value {
-            "member" => Some(Access::Member),
-            "admin" => Some(Access::Admin),
-            _ => None,
-        }
-    }
-}
 
 /// A freshly minted inbound credential. The plaintext exists only here — the
 /// caller must return it to the registrant, because only the hash is stored.
@@ -123,12 +98,15 @@ pub async fn load_with_conn(
 }
 
 /// The deployment-wide receiver: the one every address falls back to and the
-/// one the bundled Cloudflare worker authenticates as.
+/// one the bundled Cloudflare worker authenticates as. It is whichever receiver
+/// lives in the system workspace.
 pub async fn system_receiver(
     conn: &mut AsyncPgConnection,
 ) -> Result<Option<EmailReceiverRecord>, AppError> {
+    let workspace = workspaces::system_workspace(conn).await?;
+
     let record = email_receivers::table
-        .filter(email_receivers::scope.eq("system"))
+        .filter(email_receivers::workspace_id.eq(workspace.id))
         .order(email_receivers::created_at.asc())
         .select(EmailReceiverRecord::as_select())
         .first(conn)
@@ -138,24 +116,29 @@ pub async fn system_receiver(
     Ok(record)
 }
 
-/// Every receiver a user may bind addresses to: system, owned, or shared.
+/// Whether `receiver` is the deployment's own — the only one allowed to deliver
+/// into addresses that are not bound to anything yet.
+pub async fn is_system(
+    conn: &mut AsyncPgConnection,
+    receiver: &EmailReceiverRecord,
+) -> Result<bool, AppError> {
+    Ok(workspaces::load(conn, receiver.workspace_id)
+        .await?
+        .is_system())
+}
+
+/// Every receiver a user may bind addresses to: whatever lives in a workspace
+/// they can reach.
 pub async fn list_available(
     state: &AppState,
     user_id: i64,
 ) -> Result<Vec<EmailReceiverRecord>, AppError> {
     let mut conn = state.db.get().await?;
-    let member_ids = email_receiver_members::table
-        .filter(email_receiver_members::user_id.eq(user_id))
-        .select(email_receiver_members::receiver_id);
+    let workspace_ids = workspaces::accessible_ids(&mut conn, user_id).await?;
 
     let rows = email_receivers::table
         .filter(email_receivers::is_active.eq(true))
-        .filter(
-            email_receivers::scope
-                .eq("system")
-                .or(email_receivers::owner_user_id.eq(user_id))
-                .or(email_receivers::id.eq_any(member_ids)),
-        )
+        .filter(email_receivers::workspace_id.eq_any(workspace_ids))
         .order(email_receivers::created_at.asc())
         .select(EmailReceiverRecord::as_select())
         .load(&mut conn)
@@ -180,35 +163,15 @@ pub async fn find_for_domain(
     Ok(record)
 }
 
-/// What `user_id` may do with `receiver`. System receivers are usable by
-/// everyone (that is what keeps open signup on `MAIL_DOMAIN` working) but
-/// administered by nobody.
+/// What `user_id` may do with `receiver` — entirely a question about its
+/// workspace. Receivers in the system workspace are usable by everyone (that is
+/// what keeps open signup on `MAIL_DOMAIN` working) but administered by nobody.
 pub async fn access_for(
     conn: &mut AsyncPgConnection,
     receiver: &EmailReceiverRecord,
     user_id: i64,
 ) -> Result<Option<Access>, AppError> {
-    if receiver.owner_user_id == Some(user_id) {
-        return Ok(Some(Access::Admin));
-    }
-
-    let role: Option<String> = email_receiver_members::table
-        .find((receiver.id, user_id))
-        .select(email_receiver_members::role)
-        .first(conn)
-        .await
-        .optional()
-        .map_err(|err| AppError::db(err, "receivers.access_for.lookup_member"))?;
-
-    if let Some(role) = role {
-        return Ok(Access::parse(&role));
-    }
-
-    if receiver.is_system() {
-        return Ok(Some(Access::Member));
-    }
-
-    Ok(None)
+    workspaces::access_for_unit(conn, receiver.workspace_id, user_id).await
 }
 
 pub async fn require_member(
@@ -255,6 +218,7 @@ pub fn worker_client(
 /// it so delivery filtering has something to match against.
 pub async fn ensure_system_receiver(state: &AppState) -> Result<EmailReceiverRecord, AppError> {
     let mut conn = state.db.get().await?;
+    let workspace = workspaces::system_workspace(&mut conn).await?;
 
     let mail_domain = state.config.mail_domain.to_lowercase();
     let config = json!({ "worker_url": state.config.worker_url });
@@ -327,9 +291,7 @@ pub async fn ensure_system_receiver(state: &AppState) -> Result<EmailReceiverRec
         None => {
             let new_receiver = NewEmailReceiver {
                 id: state.next_id(),
-                scope: "system",
-                owner_user_id: None,
-                owner_group_id: None,
+                workspace_id: workspace.id,
                 display_name: "Deployment receiver",
                 mail_domain: Some(&mail_domain),
                 config,
@@ -392,13 +354,5 @@ mod tests {
         assert!(!first.hash.contains(&first.plaintext));
         assert_eq!(hash_token(&first.plaintext), first.hash);
         assert!(first.plaintext.ends_with(&first.hint));
-    }
-
-    #[test]
-    fn access_roles_round_trip() {
-        assert_eq!(Access::parse("admin"), Some(Access::Admin));
-        assert_eq!(Access::parse("member"), Some(Access::Member));
-        assert_eq!(Access::parse("owner"), None);
-        assert_eq!(Access::Admin.as_str(), "admin");
     }
 }

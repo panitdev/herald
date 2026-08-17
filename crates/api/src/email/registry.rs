@@ -1,47 +1,39 @@
 //! Resolution of which [`EmailSender`](super::EmailSender) to use.
 //!
 //! Senders come from two places, checked in this order:
-//!   1. `email_senders` rows the user may use — their own (`scope = 'user'`) and
-//!      shared `scope = 'system'` rows. (Group scope is reserved for later.)
+//!   1. `email_senders` rows the user may use — everything in a workspace they
+//!      can reach, which is their own, any they are a member of, plus the
+//!      deployment's system workspace.
 //!   2. A system sender configured from the deployment environment, if any.
 //!
 //! Because step 2 is optional, herald-api runs fine with no provider key: the
 //! resolver simply relies on whatever the user has registered. Equally, a
 //! deployment can ship a shared key and users need register nothing.
 
-use diesel::{
-    BoolExpressionMethods, ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
-};
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 
 use super::{build_sender, DynEmailSender, EmailProvider};
 use crate::{
     error::AppError,
     models::email_sender::EmailSenderRecord,
-    receivers::Access,
-    schema::{addresses, email_sender_members, email_senders},
+    schema::{addresses, email_senders},
     state::AppState,
+    workspaces::{self, Access},
 };
 
-/// Load every sender a user is allowed to use: their own rows, rows shared with
-/// them, plus system rows.
+/// Load every sender a user is allowed to use: whatever lives in a workspace
+/// they can reach.
 pub async fn list_available(
     state: &AppState,
     user_id: i64,
 ) -> Result<Vec<EmailSenderRecord>, AppError> {
     let mut conn = state.db.get().await?;
-    let member_ids = email_sender_members::table
-        .filter(email_sender_members::user_id.eq(user_id))
-        .select(email_sender_members::sender_id);
+    let workspace_ids = workspaces::accessible_ids(&mut conn, user_id).await?;
 
     let rows = email_senders::table
         .filter(email_senders::is_active.eq(true))
-        .filter(
-            email_senders::scope
-                .eq("system")
-                .or(email_senders::owner_user_id.eq(user_id))
-                .or(email_senders::id.eq_any(member_ids)),
-        )
+        .filter(email_senders::workspace_id.eq_any(workspace_ids))
         .order(email_senders::created_at.desc())
         .select(EmailSenderRecord::as_select())
         .load(&mut conn)
@@ -72,10 +64,16 @@ pub async fn resolve_sender(
     from_domain: Option<&str>,
 ) -> Result<DynEmailSender, AppError> {
     let candidates = list_available(state, user_id).await?;
+    let system_workspace_id = {
+        let mut conn = state.db.get().await?;
+        workspaces::system_workspace(&mut conn).await?.id
+    };
 
     let best = candidates
         .iter()
-        .filter_map(|record| eligibility_score(record, from_domain).map(|score| (score, record)))
+        .filter_map(|record| {
+            eligibility_score(record, from_domain, system_workspace_id).map(|score| (score, record))
+        })
         .max_by(|(left_score, left), (right_score, right)| {
             left_score
                 .cmp(right_score)
@@ -94,7 +92,11 @@ pub async fn resolve_sender(
 
 /// Returns `None` when the sender may not be used for `from_domain`, otherwise a
 /// preference score (higher is better).
-fn eligibility_score(record: &EmailSenderRecord, from_domain: Option<&str>) -> Option<i32> {
+fn eligibility_score(
+    record: &EmailSenderRecord,
+    from_domain: Option<&str>,
+    system_workspace_id: i64,
+) -> Option<i32> {
     let mut score = match (record.mail_domain.as_deref(), from_domain) {
         // Pinned to a domain that matches the sending domain.
         (Some(pinned), Some(sending)) if pinned.eq_ignore_ascii_case(sending) => 2,
@@ -104,7 +106,9 @@ fn eligibility_score(record: &EmailSenderRecord, from_domain: Option<&str>) -> O
         (None, _) => 0,
     };
 
-    if record.scope == "user" {
+    // A sender the user brought to a workspace of their own beats the shared
+    // deployment one.
+    if record.workspace_id != system_workspace_id {
         score += 1;
     }
 
@@ -125,34 +129,14 @@ pub async fn load_with_conn(
         .ok_or(AppError::NotFound)
 }
 
-/// What `user_id` may do with `sender`. Mirrors receiver membership: system
-/// senders are usable by everyone and administered by nobody.
+/// What `user_id` may do with `sender` — entirely a question about its
+/// workspace, exactly as for receivers.
 pub async fn access_for(
     conn: &mut AsyncPgConnection,
     sender: &EmailSenderRecord,
     user_id: i64,
 ) -> Result<Option<Access>, AppError> {
-    if sender.owner_user_id == Some(user_id) {
-        return Ok(Some(Access::Admin));
-    }
-
-    let role: Option<String> = email_sender_members::table
-        .find((sender.id, user_id))
-        .select(email_sender_members::role)
-        .first(conn)
-        .await
-        .optional()
-        .map_err(|err| AppError::db(err, "email.registry.access_for.lookup_member"))?;
-
-    if let Some(role) = role {
-        return Ok(Access::parse(&role));
-    }
-
-    if sender.scope == "system" {
-        return Ok(Some(Access::Member));
-    }
-
-    Ok(None)
+    workspaces::access_for_unit(conn, sender.workspace_id, user_id).await
 }
 
 pub async fn require_member(

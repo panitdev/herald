@@ -37,6 +37,7 @@ pub mod internal;
 pub mod objects;
 pub mod sync;
 pub mod units;
+pub mod workspaces;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -59,15 +60,6 @@ pub fn router() -> Router<AppState> {
             post(email_senders::send_test_email),
         )
         .route(
-            "/api/me/email-senders/{id}/members",
-            get(email_senders::list_email_sender_members)
-                .post(email_senders::add_email_sender_member),
-        )
-        .route(
-            "/api/me/email-senders/{id}/members/{user_id}",
-            axum::routing::delete(email_senders::remove_email_sender_member),
-        )
-        .route(
             "/api/me/email-receivers",
             get(email_receivers::list_email_receivers)
                 .post(email_receivers::create_email_receiver),
@@ -81,14 +73,23 @@ pub fn router() -> Router<AppState> {
             "/api/me/email-receivers/{id}/token",
             post(email_receivers::rotate_email_receiver_token),
         )
+        // Units are shared through their workspace, so membership is edited in
+        // exactly one place regardless of which kind of unit it governs.
         .route(
-            "/api/me/email-receivers/{id}/members",
-            get(email_receivers::list_email_receiver_members)
-                .post(email_receivers::add_email_receiver_member),
+            "/api/me/workspaces",
+            get(workspaces::list_workspaces).post(workspaces::create_workspace),
         )
         .route(
-            "/api/me/email-receivers/{id}/members/{user_id}",
-            axum::routing::delete(email_receivers::remove_email_receiver_member),
+            "/api/me/workspaces/{id}",
+            axum::routing::delete(workspaces::delete_workspace),
+        )
+        .route(
+            "/api/me/workspaces/{id}/members",
+            get(workspaces::list_workspace_members).post(workspaces::add_workspace_member),
+        )
+        .route(
+            "/api/me/workspaces/{id}/members/{user_id}",
+            axum::routing::delete(workspaces::remove_workspace_member),
         )
         .route(
             "/chat/conversations",

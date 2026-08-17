@@ -24,6 +24,7 @@ mod routes;
 mod schema;
 mod state;
 mod worker_client;
+mod workspaces;
 
 use blob_store::{DynBlobStore, FsBlobStore};
 use config::{Config, SystemEmailConfig};
@@ -84,6 +85,16 @@ async fn main() {
         system_email,
         auth: auth_setup.provider,
     };
+
+    // The system workspace owns the deployment receiver and is what makes every
+    // user a member of it, so it has to exist before the receiver does.
+    let system_workspace = workspaces::ensure_system_workspace(&state)
+        .await
+        .expect("failed to provision the system workspace");
+    tracing::info!(
+        workspace_id = system_workspace.id,
+        "system workspace ready"
+    );
 
     // The deployment-wide receiver must exist before anything replays mail:
     // legacy raw rows and the bundled Cloudflare worker both resolve to it.

@@ -75,6 +75,17 @@ impl SurgeIdentity {
             .map_err(|err| AppError::db(err, "auth.resolve_user.lookup_user"))?;
 
         if let Some(u) = existing {
+            crate::workspaces::ensure_personal_workspace(&mut conn, &state.ids, u.id, &u.username)
+                .await
+                .map_err(|err| {
+                    tracing::error!(
+                        user_id = u.id,
+                        error = %err,
+                        "failed to ensure existing user workspace during auth"
+                    );
+                    err
+                })?;
+
             let default_address = u.address.to_lowercase();
             ensure_user_address(&mut conn, &state.ids, u.id, &default_address)
                 .await
@@ -124,6 +135,24 @@ impl SurgeIdentity {
                 .await
                 .map_err(|err| AppError::db(err, "auth.resolve_user.lookup_raced_user"))?,
         };
+
+        // Every user owns a workspace: it is where their own receivers and
+        // senders live, and without it registering a unit has nowhere to go.
+        crate::workspaces::ensure_personal_workspace(
+            &mut conn,
+            &state.ids,
+            user.id,
+            &user.username,
+        )
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                user_id = user.id,
+                error = %err,
+                "failed to ensure new user workspace during auth"
+            );
+            err
+        })?;
 
         ensure_user_address(&mut conn, &state.ids, user.id, &email_address)
             .await

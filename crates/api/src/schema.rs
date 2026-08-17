@@ -58,11 +58,28 @@ diesel::table! {
 }
 
 diesel::table! {
+    workspaces (id) {
+        id            -> Int8,
+        kind          -> Text,
+        name          -> Text,
+        owner_user_id -> Nullable<Int8>,
+        created_at    -> Timestamptz,
+        updated_at    -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    workspace_members (workspace_id, user_id) {
+        workspace_id -> Int8,
+        user_id      -> Int8,
+        role         -> Text,
+        created_at   -> Timestamptz,
+    }
+}
+
+diesel::table! {
     email_senders (id) {
         id             -> Int8,
-        scope          -> Text,
-        owner_user_id  -> Nullable<Int8>,
-        owner_group_id -> Nullable<Int8>,
         provider       -> Text,
         display_name   -> Text,
         mail_domain    -> Nullable<Text>,
@@ -72,15 +89,13 @@ diesel::table! {
         is_active      -> Bool,
         created_at     -> Timestamptz,
         updated_at     -> Timestamptz,
+        workspace_id   -> Int8,
     }
 }
 
 diesel::table! {
     email_receivers (id) {
         id                 -> Int8,
-        scope              -> Text,
-        owner_user_id      -> Nullable<Int8>,
-        owner_group_id     -> Nullable<Int8>,
         display_name       -> Text,
         mail_domain        -> Nullable<Text>,
         config             -> Jsonb,
@@ -90,24 +105,7 @@ diesel::table! {
         is_active          -> Bool,
         created_at         -> Timestamptz,
         updated_at         -> Timestamptz,
-    }
-}
-
-diesel::table! {
-    email_receiver_members (receiver_id, user_id) {
-        receiver_id -> Int8,
-        user_id     -> Int8,
-        role        -> Text,
-        created_at  -> Timestamptz,
-    }
-}
-
-diesel::table! {
-    email_sender_members (sender_id, user_id) {
-        sender_id  -> Int8,
-        user_id    -> Int8,
-        role       -> Text,
-        created_at -> Timestamptz,
+        workspace_id       -> Int8,
     }
 }
 
@@ -226,11 +224,11 @@ diesel::table! {
 diesel::joinable!(addresses -> email_receivers (receiver_id));
 diesel::joinable!(addresses -> email_senders (sender_id));
 diesel::joinable!(drops -> users (user_id));
-diesel::joinable!(email_receiver_members -> email_receivers (receiver_id));
-diesel::joinable!(email_receiver_members -> users (user_id));
-diesel::joinable!(email_sender_members -> email_senders (sender_id));
-diesel::joinable!(email_sender_members -> users (user_id));
-diesel::joinable!(email_senders -> users (owner_user_id));
+diesel::joinable!(workspace_members -> workspaces (workspace_id));
+diesel::joinable!(workspace_members -> users (user_id));
+diesel::joinable!(workspaces -> users (owner_user_id));
+diesel::joinable!(email_receivers -> workspaces (workspace_id));
+diesel::joinable!(email_senders -> workspaces (workspace_id));
 diesel::joinable!(raw_inbound_mails -> email_receivers (receiver_id));
 diesel::joinable!(mailboxes -> addresses (address_id));
 diesel::joinable!(attachments -> messages (message_id));
@@ -255,9 +253,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     conversation_participants,
     conversations,
     drops,
-    email_receiver_members,
     email_receivers,
-    email_sender_members,
     email_senders,
     mailboxes,
     message_mailboxes,
@@ -267,4 +263,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     sync_events,
     user_addresses,
     users,
+    workspace_members,
+    workspaces,
 );

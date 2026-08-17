@@ -1,15 +1,16 @@
 //! Management API for outbound email senders.
 //!
-//! End users register their own provider credentials here (`scope = 'user'`),
-//! which is what makes herald-api usable even when the deployment ships no
-//! provider key. Listing also surfaces shared `scope = 'system'` senders. Only
-//! the owner of a sender may mutate it; secrets are never returned.
+//! End users register their own provider credentials here, into a workspace of
+//! their own, which is what makes herald-api usable even when the deployment
+//! ships no provider key. Listing also surfaces senders in the system
+//! workspace. Only an administrator of a sender's workspace may mutate it, and
+//! member editing lives in `routes::workspaces`; secrets are never returned.
 
 use axum::{
     extract::{Path, State},
     Json,
 };
-use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
+use diesel::{QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -19,29 +20,28 @@ use crate::{
     email::{registry, EmailAddress, EmailProvider, OutboundEmail},
     error::{ApiResult, AppError},
     models::{
-        email_sender::{EmailSenderMember, EmailSenderRecord, NewEmailSender, NewEmailSenderMember},
-        user::User,
+        email_sender::{EmailSenderRecord, NewEmailSender},
+        workspace::Workspace,
     },
-    receivers::Access,
-    schema::{email_sender_members, email_senders, users},
+    schema::email_senders,
     state::AppState,
+    workspaces::Access,
 };
 
-use super::units::{normalize_domain, parse_id, MemberResponse, OkResponse};
+use super::units::{accessible_workspaces, normalize_domain, target_workspace, OkResponse};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailSenderResponse {
     id: String,
     provider: String,
-    scope: String,
+    /// The workspace that owns this sender and holds its member list.
+    workspace_id: String,
     display_name: String,
     mail_domain: Option<String>,
     from_address: Option<String>,
-    /// True for shared deployment-wide senders.
+    /// True for shared deployment-wide senders (those in the system workspace).
     is_system: bool,
-    /// True when the requesting user owns this sender.
-    is_owned: bool,
     /// What the requesting user may do with this sender.
     access: String,
     /// Whether a secret credential is stored (the secret itself is never returned).
@@ -53,6 +53,8 @@ pub struct EmailSenderResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateEmailSenderRequest {
+    /// Workspace to register into. Defaults to the caller's own.
+    workspace_id: Option<String>,
     provider: String,
     display_name: String,
     mail_domain: Option<String>,
@@ -71,13 +73,18 @@ pub async fn list_email_senders(
     let records = registry::list_available(&state, user.id).await?;
 
     let mut conn = state.db.get().await?;
-    let mut out = Vec::with_capacity(records.len());
-    for record in &records {
-        let access = registry::access_for(&mut conn, record, user.id).await?;
-        out.push(sender_response(record, user.id, access));
-    }
+    let reachable = accessible_workspaces(&mut conn, user.id).await?;
 
-    Ok(Json(out))
+    Ok(Json(
+        records
+            .iter()
+            .filter_map(|record| {
+                reachable
+                    .get(&record.workspace_id)
+                    .map(|(workspace, access)| sender_response(record, workspace, *access))
+            })
+            .collect(),
+    ))
 }
 
 pub async fn create_email_sender(
@@ -116,11 +123,13 @@ pub async fn create_email_sender(
     // missing/blank required fields (api_key, region, access keys, ...).
     crate::email::build_sender(state.http.clone(), provider, &config, Some(&input.secret))?;
 
+    // Taken only after validation, so no pool connection is held across it.
+    let mut conn = state.db.get().await?;
+    let workspace = target_workspace(&mut conn, user.id, input.workspace_id.as_deref()).await?;
+
     let new_sender = NewEmailSender {
         id: state.next_id(),
-        scope: "user",
-        owner_user_id: Some(user.id),
-        owner_group_id: None,
+        workspace_id: workspace.id,
         provider: provider.as_str(),
         display_name,
         mail_domain: mail_domain.as_deref(),
@@ -129,27 +138,17 @@ pub async fn create_email_sender(
         secret: Some(input.secret),
     };
 
-    let mut conn = state.db.get().await?;
     let inserted = diesel::insert_into(email_senders::table)
         .values(&new_sender)
         .returning(EmailSenderRecord::as_returning())
         .get_result(&mut conn)
         .await?;
 
-    // The owner is an admin by ownership; recording the membership too keeps
-    // the sharing list honest about who has access.
-    diesel::insert_into(email_sender_members::table)
-        .values(&NewEmailSenderMember {
-            sender_id: inserted.id,
-            user_id: user.id,
-            role: Access::Admin.as_str(),
-        })
-        .on_conflict_do_nothing()
-        .execute(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_senders.create.insert_owner_member"))?;
-
-    Ok(Json(sender_response(&inserted, user.id, Some(Access::Admin))))
+    Ok(Json(sender_response(
+        &inserted,
+        &workspace,
+        Some(Access::Admin),
+    )))
 }
 
 pub async fn delete_email_sender(
@@ -165,101 +164,6 @@ pub async fn delete_email_sender(
         .execute(&mut conn)
         .await
         .map_err(|err| AppError::db(err, "email_senders.delete.execute"))?;
-
-    Ok(Json(OkResponse { ok: true }))
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AddMemberRequest {
-    user_id: String,
-    /// `member` (default) or `admin`.
-    role: Option<String>,
-}
-
-pub async fn list_email_sender_members(
-    State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Path(id): Path<i64>,
-) -> ApiResult<Json<Vec<MemberResponse>>> {
-    let mut conn = state.db.get().await?;
-    let record = registry::load_with_conn(&mut conn, id).await?;
-    registry::require_member(&mut conn, &record, user.id).await?;
-
-    let rows: Vec<(EmailSenderMember, User)> = email_sender_members::table
-        .inner_join(users::table)
-        .filter(email_sender_members::sender_id.eq(record.id))
-        .select((EmailSenderMember::as_select(), User::as_select()))
-        .load(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_senders.list_members.load"))?;
-
-    Ok(Json(
-        rows.iter()
-            .map(|(member, member_user)| {
-                MemberResponse::new(member.user_id, &member.role, member_user)
-            })
-            .collect(),
-    ))
-}
-
-pub async fn add_email_sender_member(
-    State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Path(id): Path<i64>,
-    Json(input): Json<AddMemberRequest>,
-) -> ApiResult<Json<MemberResponse>> {
-    let mut conn = state.db.get().await?;
-    let record = registry::load_with_conn(&mut conn, id).await?;
-    registry::require_admin(&mut conn, &record, user.id).await?;
-
-    let member_user_id = parse_id(&input.user_id)?;
-    let role = Access::parse(input.role.as_deref().unwrap_or("member"))
-        .ok_or_else(|| AppError::BadRequest("role must be one of: member, admin".into()))?;
-
-    let member: User = users::table
-        .find(member_user_id)
-        .select(User::as_select())
-        .first(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_senders.add_member.lookup_user"))?;
-
-    diesel::insert_into(email_sender_members::table)
-        .values(&NewEmailSenderMember {
-            sender_id: record.id,
-            user_id: member.id,
-            role: role.as_str(),
-        })
-        .on_conflict((
-            email_sender_members::sender_id,
-            email_sender_members::user_id,
-        ))
-        .do_update()
-        .set(email_sender_members::role.eq(role.as_str()))
-        .execute(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_senders.add_member.insert"))?;
-
-    Ok(Json(MemberResponse::new(member.id, role.as_str(), &member)))
-}
-
-pub async fn remove_email_sender_member(
-    State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Path((id, member_user_id)): Path<(i64, i64)>,
-) -> ApiResult<Json<OkResponse>> {
-    let mut conn = state.db.get().await?;
-    let record = registry::load_with_conn(&mut conn, id).await?;
-    registry::require_admin(&mut conn, &record, user.id).await?;
-
-    let deleted = diesel::delete(email_sender_members::table.find((record.id, member_user_id)))
-        .execute(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_senders.remove_member.delete"))?;
-
-    if deleted == 0 {
-        return Err(AppError::NotFound);
-    }
 
     Ok(Json(OkResponse { ok: true }))
 }
@@ -345,18 +249,17 @@ fn looks_like_email(value: &str) -> bool {
 
 fn sender_response(
     record: &EmailSenderRecord,
-    user_id: i64,
+    workspace: &Workspace,
     access: Option<Access>,
 ) -> EmailSenderResponse {
     EmailSenderResponse {
         id: record.id.to_string(),
         provider: record.provider.clone(),
-        scope: record.scope.clone(),
+        workspace_id: record.workspace_id.to_string(),
         display_name: record.display_name.clone(),
         mail_domain: record.mail_domain.clone(),
         from_address: record.from_address.clone(),
-        is_system: record.scope == "system",
-        is_owned: record.owner_user_id == Some(user_id),
+        is_system: workspace.is_system(),
         access: access.map(Access::as_str).unwrap_or("none").to_owned(),
         has_secret: record.secret.is_some(),
         is_active: record.is_active,

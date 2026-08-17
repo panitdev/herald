@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use serde_json::Value;
 
-use crate::schema::{email_sender_members, email_senders};
+use crate::schema::email_senders;
 
 /// A stored outbound email sender credential.
 ///
@@ -10,19 +10,13 @@ use crate::schema::{email_sender_members, email_senders};
 /// provider credentials that must never reach API clients. Use
 /// `crate::routes::email_senders::EmailSenderResponse` for public output.
 ///
-/// `owner_group_id` and `updated_at` are not read yet — the former is reserved
-/// for upcoming group controls — hence `allow(dead_code)`.
+/// Ownership lives on `workspace_id`, not here — see [`crate::workspaces`].
 #[allow(dead_code)]
 #[derive(Debug, Clone, Queryable, Selectable)]
 #[diesel(table_name = email_senders)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct EmailSenderRecord {
     pub id: i64,
-    /// `system` | `user` | `group` — who may use this sender.
-    pub scope: String,
-    pub owner_user_id: Option<i64>,
-    /// Reserved for upcoming group controls.
-    pub owner_group_id: Option<i64>,
     /// Provider adapter selector: `resend` | `ses`.
     pub provider: String,
     pub display_name: String,
@@ -36,37 +30,15 @@ pub struct EmailSenderRecord {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-}
-
-/// Membership grants administration of a sender and the right to bind
-/// addresses to it, so a sender can be shared across several users.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Queryable, Selectable)]
-#[diesel(table_name = email_sender_members)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct EmailSenderMember {
-    pub sender_id: i64,
-    pub user_id: i64,
-    /// `admin` | `member`.
-    pub role: String,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Insertable)]
-#[diesel(table_name = email_sender_members)]
-pub struct NewEmailSenderMember<'a> {
-    pub sender_id: i64,
-    pub user_id: i64,
-    pub role: &'a str,
+    /// The workspace that owns this sender and decides who may administer it.
+    pub workspace_id: i64,
 }
 
 #[derive(Debug, Insertable)]
 #[diesel(table_name = email_senders)]
 pub struct NewEmailSender<'a> {
     pub id: i64,
-    pub scope: &'a str,
-    pub owner_user_id: Option<i64>,
-    pub owner_group_id: Option<i64>,
+    pub workspace_id: i64,
     pub provider: &'a str,
     pub display_name: &'a str,
     pub mail_domain: Option<&'a str>,

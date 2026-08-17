@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use serde_json::Value;
 
-use crate::schema::{email_receiver_members, email_receivers};
+use crate::schema::email_receivers;
 
 /// A registered inbound email entry point.
 ///
@@ -11,19 +11,13 @@ use crate::schema::{email_receiver_members, email_receivers};
 /// `inbound_token_hash` is a credential digest. Use
 /// `crate::routes::email_receivers::EmailReceiverResponse` for public output.
 ///
-/// `owner_group_id` is reserved for upcoming group controls, mirroring
-/// `email_senders`.
+/// Ownership lives on `workspace_id`, not here — see [`crate::workspaces`].
 #[allow(dead_code)]
 #[derive(Debug, Clone, Queryable, Selectable)]
 #[diesel(table_name = email_receivers)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct EmailReceiverRecord {
     pub id: i64,
-    /// `system` | `user` | `group` — who may administer this receiver.
-    pub scope: String,
-    pub owner_user_id: Option<i64>,
-    /// Reserved for upcoming group controls.
-    pub owner_group_id: Option<i64>,
     pub display_name: String,
     /// Domain this receiver accepts mail for; `None` means unpinned.
     pub mail_domain: Option<String>,
@@ -36,14 +30,11 @@ pub struct EmailReceiverRecord {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The workspace that owns this receiver and decides who may administer it.
+    pub workspace_id: i64,
 }
 
 impl EmailReceiverRecord {
-    /// The deployment-wide receiver every address falls back to.
-    pub fn is_system(&self) -> bool {
-        self.scope == "system"
-    }
-
     /// Staging endpoint used for R2 recovery, when the receiver exposes one.
     pub fn worker_url(&self) -> Option<&str> {
         self.config
@@ -67,36 +58,11 @@ impl EmailReceiverRecord {
 #[diesel(table_name = email_receivers)]
 pub struct NewEmailReceiver<'a> {
     pub id: i64,
-    pub scope: &'a str,
-    pub owner_user_id: Option<i64>,
-    pub owner_group_id: Option<i64>,
+    pub workspace_id: i64,
     pub display_name: &'a str,
     pub mail_domain: Option<&'a str>,
     pub config: Value,
     pub secret: Option<Value>,
     pub inbound_token_hash: &'a str,
     pub inbound_token_hint: &'a str,
-}
-
-/// Membership grants administration of a receiver and the right to bind
-/// addresses to it. Distinct from `user_addresses`, which decides who receives
-/// the mail that lands on an address.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Queryable, Selectable)]
-#[diesel(table_name = email_receiver_members)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct EmailReceiverMember {
-    pub receiver_id: i64,
-    pub user_id: i64,
-    /// `admin` | `member`.
-    pub role: String,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Insertable)]
-#[diesel(table_name = email_receiver_members)]
-pub struct NewEmailReceiverMember<'a> {
-    pub receiver_id: i64,
-    pub user_id: i64,
-    pub role: &'a str,
 }

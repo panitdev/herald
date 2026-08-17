@@ -7,9 +7,10 @@
 //! non-session service principal yet, so "a service registers a receiver" means
 //! a service acting with a user's session for now.
 //!
-//! Receivers can be shared: membership decides who may administer the unit and
-//! bind addresses to it, which is deliberately a different axis from
-//! `user_addresses` (who receives the mail).
+//! Receivers are shared through their workspace: its membership decides who may
+//! administer the unit and bind addresses to it, which is deliberately a
+//! different axis from `user_addresses` (who receives the mail). Member editing
+//! therefore lives in `routes::workspaces`, not here.
 
 use axum::{
     extract::{Path, State},
@@ -24,28 +25,30 @@ use crate::{
     auth::AuthUser,
     error::{ApiResult, AppError},
     models::{
-        email_receiver::{EmailReceiverRecord, NewEmailReceiver, NewEmailReceiverMember},
-        user::User,
+        email_receiver::{EmailReceiverRecord, NewEmailReceiver},
+        workspace::Workspace,
     },
-    receivers::{self, Access},
-    schema::{email_receiver_members, email_receivers, users},
+    receivers,
+    schema::email_receivers,
     state::AppState,
+    workspaces::{self, Access},
 };
 
-use super::units::{normalize_domain, parse_id, MemberResponse, OkResponse};
+use super::units::{accessible_workspaces, normalize_domain, target_workspace, OkResponse};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailReceiverResponse {
     id: String,
-    scope: String,
+    /// The workspace that owns this receiver and holds its member list.
+    workspace_id: String,
     display_name: String,
     mail_domain: Option<String>,
     /// Staging endpoint herald drains recovered mail from, when configured.
     worker_url: Option<String>,
     /// Last characters of the inbound token, so a user can tell receivers apart.
     token_hint: String,
-    /// True for the shared deployment-wide receiver.
+    /// True for the shared deployment-wide receiver (one in the system workspace).
     is_system: bool,
     /// What the requesting user may do with this receiver.
     access: String,
@@ -66,6 +69,8 @@ pub struct EmailReceiverWithTokenResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateEmailReceiverRequest {
+    /// Workspace to register into. Defaults to the caller's own.
+    workspace_id: Option<String>,
     display_name: String,
     /// Domain this receiver accepts mail for. Claimed first-come.
     mail_domain: Option<String>,
@@ -84,14 +89,6 @@ pub struct UpdateEmailReceiverRequest {
     is_active: Option<bool>,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AddMemberRequest {
-    user_id: String,
-    /// `member` (default) or `admin`.
-    role: Option<String>,
-}
-
 pub async fn list_email_receivers(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -99,13 +96,20 @@ pub async fn list_email_receivers(
     let records = receivers::list_available(&state, user.id).await?;
 
     let mut conn = state.db.get().await?;
-    let mut out = Vec::with_capacity(records.len());
-    for record in &records {
-        let access = receivers::access_for(&mut conn, record, user.id).await?;
-        out.push(receiver_response(record, access));
-    }
+    let reachable = accessible_workspaces(&mut conn, user.id).await?;
 
-    Ok(Json(out))
+    // `list_available` selects on exactly these workspaces, so every row
+    // resolves; anything that does not is a row the caller cannot reach.
+    Ok(Json(
+        records
+            .iter()
+            .filter_map(|record| {
+                reachable
+                    .get(&record.workspace_id)
+                    .map(|(workspace, access)| receiver_response(record, workspace, *access))
+            })
+            .collect(),
+    ))
 }
 
 pub async fn create_email_receiver(
@@ -120,9 +124,11 @@ pub async fn create_email_receiver(
         ));
     }
 
+    let mut conn = state.db.get().await?;
+    let workspace = target_workspace(&mut conn, user.id, input.workspace_id.as_deref()).await?;
+
     let mail_domain = normalize_domain(input.mail_domain.as_deref())?;
     if let Some(domain) = mail_domain.as_deref() {
-        let mut conn = state.db.get().await?;
         if receivers::find_for_domain(&mut conn, domain).await?.is_some() {
             return Err(AppError::BadRequest(format!(
                 "a receiver is already registered for `{domain}`"
@@ -156,9 +162,7 @@ pub async fn create_email_receiver(
 
     let new_receiver = NewEmailReceiver {
         id: state.next_id(),
-        scope: "user",
-        owner_user_id: Some(user.id),
-        owner_group_id: None,
+        workspace_id: workspace.id,
         display_name,
         mail_domain: mail_domain.as_deref(),
         config,
@@ -167,7 +171,6 @@ pub async fn create_email_receiver(
         inbound_token_hint: &token.hint,
     };
 
-    let mut conn = state.db.get().await?;
     let inserted = diesel::insert_into(email_receivers::table)
         .values(&new_receiver)
         .returning(EmailReceiverRecord::as_returning())
@@ -175,21 +178,8 @@ pub async fn create_email_receiver(
         .await
         .map_err(|err| AppError::db(err, "email_receivers.create.insert"))?;
 
-    // The owner is an admin by ownership; recording the membership too keeps
-    // the sharing list honest about who has access.
-    diesel::insert_into(email_receiver_members::table)
-        .values(&NewEmailReceiverMember {
-            receiver_id: inserted.id,
-            user_id: user.id,
-            role: Access::Admin.as_str(),
-        })
-        .on_conflict_do_nothing()
-        .execute(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_receivers.create.insert_owner_member"))?;
-
     Ok(Json(EmailReceiverWithTokenResponse {
-        receiver: receiver_response(&inserted, Some(Access::Admin)),
+        receiver: receiver_response(&inserted, &workspace, Some(Access::Admin)),
         inbound_token: token.plaintext,
     }))
 }
@@ -202,7 +192,8 @@ pub async fn update_email_receiver(
 ) -> ApiResult<Json<EmailReceiverResponse>> {
     let mut conn = state.db.get().await?;
     let record = receivers::load_with_conn(&mut conn, id).await?;
-    receivers::require_admin(&mut conn, &record, user.id).await?;
+    let workspace = workspaces::load(&mut conn, record.workspace_id).await?;
+    workspaces::require_admin(&mut conn, &workspace, user.id).await?;
 
     let display_name = match input.display_name.as_deref().map(str::trim) {
         Some(value) if value.is_empty() || value.chars().count() > 120 => {
@@ -240,7 +231,7 @@ pub async fn update_email_receiver(
         .await
         .map_err(|err| AppError::db(err, "email_receivers.update.set"))?;
 
-    Ok(Json(receiver_response(&updated, Some(Access::Admin))))
+    Ok(Json(receiver_response(&updated, &workspace, Some(Access::Admin))))
 }
 
 /// Rotate the inbound token. The previous token stops working immediately, so
@@ -252,7 +243,8 @@ pub async fn rotate_email_receiver_token(
 ) -> ApiResult<Json<EmailReceiverWithTokenResponse>> {
     let mut conn = state.db.get().await?;
     let record = receivers::load_with_conn(&mut conn, id).await?;
-    receivers::require_admin(&mut conn, &record, user.id).await?;
+    let workspace = workspaces::load(&mut conn, record.workspace_id).await?;
+    workspaces::require_admin(&mut conn, &workspace, user.id).await?;
 
     let token = receivers::mint_token();
     let updated = diesel::update(email_receivers::table.find(record.id))
@@ -267,7 +259,7 @@ pub async fn rotate_email_receiver_token(
         .map_err(|err| AppError::db(err, "email_receivers.rotate_token.set"))?;
 
     Ok(Json(EmailReceiverWithTokenResponse {
-        receiver: receiver_response(&updated, Some(Access::Admin)),
+        receiver: receiver_response(&updated, &workspace, Some(Access::Admin)),
         inbound_token: token.plaintext,
     }))
 }
@@ -293,108 +285,19 @@ pub async fn delete_email_receiver(
     Ok(Json(OkResponse { ok: true }))
 }
 
-pub async fn list_email_receiver_members(
-    State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Path(id): Path<i64>,
-) -> ApiResult<Json<Vec<MemberResponse>>> {
-    let mut conn = state.db.get().await?;
-    let record = receivers::load_with_conn(&mut conn, id).await?;
-    receivers::require_member(&mut conn, &record, user.id).await?;
-
-    let rows: Vec<(i64, String, User)> = email_receiver_members::table
-        .inner_join(users::table)
-        .filter(email_receiver_members::receiver_id.eq(record.id))
-        .select((
-            email_receiver_members::user_id,
-            email_receiver_members::role,
-            User::as_select(),
-        ))
-        .load(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_receivers.list_members.load"))?;
-
-    Ok(Json(
-        rows.into_iter()
-            .map(|(user_id, role, member)| MemberResponse::new(user_id, &role, &member))
-            .collect(),
-    ))
-}
-
-pub async fn add_email_receiver_member(
-    State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Path(id): Path<i64>,
-    Json(input): Json<AddMemberRequest>,
-) -> ApiResult<Json<MemberResponse>> {
-    let mut conn = state.db.get().await?;
-    let record = receivers::load_with_conn(&mut conn, id).await?;
-    receivers::require_admin(&mut conn, &record, user.id).await?;
-
-    let member_user_id = parse_id(&input.user_id)?;
-    let role = input.role.as_deref().unwrap_or("member");
-    let role = Access::parse(role)
-        .ok_or_else(|| AppError::BadRequest("role must be one of: member, admin".into()))?;
-
-    let member: User = users::table
-        .find(member_user_id)
-        .select(User::as_select())
-        .first(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_receivers.add_member.lookup_user"))?;
-
-    diesel::insert_into(email_receiver_members::table)
-        .values(&NewEmailReceiverMember {
-            receiver_id: record.id,
-            user_id: member.id,
-            role: role.as_str(),
-        })
-        .on_conflict((
-            email_receiver_members::receiver_id,
-            email_receiver_members::user_id,
-        ))
-        .do_update()
-        .set(email_receiver_members::role.eq(role.as_str()))
-        .execute(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_receivers.add_member.insert"))?;
-
-    Ok(Json(MemberResponse::new(member.id, role.as_str(), &member)))
-}
-
-pub async fn remove_email_receiver_member(
-    State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Path((id, member_user_id)): Path<(i64, i64)>,
-) -> ApiResult<Json<OkResponse>> {
-    let mut conn = state.db.get().await?;
-    let record = receivers::load_with_conn(&mut conn, id).await?;
-    receivers::require_admin(&mut conn, &record, user.id).await?;
-
-    let deleted = diesel::delete(email_receiver_members::table.find((record.id, member_user_id)))
-        .execute(&mut conn)
-        .await
-        .map_err(|err| AppError::db(err, "email_receivers.remove_member.delete"))?;
-
-    if deleted == 0 {
-        return Err(AppError::NotFound);
-    }
-
-    Ok(Json(OkResponse { ok: true }))
-}
-
 fn receiver_response(
     record: &EmailReceiverRecord,
+    workspace: &Workspace,
     access: Option<Access>,
 ) -> EmailReceiverResponse {
     EmailReceiverResponse {
         id: record.id.to_string(),
-        scope: record.scope.clone(),
+        workspace_id: record.workspace_id.to_string(),
         display_name: record.display_name.clone(),
         mail_domain: record.mail_domain.clone(),
         worker_url: record.worker_url().map(str::to_owned),
         token_hint: record.inbound_token_hint.clone(),
-        is_system: record.is_system(),
+        is_system: workspace.is_system(),
         access: access.map(Access::as_str).unwrap_or("none").to_owned(),
         is_active: record.is_active,
         created_at: record.created_at.to_rfc3339(),
