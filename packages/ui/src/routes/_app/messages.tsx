@@ -14,7 +14,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
-import { EmailSidebar } from "@/components/email/sidebar"
+import { AppSidebar } from "@/components/email/app-sidebar"
 import { ConversationList } from "@/components/chat/conversation-list"
 import { ChatScreen } from "@/components/chat/chat-screen"
 import { Button } from "@/components/ui/button"
@@ -65,16 +65,6 @@ function MessagesRoute() {
     ? conversations.find((c) => c.id === selectedId) ?? null
     : null
 
-  const sidebarNode = (
-    <EmailSidebar
-      active="messages"
-      onSelect={(f) => navigate({ to: "/$mailbox", params: { mailbox: f } })}
-      onOpenMessages={() => navigate({ to: "/messages" })}
-      onOpenDrop={() => navigate({ to: "/drop" })}
-      onCompose={() => openCompose()}
-      onOpenSettings={openSettings}
-    />
-  )
 
   // Realtime: the socket in the app layout refreshes sync state and emits these
   // events; refetch chat data so new messages and conversations show up live.
@@ -92,12 +82,7 @@ function MessagesRoute() {
   }, [queryClient])
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden">
-      {/* Desktop sidebar */}
-      <div className="hidden w-64 shrink-0 border-r border-border md:block lg:w-72">
-        {sidebarNode}
-      </div>
-
+    <div className="flex min-w-0 flex-1 overflow-hidden">
       {/* Main area */}
       <div className="relative flex min-w-0 flex-1">
         {/* Conversation list pane */}
@@ -116,7 +101,7 @@ function MessagesRoute() {
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0">
                 <SheetTitle className="sr-only">{t("app.folders")}</SheetTitle>
-                {sidebarNode}
+                <AppSidebar />
               </SheetContent>
             </Sheet>
             <span className="flex-1 text-sm font-medium">{t("chat.list.title")}</span>

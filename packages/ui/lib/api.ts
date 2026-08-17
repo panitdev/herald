@@ -1157,3 +1157,173 @@ function parseRealtimeEvent(value: unknown): { type: string } | null {
     return null
   }
 }
+
+// ============================================
+// Workspaces and email units (receivers / senders)
+//
+// A workspace owns receivers and senders; its membership decides who may
+// administer them. See internal-docs/email-units.md.
+// ============================================
+
+/** What the signed-in user may do inside a workspace or with a unit in it. */
+export type UnitAccess = "admin" | "member" | "none"
+
+export type WorkspaceKind = "system" | "personal" | "team"
+
+export interface Workspace {
+  id: string
+  kind: WorkspaceKind
+  name: string
+  access: UnitAccess
+  createdAt: string
+}
+
+export interface WorkspaceMember {
+  userId: string
+  username: string
+  displayName: string
+  role: "admin" | "member"
+}
+
+export interface EmailReceiver {
+  id: string
+  workspaceId: string
+  displayName: string
+  mailDomain: string | null
+  workerUrl: string | null
+  /** Last characters of the inbound token — the token itself is never readable. */
+  tokenHint: string
+  isSystem: boolean
+  access: UnitAccess
+  isActive: boolean
+  createdAt: string
+}
+
+/** Registration/rotation response — the only time the inbound token is readable. */
+export interface EmailReceiverWithToken extends EmailReceiver {
+  inboundToken: string
+}
+
+export type EmailSenderProvider = "resend" | "ses"
+
+export interface EmailSender {
+  id: string
+  provider: EmailSenderProvider
+  workspaceId: string
+  displayName: string
+  mailDomain: string | null
+  fromAddress: string | null
+  isSystem: boolean
+  access: UnitAccess
+  hasSecret: boolean
+  isActive: boolean
+  createdAt: string
+}
+
+export function getWorkspaces(): Promise<Workspace[]> {
+  return apiFetch<Workspace[]>("/api/me/workspaces")
+}
+
+export function createWorkspace(name: string): Promise<Workspace> {
+  return apiFetch<Workspace>("/api/me/workspaces", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  })
+}
+
+export function deleteWorkspace(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/me/workspaces/${id}`, { method: "DELETE" })
+}
+
+export function getWorkspaceMembers(id: string): Promise<WorkspaceMember[]> {
+  return apiFetch<WorkspaceMember[]>(`/api/me/workspaces/${id}/members`)
+}
+
+export function addWorkspaceMember(
+  id: string,
+  input: { userId: string; role?: "admin" | "member" },
+): Promise<WorkspaceMember> {
+  return apiFetch<WorkspaceMember>(`/api/me/workspaces/${id}/members`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function removeWorkspaceMember(
+  id: string,
+  userId: string,
+): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/me/workspaces/${id}/members/${userId}`, {
+    method: "DELETE",
+  })
+}
+
+export function getEmailReceivers(): Promise<EmailReceiver[]> {
+  return apiFetch<EmailReceiver[]>("/api/me/email-receivers")
+}
+
+export function createEmailReceiver(input: {
+  workspaceId?: string
+  displayName: string
+  mailDomain?: string
+  workerUrl?: string
+  workerToken?: string
+}): Promise<EmailReceiverWithToken> {
+  return apiFetch<EmailReceiverWithToken>("/api/me/email-receivers", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateEmailReceiver(
+  id: string,
+  input: {
+    displayName?: string
+    workerUrl?: string
+    workerToken?: string
+    isActive?: boolean
+  },
+): Promise<EmailReceiver> {
+  return apiFetch<EmailReceiver>(`/api/me/email-receivers/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })
+}
+
+/** Rotating invalidates the old token immediately; the new one is shown once. */
+export function rotateEmailReceiverToken(id: string): Promise<EmailReceiverWithToken> {
+  return apiFetch<EmailReceiverWithToken>(`/api/me/email-receivers/${id}/token`, {
+    method: "POST",
+  })
+}
+
+export function deleteEmailReceiver(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/me/email-receivers/${id}`, {
+    method: "DELETE",
+  })
+}
+
+export function getEmailSenders(): Promise<EmailSender[]> {
+  return apiFetch<EmailSender[]>("/api/me/email-senders")
+}
+
+export function createEmailSender(input: {
+  workspaceId?: string
+  provider: EmailSenderProvider
+  displayName: string
+  mailDomain?: string
+  fromAddress?: string
+  config?: Record<string, string>
+  secret: Record<string, string>
+}): Promise<EmailSender> {
+  return apiFetch<EmailSender>("/api/me/email-senders", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteEmailSender(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/me/email-senders/${id}`, {
+    method: "DELETE",
+  })
+}

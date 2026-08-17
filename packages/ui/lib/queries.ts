@@ -53,3 +53,29 @@ export const chatMessagesQuery = (conversationId: string | null) =>
         : Promise.resolve([]),
     enabled: conversationId != null,
   })
+
+export const workspacesQuery = () =>
+  queryOptions({
+    queryKey: ["workspaces"] as const,
+    queryFn: () => api.getWorkspaces(),
+  })
+
+export const workspaceMembersQuery = (workspaceId: string | null) =>
+  queryOptions({
+    queryKey: ["workspaceMembers", workspaceId] as const,
+    queryFn: () =>
+      workspaceId ? api.getWorkspaceMembers(workspaceId) : Promise.resolve([]),
+    enabled: workspaceId != null,
+  })
+
+export const emailReceiversQuery = () =>
+  queryOptions({
+    queryKey: ["emailReceivers"] as const,
+    queryFn: () => api.getEmailReceivers(),
+  })
+
+export const emailSendersQuery = () =>
+  queryOptions({
+    queryKey: ["emailSenders"] as const,
+    queryFn: () => api.getEmailSenders(),
+  })

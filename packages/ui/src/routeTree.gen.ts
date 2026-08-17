@@ -11,12 +11,17 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppWorkspaceRouteImport } from './routes/_app/workspace'
 import { Route as AppMessagesRouteImport } from './routes/_app/messages'
 import { Route as AppDropRouteImport } from './routes/_app/drop'
 import { Route as AppMailboxRouteImport } from './routes/_app/$mailbox'
+import { Route as AppWorkspaceIndexRouteImport } from './routes/_app/workspace.index'
 import { Route as AppMessagesIndexRouteImport } from './routes/_app/messages.index'
 import { Route as AppDropIndexRouteImport } from './routes/_app/drop.index'
 import { Route as AppMailboxIndexRouteImport } from './routes/_app/$mailbox.index'
+import { Route as AppWorkspaceGeneralRouteImport } from './routes/_app/workspace.general'
+import { Route as AppWorkspaceEmailSendersRouteImport } from './routes/_app/workspace.email-senders'
+import { Route as AppWorkspaceEmailReceiversRouteImport } from './routes/_app/workspace.email-receivers'
 import { Route as AppMessagesConversationIdRouteImport } from './routes/_app/messages.$conversationId'
 import { Route as AppDropDropIdRouteImport } from './routes/_app/drop.$dropId'
 import { Route as AppMailboxMessageIdRouteImport } from './routes/_app/$mailbox.$messageId'
@@ -29,6 +34,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppWorkspaceRoute = AppWorkspaceRouteImport.update({
+  id: '/workspace',
+  path: '/workspace',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppMessagesRoute = AppMessagesRouteImport.update({
   id: '/messages',
@@ -45,6 +55,11 @@ const AppMailboxRoute = AppMailboxRouteImport.update({
   path: '/$mailbox',
   getParentRoute: () => AppRoute,
 } as any)
+const AppWorkspaceIndexRoute = AppWorkspaceIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppWorkspaceRoute,
+} as any)
 const AppMessagesIndexRoute = AppMessagesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -60,6 +75,23 @@ const AppMailboxIndexRoute = AppMailboxIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppMailboxRoute,
 } as any)
+const AppWorkspaceGeneralRoute = AppWorkspaceGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => AppWorkspaceRoute,
+} as any)
+const AppWorkspaceEmailSendersRoute =
+  AppWorkspaceEmailSendersRouteImport.update({
+    id: '/email-senders',
+    path: '/email-senders',
+    getParentRoute: () => AppWorkspaceRoute,
+  } as any)
+const AppWorkspaceEmailReceiversRoute =
+  AppWorkspaceEmailReceiversRouteImport.update({
+    id: '/email-receivers',
+    path: '/email-receivers',
+    getParentRoute: () => AppWorkspaceRoute,
+  } as any)
 const AppMessagesConversationIdRoute =
   AppMessagesConversationIdRouteImport.update({
     id: '/$conversationId',
@@ -82,21 +114,30 @@ export interface FileRoutesByFullPath {
   '/$mailbox': typeof AppMailboxRouteWithChildren
   '/drop': typeof AppDropRouteWithChildren
   '/messages': typeof AppMessagesRouteWithChildren
+  '/workspace': typeof AppWorkspaceRouteWithChildren
   '/$mailbox/$messageId': typeof AppMailboxMessageIdRoute
   '/drop/$dropId': typeof AppDropDropIdRoute
   '/messages/$conversationId': typeof AppMessagesConversationIdRoute
+  '/workspace/email-receivers': typeof AppWorkspaceEmailReceiversRoute
+  '/workspace/email-senders': typeof AppWorkspaceEmailSendersRoute
+  '/workspace/general': typeof AppWorkspaceGeneralRoute
   '/$mailbox/': typeof AppMailboxIndexRoute
   '/drop/': typeof AppDropIndexRoute
   '/messages/': typeof AppMessagesIndexRoute
+  '/workspace/': typeof AppWorkspaceIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$mailbox/$messageId': typeof AppMailboxMessageIdRoute
   '/drop/$dropId': typeof AppDropDropIdRoute
   '/messages/$conversationId': typeof AppMessagesConversationIdRoute
+  '/workspace/email-receivers': typeof AppWorkspaceEmailReceiversRoute
+  '/workspace/email-senders': typeof AppWorkspaceEmailSendersRoute
+  '/workspace/general': typeof AppWorkspaceGeneralRoute
   '/$mailbox': typeof AppMailboxIndexRoute
   '/drop': typeof AppDropIndexRoute
   '/messages': typeof AppMessagesIndexRoute
+  '/workspace': typeof AppWorkspaceIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -105,12 +146,17 @@ export interface FileRoutesById {
   '/_app/$mailbox': typeof AppMailboxRouteWithChildren
   '/_app/drop': typeof AppDropRouteWithChildren
   '/_app/messages': typeof AppMessagesRouteWithChildren
+  '/_app/workspace': typeof AppWorkspaceRouteWithChildren
   '/_app/$mailbox/$messageId': typeof AppMailboxMessageIdRoute
   '/_app/drop/$dropId': typeof AppDropDropIdRoute
   '/_app/messages/$conversationId': typeof AppMessagesConversationIdRoute
+  '/_app/workspace/email-receivers': typeof AppWorkspaceEmailReceiversRoute
+  '/_app/workspace/email-senders': typeof AppWorkspaceEmailSendersRoute
+  '/_app/workspace/general': typeof AppWorkspaceGeneralRoute
   '/_app/$mailbox/': typeof AppMailboxIndexRoute
   '/_app/drop/': typeof AppDropIndexRoute
   '/_app/messages/': typeof AppMessagesIndexRoute
+  '/_app/workspace/': typeof AppWorkspaceIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -119,21 +165,30 @@ export interface FileRouteTypes {
     | '/$mailbox'
     | '/drop'
     | '/messages'
+    | '/workspace'
     | '/$mailbox/$messageId'
     | '/drop/$dropId'
     | '/messages/$conversationId'
+    | '/workspace/email-receivers'
+    | '/workspace/email-senders'
+    | '/workspace/general'
     | '/$mailbox/'
     | '/drop/'
     | '/messages/'
+    | '/workspace/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$mailbox/$messageId'
     | '/drop/$dropId'
     | '/messages/$conversationId'
+    | '/workspace/email-receivers'
+    | '/workspace/email-senders'
+    | '/workspace/general'
     | '/$mailbox'
     | '/drop'
     | '/messages'
+    | '/workspace'
   id:
     | '__root__'
     | '/'
@@ -141,12 +196,17 @@ export interface FileRouteTypes {
     | '/_app/$mailbox'
     | '/_app/drop'
     | '/_app/messages'
+    | '/_app/workspace'
     | '/_app/$mailbox/$messageId'
     | '/_app/drop/$dropId'
     | '/_app/messages/$conversationId'
+    | '/_app/workspace/email-receivers'
+    | '/_app/workspace/email-senders'
+    | '/_app/workspace/general'
     | '/_app/$mailbox/'
     | '/_app/drop/'
     | '/_app/messages/'
+    | '/_app/workspace/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -170,6 +230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/workspace': {
+      id: '/_app/workspace'
+      path: '/workspace'
+      fullPath: '/workspace'
+      preLoaderRoute: typeof AppWorkspaceRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/messages': {
       id: '/_app/messages'
       path: '/messages'
@@ -191,6 +258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMailboxRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/workspace/': {
+      id: '/_app/workspace/'
+      path: '/'
+      fullPath: '/workspace/'
+      preLoaderRoute: typeof AppWorkspaceIndexRouteImport
+      parentRoute: typeof AppWorkspaceRoute
+    }
     '/_app/messages/': {
       id: '/_app/messages/'
       path: '/'
@@ -211,6 +285,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/$mailbox/'
       preLoaderRoute: typeof AppMailboxIndexRouteImport
       parentRoute: typeof AppMailboxRoute
+    }
+    '/_app/workspace/general': {
+      id: '/_app/workspace/general'
+      path: '/general'
+      fullPath: '/workspace/general'
+      preLoaderRoute: typeof AppWorkspaceGeneralRouteImport
+      parentRoute: typeof AppWorkspaceRoute
+    }
+    '/_app/workspace/email-senders': {
+      id: '/_app/workspace/email-senders'
+      path: '/email-senders'
+      fullPath: '/workspace/email-senders'
+      preLoaderRoute: typeof AppWorkspaceEmailSendersRouteImport
+      parentRoute: typeof AppWorkspaceRoute
+    }
+    '/_app/workspace/email-receivers': {
+      id: '/_app/workspace/email-receivers'
+      path: '/email-receivers'
+      fullPath: '/workspace/email-receivers'
+      preLoaderRoute: typeof AppWorkspaceEmailReceiversRouteImport
+      parentRoute: typeof AppWorkspaceRoute
     }
     '/_app/messages/$conversationId': {
       id: '/_app/messages/$conversationId'
@@ -277,16 +372,36 @@ const AppMessagesRouteWithChildren = AppMessagesRoute._addFileChildren(
   AppMessagesRouteChildren,
 )
 
+interface AppWorkspaceRouteChildren {
+  AppWorkspaceEmailReceiversRoute: typeof AppWorkspaceEmailReceiversRoute
+  AppWorkspaceEmailSendersRoute: typeof AppWorkspaceEmailSendersRoute
+  AppWorkspaceGeneralRoute: typeof AppWorkspaceGeneralRoute
+  AppWorkspaceIndexRoute: typeof AppWorkspaceIndexRoute
+}
+
+const AppWorkspaceRouteChildren: AppWorkspaceRouteChildren = {
+  AppWorkspaceEmailReceiversRoute: AppWorkspaceEmailReceiversRoute,
+  AppWorkspaceEmailSendersRoute: AppWorkspaceEmailSendersRoute,
+  AppWorkspaceGeneralRoute: AppWorkspaceGeneralRoute,
+  AppWorkspaceIndexRoute: AppWorkspaceIndexRoute,
+}
+
+const AppWorkspaceRouteWithChildren = AppWorkspaceRoute._addFileChildren(
+  AppWorkspaceRouteChildren,
+)
+
 interface AppRouteChildren {
   AppMailboxRoute: typeof AppMailboxRouteWithChildren
   AppDropRoute: typeof AppDropRouteWithChildren
   AppMessagesRoute: typeof AppMessagesRouteWithChildren
+  AppWorkspaceRoute: typeof AppWorkspaceRouteWithChildren
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppMailboxRoute: AppMailboxRouteWithChildren,
   AppDropRoute: AppDropRouteWithChildren,
   AppMessagesRoute: AppMessagesRouteWithChildren,
+  AppWorkspaceRoute: AppWorkspaceRouteWithChildren,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

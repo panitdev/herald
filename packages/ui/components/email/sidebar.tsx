@@ -11,18 +11,32 @@ import {
   MessagesSquare,
   Package,
   Plus,
+  Building2,
+  SlidersHorizontal,
+  Inbox as InboxIcon,
+  SendHorizonal,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import type { Folder } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { HeraldLogo } from "@/components/ui/logos"
 import { SidebarNav } from "@/components/ui/sidebar-nav"
 import { ProfileMenu } from "./profile-menu"
+import { WorkspaceSwitcher } from "./workspace-switcher"
 import { ButtonGroup } from "../ui/button-group"
 
-/** Either a mail folder, the realtime messenger, or the drop store. */
-export type SidebarSection = Folder | "messages" | "drop"
+/** The workspace administration pages, each its own sidebar sub-entry. */
+export type WorkspacePage = "general" | "email-receivers" | "email-senders"
+
+/** A mail folder, the realtime messenger, the drop store, or a workspace page. */
+export type SidebarSection = Folder | "messages" | "drop" | `workspace:${WorkspacePage}`
+
+/** Route path per workspace page, so callers keep TanStack's literal typing. */
+export const WORKSPACE_PAGE_ROUTES = {
+  general: "/workspace/general",
+  "email-receivers": "/workspace/email-receivers",
+  "email-senders": "/workspace/email-senders",
+} as const
 
 type FolderDef = {
   id: Folder
@@ -38,11 +52,18 @@ const FOLDERS: FolderDef[] = [
   { id: "trash", icon: Trash2 },
 ]
 
+const WORKSPACE_PAGES: { id: WorkspacePage; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "general", icon: SlidersHorizontal },
+  { id: "email-receivers", icon: InboxIcon },
+  { id: "email-senders", icon: SendHorizonal },
+]
+
 type Props = {
   active: SidebarSection
   onSelect: (folder: Folder) => void
   onOpenMessages: () => void
   onOpenDrop?: () => void
+  onOpenWorkspace?: (page: WorkspacePage) => void
   counts?: Partial<Record<Folder, number>>
   onCompose: () => void
   onOpenSettings: () => void
@@ -53,16 +74,20 @@ export function EmailSidebar({
   onSelect,
   onOpenMessages,
   onOpenDrop,
+  onOpenWorkspace,
   counts = {},
   onCompose,
   onOpenSettings,
 }: Props) {
   const { t } = useTranslation()
+  const workspaceLabel = t("sidebar.workspace")
+  const onWorkspacePage = active.startsWith("workspace:")
+
+
   return (
     <aside className="flex h-full w-full flex-col bg-sidebar/60 text-sidebar-foreground">
-      <div className="flex items-center gap-2 px-5 pt-5 pb-4">
-        <HeraldLogo size={32} aria-hidden />
-        <span className="text-[15px] font-semibold tracking-tight">Herald</span>
+      <div className="px-2 pt-3 pb-1">
+        <WorkspaceSwitcher />
       </div>
 
       <div className="px-3 pb-3">
@@ -83,7 +108,10 @@ export function EmailSidebar({
 
       <SidebarNav
         ariaLabel={t("sidebar.navAriaLabel")}
-        className="flex-1 overflow-y-auto rounded-none border-none bg-transparent p-0 px-2 py-1 scrollbar-thin"
+        className="flex-1 overflow-y-auto rounded-none border-none bg-transparent scrollbar-thin"
+        // The nav's padding sits on the inner sliding panel, which `className`
+        // cannot reach; `panelClassName` is the override that replaces it.
+        panelClassName="px-2 py-1"
         sections={[
           {
             items: FOLDERS.map((folder) => {
@@ -130,6 +158,35 @@ export function EmailSidebar({
                     icon: Package,
                     active: active === "drop",
                     onClick: onOpenDrop,
+                  },
+                ]
+                : []),
+              ...(onOpenWorkspace
+                ? [
+                  {
+                    label: workspaceLabel,
+                    icon: Building2,
+                    active: onWorkspacePage,
+                    // onClick runs before the panel opens and onBack before it
+                    // pops, so the route and the sub-menu move together in both
+                    // directions. The sidebar is mounted once in `_app`, so the
+                    // panel outlives the navigation each click triggers.
+                    onClick: () => onOpenWorkspace("general"),
+                    submenu: {
+                      backLabel: t("sidebar.back"),
+                      label: workspaceLabel,
+                      onBack: () => onSelect("inbox"),
+                      sections: [
+                        {
+                          items: WORKSPACE_PAGES.map((page) => ({
+                            label: t(`sidebar.workspacePages.${page.id}`),
+                            icon: page.icon,
+                            active: active === `workspace:${page.id}`,
+                            onClick: () => onOpenWorkspace(page.id),
+                          })),
+                        },
+                      ],
+                    },
                   },
                 ]
                 : []),

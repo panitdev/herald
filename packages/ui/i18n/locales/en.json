@@ -11,7 +11,14 @@
     "compose": "Compose",
     "messages": "Messages",
     "drop": "Drop",
-    "navAriaLabel": "Folders"
+    "navAriaLabel": "Folders",
+    "workspace": "Workspace",
+    "back": "Back",
+    "workspacePages": {
+      "general": "General",
+      "email-receivers": "Email Receivers",
+      "email-senders": "Email Senders"
+    }
   },
   "emailList": {
     "searchPlaceholder": "Search mail",
@@ -291,6 +298,122 @@
       "failedToSendDescription": "Check your connection and try again.",
       "failedToLoad": "Failed to load conversations",
       "failedToLoadMessages": "Failed to load messages"
+    }
+  },
+  "workspace": {
+    "kinds": {
+      "system": "System",
+      "personal": "Personal",
+      "team": "Team"
+    },
+    "access": {
+      "admin": "Admin",
+      "member": "Member",
+      "none": "No access"
+    },
+    "common": {
+      "cancel": "Cancel",
+      "done": "Done",
+      "copy": "Copy",
+      "copied": "Copied to clipboard",
+      "copyFailed": "Could not copy to clipboard",
+      "loading": "Loading…",
+      "failed": "Something went wrong",
+      "system": "System",
+      "inactive": "Inactive",
+      "needsAdmin": "You need admin access in this workspace to make changes here."
+    },
+    "switcher": {
+      "open": "Switch workspace",
+      "label": "Workspaces",
+      "empty": "No workspaces yet",
+      "noWorkspace": "No workspace",
+      "create": "New workspace",
+      "createTitle": "New workspace",
+      "createDescription": "A workspace holds email receivers and senders, and its members decide who can administer them.",
+      "nameLabel": "Name",
+      "namePlaceholder": "Acme Mail",
+      "created": "Created {{name}}",
+      "createFailed": "Could not create the workspace"
+    },
+    "general": {
+      "title": "General",
+      "description": "What this workspace is and who can administer it.",
+      "detailsTitle": "Details",
+      "name": "Name",
+      "kind": "Kind",
+      "yourAccess": "Your access",
+      "created": "Created",
+      "membersTitle": "Members",
+      "membersDescription": "Members can bind addresses to this workspace's units; admins can also register and delete them.",
+      "noMembers": "No members yet",
+      "addMember": "Add",
+      "addMemberPlaceholder": "Username",
+      "removeMember": "Remove member",
+      "memberAdded": "Added @{{username}}",
+      "userNotFound": "No user named @{{username}}",
+      "dangerTitle": "Danger zone",
+      "dangerDescription": "Deleting a workspace deletes every receiver and sender in it. Addresses survive, but stop receiving until they are bound elsewhere.",
+      "delete": "Delete workspace",
+      "deleted": "Workspace deleted",
+      "deleteConfirmTitle": "Delete {{name}}?",
+      "deleteConfirmDescription": "This cannot be undone. Every receiver and sender in this workspace is deleted with it."
+    },
+    "receivers": {
+      "title": "Email Receivers",
+      "description": "Something that delivers inbound mail into herald — usually a Cloudflare Email worker for a domain you control.",
+      "empty": "No receivers in this workspace yet",
+      "noDomain": "No domain claimed",
+      "register": "Register receiver",
+      "registerTitle": "Register an email receiver",
+      "registerDescription": "You get an inbound token back once. Deploy the receiver with it as HERALD_INBOUND_TOKEN.",
+      "name": "Display name",
+      "namePlaceholder": "Acme inbound worker",
+      "domain": "Mail domain",
+      "domainHint": "Claimed first-come. Only addresses under it can be bound to this receiver.",
+      "workerUrl": "Staging endpoint",
+      "workerUrlHint": "Optional. Where herald drains recovered mail from; must be given with a token.",
+      "workerToken": "Staging token",
+      "stagingPairRequired": "The staging endpoint and its token must be given together",
+      "rotate": "Rotate token",
+      "delete": "Delete",
+      "deleted": "Receiver deleted",
+      "deleteConfirmTitle": "Delete {{name}}?",
+      "deleteConfirmDescription": "Addresses bound to it keep existing but stop receiving until they are bound to another receiver.",
+      "tokenTitle": "Inbound token",
+      "tokenDescription": "This is the only time it is shown. Copy it now — herald keeps only its hash.",
+      "enable": "Enable",
+      "disable": "Disable",
+      "enabled": "Receiver enabled",
+      "disabled": "Receiver disabled"
+    },
+    "senders": {
+      "title": "Email Senders",
+      "description": "Provider credentials herald delivers outbound mail with.",
+      "empty": "No senders in this workspace yet",
+      "noDomain": "No domain set",
+      "register": "Register sender",
+      "registerTitle": "Register an email sender",
+      "registerDescription": "Credentials are validated against the provider before being stored, and are never readable afterwards.",
+      "provider": "Provider",
+      "providers": {
+        "resend": "Resend",
+        "ses": "Amazon SES"
+      },
+      "name": "Display name",
+      "namePlaceholder": "Acme outbound",
+      "domain": "Mail domain",
+      "domainHint": "Optional. Outbound mail from this domain resolves to this sender.",
+      "fromAddress": "From address",
+      "apiKey": "API key",
+      "region": "Region",
+      "accessKeyId": "Access key ID",
+      "secretAccessKey": "Secret access key",
+      "created": "Sender registered",
+      "delete": "Delete",
+      "deleted": "Sender deleted",
+      "deleteConfirmTitle": "Delete {{name}}?",
+      "deleteConfirmDescription": "Outbound mail that resolved to this sender falls back to another one, or fails if there is none."
     }
   }
 }

@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
 import { AmbientBackground } from "@/components/ui/ambient-background"
+import { AppSidebar } from "@/components/email/app-sidebar"
 import { CommandMenu } from "@/components/email/command-menu"
 import { ComposePanel } from "@/components/email/compose-panel"
 import { MobileCommandDrawer } from "@/components/email/mobile-command-drawer"
@@ -18,6 +19,7 @@ import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
 import { useLocalOverrides } from "@/lib/local-overrides-store"
 import { DropStoreProvider, useDropStore } from "@/lib/drop-store"
+import { WorkspaceStoreProvider } from "@/lib/workspace-store"
 import { connectRealtimeSync, sendMail } from "@/lib/api"
 import type { Email } from "@/lib/types"
 import {
@@ -41,7 +43,9 @@ function AppLayout() {
 
   return (
     <DropStoreProvider userId={userId}>
-      <AppLayoutInner />
+      <WorkspaceStoreProvider>
+        <AppLayoutInner />
+      </WorkspaceStoreProvider>
     </DropStoreProvider>
   )
 }
@@ -173,8 +177,15 @@ function AppLayoutInner() {
           {t("app.offline")}
         </div>
       ) : null}
-      <div className="relative isolate h-dvh w-full overflow-hidden">
+      <div className="relative isolate flex h-dvh w-full overflow-hidden">
         <AmbientBackground />
+        {/* One sidebar instance for the whole authenticated tree. Rendering it
+            per-route would remount it on every navigation, discarding
+            SidebarNav's open-panel state before the sliding sub-menu could
+            show. Routes still render it inside their own mobile Sheet. */}
+        <div className="hidden w-64 shrink-0 border-r border-border md:block lg:w-72">
+          <AppSidebar />
+        </div>
         <Outlet />
       </div>
       <ComposePanel

@@ -11,7 +11,14 @@
     "compose": "편지 쓰기",
     "messages": "메시지",
     "drop": "드롭",
-    "navAriaLabel": "폴더"
+    "navAriaLabel": "폴더",
+    "workspace": "워크스페이스",
+    "back": "뒤로",
+    "workspacePages": {
+      "general": "일반",
+      "email-receivers": "이메일 수신기",
+      "email-senders": "이메일 발신기"
+    }
   },
   "emailList": {
     "searchPlaceholder": "메일 검색",
@@ -291,6 +298,122 @@
       "failedToSendDescription": "연결을 확인하고 다시 시도하세요.",
       "failedToLoad": "대화 로드 실패",
       "failedToLoadMessages": "메시지 로드 실패"
+    }
+  },
+  "workspace": {
+    "kinds": {
+      "system": "시스템",
+      "personal": "개인",
+      "team": "팀"
+    },
+    "access": {
+      "admin": "관리자",
+      "member": "멤버",
+      "none": "권한 없음"
+    },
+    "common": {
+      "cancel": "취소",
+      "done": "완료",
+      "copy": "복사",
+      "copied": "클립보드에 복사했습니다",
+      "copyFailed": "클립보드에 복사하지 못했습니다",
+      "loading": "불러오는 중…",
+      "failed": "문제가 발생했습니다",
+      "system": "시스템",
+      "inactive": "비활성",
+      "needsAdmin": "이 워크스페이스를 변경하려면 관리자 권한이 필요합니다."
+    },
+    "switcher": {
+      "open": "워크스페이스 전환",
+      "label": "워크스페이스",
+      "empty": "워크스페이스가 없습니다",
+      "noWorkspace": "워크스페이스 없음",
+      "create": "새 워크스페이스",
+      "createTitle": "새 워크스페이스",
+      "createDescription": "워크스페이스는 이메일 수신기와 발신기를 소유하며, 멤버가 이를 관리할 수 있습니다.",
+      "nameLabel": "이름",
+      "namePlaceholder": "Acme Mail",
+      "created": "{{name}}을(를) 만들었습니다",
+      "createFailed": "워크스페이스를 만들지 못했습니다"
+    },
+    "general": {
+      "title": "일반",
+      "description": "이 워크스페이스의 정보와 관리 권한입니다.",
+      "detailsTitle": "정보",
+      "name": "이름",
+      "kind": "종류",
+      "yourAccess": "내 권한",
+      "created": "생성일",
+      "membersTitle": "멤버",
+      "membersDescription": "멤버는 이 워크스페이스의 유닛에 주소를 연결할 수 있고, 관리자는 유닛을 등록·삭제할 수 있습니다.",
+      "noMembers": "멤버가 없습니다",
+      "addMember": "추가",
+      "addMemberPlaceholder": "사용자명",
+      "removeMember": "멤버 제거",
+      "memberAdded": "@{{username}}을(를) 추가했습니다",
+      "userNotFound": "@{{username}} 사용자를 찾을 수 없습니다",
+      "dangerTitle": "위험 구역",
+      "dangerDescription": "워크스페이스를 삭제하면 그 안의 수신기와 발신기가 모두 삭제됩니다. 주소는 남지만 다른 곳에 연결하기 전까지 메일을 받지 못합니다.",
+      "delete": "워크스페이스 삭제",
+      "deleted": "워크스페이스를 삭제했습니다",
+      "deleteConfirmTitle": "{{name}}을(를) 삭제할까요?",
+      "deleteConfirmDescription": "되돌릴 수 없습니다. 이 워크스페이스의 모든 수신기와 발신기가 함께 삭제됩니다."
+    },
+    "receivers": {
+      "title": "이메일 수신기",
+      "description": "받은 메일을 herald로 전달하는 주체입니다. 보통 직접 소유한 도메인의 Cloudflare Email 워커입니다.",
+      "empty": "이 워크스페이스에는 수신기가 없습니다",
+      "noDomain": "도메인 미등록",
+      "register": "수신기 등록",
+      "registerTitle": "이메일 수신기 등록",
+      "registerDescription": "인바운드 토큰은 한 번만 표시됩니다. 이 값을 HERALD_INBOUND_TOKEN으로 설정해 수신기를 배포하세요.",
+      "name": "표시 이름",
+      "namePlaceholder": "Acme 인바운드 워커",
+      "domain": "메일 도메인",
+      "domainHint": "선착순으로 점유됩니다. 이 도메인 아래 주소만 이 수신기에 연결할 수 있습니다.",
+      "workerUrl": "스테이징 엔드포인트",
+      "workerUrlHint": "선택 사항. herald가 복구 메일을 가져오는 위치이며 토큰과 함께 입력해야 합니다.",
+      "workerToken": "스테이징 토큰",
+      "stagingPairRequired": "스테이징 엔드포인트와 토큰은 함께 입력해야 합니다",
+      "rotate": "토큰 재발급",
+      "delete": "삭제",
+      "deleted": "수신기를 삭제했습니다",
+      "deleteConfirmTitle": "{{name}}을(를) 삭제할까요?",
+      "deleteConfirmDescription": "연결된 주소는 남지만, 다른 수신기에 연결하기 전까지 메일을 받지 못합니다.",
+      "tokenTitle": "인바운드 토큰",
+      "tokenDescription": "이 값은 지금만 볼 수 있습니다. herald는 해시만 보관합니다.",
+      "enable": "활성화",
+      "disable": "비활성화",
+      "enabled": "수신기를 활성화했습니다",
+      "disabled": "수신기를 비활성화했습니다"
+    },
+    "senders": {
+      "title": "이메일 발신기",
+      "description": "herald가 메일을 보낼 때 사용하는 제공자 자격 증명입니다.",
+      "empty": "이 워크스페이스에는 발신기가 없습니다",
+      "noDomain": "도메인 미설정",
+      "register": "발신기 등록",
+      "registerTitle": "이메일 발신기 등록",
+      "registerDescription": "자격 증명은 저장 전에 제공자에 대해 검증되며, 저장 후에는 다시 볼 수 없습니다.",
+      "provider": "제공자",
+      "providers": {
+        "resend": "Resend",
+        "ses": "Amazon SES"
+      },
+      "name": "표시 이름",
+      "namePlaceholder": "Acme 아웃바운드",
+      "domain": "메일 도메인",
+      "domainHint": "선택 사항. 이 도메인에서 보내는 메일이 이 발신기로 연결됩니다.",
+      "fromAddress": "발신 주소",
+      "apiKey": "API 키",
+      "region": "리전",
+      "accessKeyId": "액세스 키 ID",
+      "secretAccessKey": "시크릿 액세스 키",
+      "created": "발신기를 등록했습니다",
+      "delete": "삭제",
+      "deleted": "발신기를 삭제했습니다",
+      "deleteConfirmTitle": "{{name}}을(를) 삭제할까요?",
+      "deleteConfirmDescription": "이 발신기로 처리되던 메일은 다른 발신기로 넘어가며, 없으면 발송에 실패합니다."
     }
   }
 }

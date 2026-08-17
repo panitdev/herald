@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
-import { EmailSidebar } from "@/components/email/sidebar"
+import { AppSidebar } from "@/components/email/app-sidebar"
 import { EmailList } from "@/components/email/email-list"
 import { EmailDetail } from "@/components/email/email-detail"
 import { Button } from "@/components/ui/button"
@@ -81,17 +81,6 @@ function MailboxRoute() {
     mailbox !== "starred" && (messagesQ.isLoading || mailboxesQ.isLoading)
   const error = messagesQ.error || mailboxesQ.error
 
-  const sidebarNode = (
-    <EmailSidebar
-      active={mailbox}
-      onSelect={(f) => navigate({ to: "/$mailbox", params: { mailbox: f } })}
-      onOpenMessages={() => navigate({ to: "/messages" })}
-      onOpenDrop={() => navigate({ to: "/drop" })}
-      counts={counts}
-      onCompose={() => openCompose()}
-      onOpenSettings={openSettings}
-    />
-  )
 
   useEffect(() => {
     const onSyncUpdated = () => {
@@ -117,12 +106,7 @@ function MailboxRoute() {
   }, [online, queryClient])
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden">
-      {/* Desktop sidebar */}
-      <div className="hidden w-64 shrink-0 border-r border-border md:block lg:w-72">
-        {sidebarNode}
-      </div>
-
+    <div className="flex min-w-0 flex-1 overflow-hidden">
       {/* Main area */}
       <div className="relative flex min-w-0 flex-1">
         {/* Email list pane */}
@@ -141,7 +125,7 @@ function MailboxRoute() {
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0">
                 <SheetTitle className="sr-only">{t("app.folders")}</SheetTitle>
-                {sidebarNode}
+                <AppSidebar />
               </SheetContent>
             </Sheet>
             <span className="flex-1 text-sm font-medium">{t("app.mail")}</span>

@@ -9,7 +9,7 @@ import { Command, Menu } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
-import { EmailSidebar } from "@/components/email/sidebar"
+import { AppSidebar } from "@/components/email/app-sidebar"
 import { DropList } from "@/components/drop/drop-list"
 import { DropDetail } from "@/components/drop/drop-detail"
 import { Button } from "@/components/ui/button"
@@ -44,24 +44,9 @@ function DropRoute() {
     toast.success(t("drop.deleted"))
   }
 
-  const sidebarNode = (
-    <EmailSidebar
-      active="drop"
-      onSelect={(f) => navigate({ to: "/$mailbox", params: { mailbox: f } })}
-      onOpenMessages={() => navigate({ to: "/messages" })}
-      onOpenDrop={() => navigate({ to: "/drop" })}
-      onCompose={() => openCompose()}
-      onOpenSettings={openSettings}
-    />
-  )
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden">
-      {/* Desktop sidebar */}
-      <div className="hidden w-64 shrink-0 border-r border-border md:block lg:w-72">
-        {sidebarNode}
-      </div>
-
+    <div className="flex min-w-0 flex-1 overflow-hidden">
       {/* Main area */}
       <div className="relative flex min-w-0 flex-1">
         {/* Drop list pane */}
@@ -80,7 +65,7 @@ function DropRoute() {
               </SheetTrigger>
               <SheetContent side="left" className="w-72 p-0">
                 <SheetTitle className="sr-only">{t("app.folders")}</SheetTitle>
-                {sidebarNode}
+                <AppSidebar />
               </SheetContent>
             </Sheet>
             <span className="flex-1 text-sm font-medium">{t("drop.list.title")}</span>
