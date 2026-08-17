@@ -22,6 +22,12 @@ type NavSubmenu = {
   backLabel?: string
   /** Rendered between the back button and the sections, for context cards. */
   header?: ReactNode
+  /**
+   * Called when the back button is pressed, before the panel pops. Lets a
+   * consumer whose panels correspond to routes navigate out in step with the
+   * panel, instead of the nav returning to root while the page stays put.
+   */
+  onBack?: () => void
   sections: NavSection[]
 }
 
@@ -49,12 +55,18 @@ export function SidebarNav({
   onNewClick,
   ariaLabel,
   className,
+  panelClassName,
 }: {
   sections: NavSection[]
   newLabel?: string
   onNewClick?: () => void
   ariaLabel?: string
   className?: string
+  /**
+   * Classes for the sliding panel, which carries the nav's padding.
+   * `className` is applied to the outer nav and cannot reach the panel.
+   */
+  panelClassName?: string
 }) {
   const uid = useId()
   const prefersReducedMotion = useReducedMotion()
@@ -86,6 +98,7 @@ export function SidebarNav({
   }
 
   function goBack() {
+    current?.submenu.onBack?.()
     setPanel({ path: trail.slice(0, -1).map((entry) => entry.label), direction: -1 })
   }
 
@@ -109,7 +122,10 @@ export function SidebarNav({
             animate={prefersReducedMotion ? undefined : "center"}
             exit={prefersReducedMotion ? undefined : "exit"}
             transition={PANEL_TRANSITION}
-            className="absolute inset-0 flex flex-col gap-2 overflow-y-auto p-3"
+            className={cn(
+              "absolute inset-0 flex flex-col gap-2 overflow-y-auto p-3",
+              panelClassName
+            )}
           >
             {current ? (
               <>
