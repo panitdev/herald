@@ -17,11 +17,9 @@ import { SettingsDialog } from "@/components/email/settings-dialog"
 import { NewDropDialog } from "@/components/drop/new-drop-dialog"
 import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
-import { useLocalOverrides } from "@/lib/local-overrides-store"
 import { DropStoreProvider, useDropStore } from "@/lib/drop-store"
 import { WorkspaceStoreProvider } from "@/lib/workspace-store"
 import { connectRealtimeSync, sendMail } from "@/lib/api"
-import type { Email } from "@/lib/types"
 import {
   AppChromeContext,
   type AppChromeCtx,
@@ -52,8 +50,6 @@ function AppLayout() {
 
 function AppLayoutInner() {
   const { settings } = useSettings()
-  const { user } = useAuth()
-  const { addLocalEmail } = useLocalOverrides()
   const online = useOnlineStatus()
   const { t } = useTranslation()
   const { createDrop } = useDropStore()
@@ -100,9 +96,8 @@ function AppLayoutInner() {
       return
     }
 
-    let result
     try {
-      result = await sendMail({ ...data, fromName: settings.displayName })
+      await sendMail({ ...data, fromName: settings.displayName })
     } catch (err) {
       toast.error(t("app.messageFailedToSend"), {
         description:
@@ -113,24 +108,6 @@ function AppLayoutInner() {
       return
     }
 
-    const newEmail: Email = {
-      id: result.message.id,
-      from: {
-        name: t("app.you"),
-        email: user?.address ?? result.message.from_addr,
-        initials: settings.initials,
-        color: "oklch(0.7 0.16 258)",
-      },
-      to: data.to,
-      subject: data.subject,
-      preview: result.message.preview || data.body.slice(0, 120),
-      body: data.body,
-      date: result.message.received_at,
-      read: true,
-      starred: false,
-      folder: "sent",
-    }
-    addLocalEmail(newEmail)
     setComposeOpen(false)
     toast.success(t("app.messageSent"), { description: t("app.messageSentTo", { email: data.to }) })
   }

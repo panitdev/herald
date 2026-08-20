@@ -46,6 +46,12 @@ export interface SendMailInput {
   fromName?: string
 }
 
+export interface SendMailResponse {
+  provider: string
+  providerMessageId: string | null
+  from: string
+}
+
 export interface MessageBody {
   format: "html" | "text"
   body: string
@@ -846,11 +852,11 @@ export async function markAsRead(messageId: string): Promise<{ ok: boolean }> {
   return { ok: true }
 }
 
-export async function sendMail(
-  input: SendMailInput
-): Promise<{ message: Message; delivery: { provider: string; providerMessageId: string | null } }> {
-  void input
-  throw new APIError(501, "Sending mail is not supported by this API yet")
+export function sendMail(input: SendMailInput): Promise<SendMailResponse> {
+  return apiFetch<SendMailResponse>("/api/mail/send", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
 }
 
 export function getChatConversations(): Promise<{ conversations: ChatConversation[] }> {

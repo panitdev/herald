@@ -34,6 +34,7 @@ pub mod drops;
 pub mod email_receivers;
 pub mod email_senders;
 pub mod internal;
+pub mod mail;
 pub mod objects;
 pub mod sync;
 pub mod units;
@@ -59,6 +60,7 @@ pub fn router() -> Router<AppState> {
             "/api/me/email-senders/test",
             post(email_senders::send_test_email),
         )
+        .route("/api/mail/send", post(mail::send_mail))
         .route(
             "/api/me/email-receivers",
             get(email_receivers::list_email_receivers)
