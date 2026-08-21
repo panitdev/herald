@@ -61,6 +61,7 @@ pub async fn send_mail(
     email.text = Some(input.body);
 
     let outcome = sender.send(&email).await?;
+    crate::mail::persist_outbound_mail(&state, user.id, &email, &outcome).await?;
     Ok(Json(SendMailResponse {
         provider: outcome.provider.as_str().to_owned(),
         provider_message_id: outcome.message_id,

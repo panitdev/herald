@@ -18,6 +18,8 @@ pub struct Message {
     pub preview: Option<String>,
     pub received_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+    pub outbound_provider: Option<String>,
+    pub outbound_provider_message_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Insertable)]
@@ -32,4 +34,6 @@ pub struct NewMessage<'a> {
     pub subject: Option<&'a str>,
     pub preview: Option<&'a str>,
     pub received_at: DateTime<Utc>,
+    pub outbound_provider: Option<&'a str>,
+    pub outbound_provider_message_id: Option<&'a str>,
 }

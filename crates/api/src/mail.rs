@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 
 use crate::{
+    email::{EmailAddress, OutboundEmail, SendOutcome},
     error::AppError,
     mail_parser::{parse_message, render_body, ParsedAttachment, ParsedRecipient},
     mailboxes::ensure_system_mailboxes,
@@ -138,6 +139,202 @@ pub async fn render_message_body(
     Ok((message, raw_mail, html, text))
 }
 
+/// Store a successfully delivered outbound message in the sender's Sent mailbox.
+/// The raw RFC 822 representation is kept in the same blob store used by inbound mail
+/// so the existing body and source-download endpoints work for both directions.
+pub async fn persist_outbound_mail(
+    state: &AppState,
+    user_id: i64,
+    email: &OutboundEmail,
+    outcome: &SendOutcome,
+) -> Result<i64, AppError> {
+    let message_id_header = format!("<{}.herald>", state.next_id());
+    let raw = serialize_outbound(email, &message_id_header);
+    let raw_sha256 = sha256_hex(&raw);
+    let blob_key = canonical_blob_key(&raw_sha256);
+    let raw_size = raw.len() as i64;
+    state
+        .blob_store
+        .put(&blob_key, Bytes::from(raw), RAW_MIME_CONTENT_TYPE)
+        .await?;
+
+    let now = Utc::now();
+    let mut conn = state.db.get().await?;
+    conn.transaction::<i64, AppError, _>(|conn| {
+        let blob_key = blob_key.clone();
+        let raw_sha256 = raw_sha256.clone();
+        let provider = outcome.provider.as_str().to_owned();
+        let provider_message_id = outcome.message_id.clone();
+        Box::pin(async move {
+            let raw_mail = diesel::insert_into(raw_inbound_mails::table)
+                .values(&NewRawInboundMail {
+                    id: state.next_id(),
+                    blob_key: &blob_key,
+                    raw_sha256: &raw_sha256,
+                    raw_size,
+                    r2_key: None,
+                    receiver_id: None,
+                })
+                .returning(RawInboundMail::as_returning())
+                .get_result(conn)
+                .await?;
+
+            diesel::update(raw_inbound_mails::table.find(raw_mail.id))
+                .set(raw_inbound_mails::processed_at.eq(now))
+                .execute(conn)
+                .await?;
+
+            let address_id = user_addresses::table
+                .filter(user_addresses::user_id.eq(user_id))
+                .inner_join(addresses::table)
+                .filter(addresses::address.eq(&email.from.email))
+                .select(addresses::id)
+                .first::<i64>(conn)
+                .await?;
+            let ensured = ensure_system_mailboxes(conn, &state.ids, address_id).await?;
+            let sent = ensured
+                .all
+                .iter()
+                .find(|mailbox| mailbox.system_role.as_deref() == Some("sent"))
+                .ok_or_else(|| AppError::Internal)?;
+
+            let preview = email
+                .text
+                .as_deref()
+                .or(email.html.as_deref())
+                .map(|body| body.chars().take(160).collect::<String>());
+            let message = diesel::insert_into(messages::table)
+                .values(&NewMessage {
+                    id: state.next_id(),
+                    raw_inbound_mail_id: raw_mail.id,
+                    message_id_header: Some(&message_id_header),
+                    thread_id: None,
+                    from_addr: Some(&email.from.email),
+                    from_name: email.from.name.as_deref(),
+                    subject: Some(&email.subject),
+                    preview: preview.as_deref(),
+                    received_at: now,
+                    outbound_provider: Some(&provider),
+                    outbound_provider_message_id: provider_message_id.as_deref(),
+                })
+                .returning(Message::as_returning())
+                .get_result(conn)
+                .await?;
+
+            let recipients: Vec<NewMessageRecipient<'_>> = email
+                .to
+                .iter()
+                .map(|recipient| NewMessageRecipient {
+                    id: state.next_id(),
+                    message_id: message.id,
+                    kind: "to",
+                    address: &recipient.email,
+                    display_name: recipient.name.as_deref(),
+                })
+                .chain(email.cc.iter().map(|recipient| NewMessageRecipient {
+                    id: state.next_id(),
+                    message_id: message.id,
+                    kind: "cc",
+                    address: &recipient.email,
+                    display_name: recipient.name.as_deref(),
+                }))
+                .chain(email.bcc.iter().map(|recipient| NewMessageRecipient {
+                    id: state.next_id(),
+                    message_id: message.id,
+                    kind: "bcc",
+                    address: &recipient.email,
+                    display_name: recipient.name.as_deref(),
+                }))
+                .collect();
+            if !recipients.is_empty() {
+                diesel::insert_into(message_recipients::table)
+                    .values(&recipients)
+                    .execute(conn)
+                    .await?;
+            }
+
+            let relation = NewMessageMailbox {
+                message_id: message.id,
+                mailbox_id: sent.id,
+                relation: "location",
+            };
+            diesel::insert_into(message_mailboxes::table)
+                .values(&relation)
+                .execute(conn)
+                .await?;
+
+            let mut events = mailbox_sync_events(state, user_id, &ensured.created);
+            events.extend([
+                sync_event(state, user_id, "message", message.id, json!(message)),
+                sync_event(
+                    state,
+                    user_id,
+                    "messageMailbox",
+                    message.id,
+                    json!(MessageMailbox {
+                        message_id: message.id,
+                        mailbox_id: sent.id,
+                        relation: "location".to_owned(),
+                        created_at: now,
+                    }),
+                ),
+            ]);
+            events.extend(recipients.iter().map(|recipient| {
+                sync_event(
+                    state,
+                    user_id,
+                    "messageRecipient",
+                    recipient.id,
+                    json!({
+                        "id": recipient.id,
+                        "message_id": recipient.message_id,
+                        "kind": recipient.kind,
+                        "address": recipient.address,
+                        "display_name": recipient.display_name,
+                    }),
+                )
+            }));
+            diesel::insert_into(sync_events::table)
+                .values(&events)
+                .execute(conn)
+                .await?;
+
+            Ok(message.id)
+        })
+    })
+    .await
+}
+
+fn serialize_outbound(email: &OutboundEmail, message_id: &str) -> Vec<u8> {
+    let cc = email
+        .cc
+        .iter()
+        .map(EmailAddress::to_header)
+        .collect::<Vec<_>>();
+    let bcc = email
+        .bcc
+        .iter()
+        .map(EmailAddress::to_header)
+        .collect::<Vec<_>>();
+    let body = email.text.as_deref().or(email.html.as_deref()).unwrap_or_default();
+    let content_type = if email.text.is_some() {
+        "text/plain"
+    } else {
+        "text/html"
+    };
+    let mut raw = format!(
+        "Message-ID: {message_id}\r\nFrom: {}\r\nTo: {}\r\n{}{}Subject: {}\r\nDate: {}\r\nMIME-Version: 1.0\r\nContent-Type: {content_type}; charset=UTF-8\r\n\r\n",
+        email.from.to_header(),
+        email.to.iter().map(EmailAddress::to_header).collect::<Vec<_>>().join(", "),
+        if cc.is_empty() { String::new() } else { format!("Cc: {}\r\n", cc.join(", ")) },
+        if bcc.is_empty() { String::new() } else { format!("Bcc: {}\r\n", bcc.join(", ")) },
+        email.subject,
+        Utc::now().to_rfc2822(),
+    );
+    raw.push_str(body);
+    raw.into_bytes()
+}
+
 pub async fn find_owned_message(
     state: &AppState,
     user_id: i64,
@@ -252,6 +449,8 @@ async fn try_process(state: &AppState, mail_id: i64) -> Result<(), AppError> {
                 subject: parsed.subject.as_deref(),
                 preview: parsed.preview.as_deref(),
                 received_at: mail.received_at,
+                outbound_provider: None,
+                outbound_provider_message_id: None,
             };
 
             let inserted_message = diesel::insert_into(messages::table)

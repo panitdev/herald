@@ -19,7 +19,7 @@ import { useSettings } from "@/lib/settings-store"
 import { useAuth } from "@/lib/auth-store"
 import { DropStoreProvider, useDropStore } from "@/lib/drop-store"
 import { WorkspaceStoreProvider } from "@/lib/workspace-store"
-import { connectRealtimeSync, sendMail } from "@/lib/api"
+import { connectRealtimeSync, refreshSyncStateNow, sendMail } from "@/lib/api"
 import {
   AppChromeContext,
   type AppChromeCtx,
@@ -106,6 +106,12 @@ function AppLayoutInner() {
             : "Mail provider rejected the request",
       })
       return
+    }
+
+    try {
+      await refreshSyncStateNow()
+    } catch {
+      // Realtime sync or the next mailbox query will pick up the persisted message.
     }
 
     setComposeOpen(false)

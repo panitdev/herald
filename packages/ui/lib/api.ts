@@ -93,6 +93,8 @@ export interface SyncMessage {
   preview: string | null
   received_at: string
   created_at: string
+  outbound_provider: string | null
+  outbound_provider_message_id: string | null
 }
 
 export interface SyncMessageRecipient {

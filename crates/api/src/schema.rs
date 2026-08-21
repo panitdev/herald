@@ -187,6 +187,8 @@ diesel::table! {
         preview             -> Nullable<Text>,
         received_at         -> Timestamptz,
         created_at          -> Timestamptz,
+        outbound_provider   -> Nullable<Text>,
+        outbound_provider_message_id -> Nullable<Text>,
     }
 }
 
