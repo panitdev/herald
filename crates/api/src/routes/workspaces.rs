@@ -5,8 +5,8 @@
 //! the right to bind addresses to it.
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl;
@@ -24,7 +24,7 @@ use crate::{
     workspaces::{self as workspace_access, Access},
 };
 
-use super::units::{parse_id, MemberResponse, OkResponse};
+use super::units::{MemberResponse, OkResponse, parse_id};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -194,10 +194,7 @@ pub async fn add_workspace_member(
             user_id: member.id,
             role: role.as_str(),
         })
-        .on_conflict((
-            workspace_members::workspace_id,
-            workspace_members::user_id,
-        ))
+        .on_conflict((workspace_members::workspace_id, workspace_members::user_id))
         .do_update()
         .set(workspace_members::role.eq(role.as_str()))
         .execute(&mut conn)

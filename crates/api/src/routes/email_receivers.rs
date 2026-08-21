@@ -13,13 +13,13 @@
 //! therefore lives in `routes::workspaces`, not here.
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use diesel::{ExpressionMethods, QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::{
     auth::AuthUser,
@@ -34,7 +34,7 @@ use crate::{
     workspaces::{self, Access},
 };
 
-use super::units::{accessible_workspaces, normalize_domain, target_workspace, OkResponse};
+use super::units::{OkResponse, accessible_workspaces, normalize_domain, target_workspace};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -129,7 +129,10 @@ pub async fn create_email_receiver(
 
     let mail_domain = normalize_domain(input.mail_domain.as_deref())?;
     if let Some(domain) = mail_domain.as_deref() {
-        if receivers::find_for_domain(&mut conn, domain).await?.is_some() {
+        if receivers::find_for_domain(&mut conn, domain)
+            .await?
+            .is_some()
+        {
             return Err(AppError::BadRequest(format!(
                 "a receiver is already registered for `{domain}`"
             )));
@@ -139,7 +142,9 @@ pub async fn create_email_receiver(
     let worker_url = trimmed(input.worker_url.as_deref());
     if let Some(url) = worker_url.as_deref() {
         if url::Url::parse(url).is_err() {
-            return Err(AppError::BadRequest("worker_url must be a valid URL".into()));
+            return Err(AppError::BadRequest(
+                "worker_url must be a valid URL".into(),
+            ));
         }
     }
     let worker_token = trimmed(input.worker_token.as_deref());
@@ -199,7 +204,7 @@ pub async fn update_email_receiver(
         Some(value) if value.is_empty() || value.chars().count() > 120 => {
             return Err(AppError::BadRequest(
                 "display_name must be between 1 and 120 characters".into(),
-            ))
+            ));
         }
         Some(value) => value.to_owned(),
         None => record.display_name.clone(),
@@ -208,7 +213,9 @@ pub async fn update_email_receiver(
     let mut config = record.config.clone();
     if let Some(url) = trimmed(input.worker_url.as_deref()) {
         if url::Url::parse(&url).is_err() {
-            return Err(AppError::BadRequest("worker_url must be a valid URL".into()));
+            return Err(AppError::BadRequest(
+                "worker_url must be a valid URL".into(),
+            ));
         }
         config["worker_url"] = json!(url);
     }
@@ -231,7 +238,11 @@ pub async fn update_email_receiver(
         .await
         .map_err(|err| AppError::db(err, "email_receivers.update.set"))?;
 
-    Ok(Json(receiver_response(&updated, &workspace, Some(Access::Admin))))
+    Ok(Json(receiver_response(
+        &updated,
+        &workspace,
+        Some(Access::Admin),
+    )))
 }
 
 /// Rotate the inbound token. The previous token stops working immediately, so

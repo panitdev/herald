@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
 };
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
@@ -141,7 +141,9 @@ pub async fn add_contact(
         .map_err(|_| AppError::BadRequest("invalid user_id".into()))?;
 
     if contact_user_id == user.id {
-        return Err(AppError::BadRequest("cannot add yourself as contact".into()));
+        return Err(AppError::BadRequest(
+            "cannot add yourself as contact".into(),
+        ));
     }
 
     let mut conn = state.db.get().await?;

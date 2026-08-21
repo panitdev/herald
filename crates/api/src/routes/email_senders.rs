@@ -7,8 +7,8 @@
 //! member editing lives in `routes::workspaces`; secrets are never returned.
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use diesel::{QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl;
@@ -17,7 +17,7 @@ use serde_json::Value;
 
 use crate::{
     auth::AuthUser,
-    email::{registry, EmailAddress, EmailProvider, OutboundEmail},
+    email::{EmailAddress, EmailProvider, OutboundEmail, registry},
     error::{ApiResult, AppError},
     models::{
         email_sender::{EmailSenderRecord, NewEmailSender},
@@ -28,7 +28,7 @@ use crate::{
     workspaces::Access,
 };
 
-use super::units::{accessible_workspaces, normalize_domain, target_workspace, OkResponse};
+use super::units::{OkResponse, accessible_workspaces, normalize_domain, target_workspace};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,9 +92,8 @@ pub async fn create_email_sender(
     AuthUser(user): AuthUser,
     Json(input): Json<CreateEmailSenderRequest>,
 ) -> ApiResult<Json<EmailSenderResponse>> {
-    let provider = EmailProvider::parse(input.provider.trim()).ok_or_else(|| {
-        AppError::BadRequest("provider must be one of: resend, ses".into())
-    })?;
+    let provider = EmailProvider::parse(input.provider.trim())
+        .ok_or_else(|| AppError::BadRequest("provider must be one of: resend, ses".into()))?;
 
     let display_name = input.display_name.trim();
     if display_name.is_empty() || display_name.chars().count() > 120 {
@@ -198,7 +197,9 @@ pub async fn send_test_email(
 ) -> ApiResult<Json<TestSendResponse>> {
     let to = input.to.trim();
     if !looks_like_email(to) {
-        return Err(AppError::BadRequest("to must be a valid email address".into()));
+        return Err(AppError::BadRequest(
+            "to must be a valid email address".into(),
+        ));
     }
 
     let from = input
@@ -209,7 +210,9 @@ pub async fn send_test_email(
         .unwrap_or(user.address.as_str())
         .to_owned();
     if !looks_like_email(&from) {
-        return Err(AppError::BadRequest("from must be a valid email address".into()));
+        return Err(AppError::BadRequest(
+            "from must be a valid email address".into(),
+        ));
     }
 
     let sender = registry::resolve_sender_for_address(&state, user.id, &from).await?;
@@ -240,7 +243,9 @@ pub async fn send_test_email(
 fn looks_like_email(value: &str) -> bool {
     match value.split_once('@') {
         Some((local, domain)) => {
-            !local.is_empty() && domain.contains('.') && !domain.starts_with('.')
+            !local.is_empty()
+                && domain.contains('.')
+                && !domain.starts_with('.')
                 && !domain.ends_with('.')
         }
         None => false,
